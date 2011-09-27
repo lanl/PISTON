@@ -9,7 +9,6 @@
 
 #include <thrust/host_vector.h>
 
-#include <piston/implicit_function.h>
 #include <piston/image3d.h>
 
 static const int GRID_SIZE = 3;
@@ -54,6 +53,7 @@ struct height_field : public piston::image3d<IndexType, ValueType, thrust::host_
     };
 
     typedef piston::image3d<IndexType, ValueType, thrust::host_space_tag> Parent;
+//    typedef typename Parent::MemorySpace MemorySpace;
 
     typedef thrust::transform_iterator<height_functor,
 				       typename Parent::GridCoordinatesIterator> PointDataIterator;
@@ -73,11 +73,27 @@ struct height_field : public piston::image3d<IndexType, ValueType, thrust::host_
     }
 };
 
-template <typename InputIterator, typename Predicate>
+#if 1
+// TODO: there should be another abstract class that declares the interface of both image3d and extraction,
+// there are both some kind of 3D point data source which provide grid coordinates and point data iterators.
+template <typename InputDataSet, typename Predicate>
 struct extraction
 {
+    // valid_cell_enum
+    // valid_cell_indices
+    typedef thrust::host_vector<int> IndicesContainer;
+    typedef typename IndicesContainer::iterator IndicesIterator;
+    // GridCoordinatesIterator should be either a permutation iterator of valid_cell_indices and InputData::GridCoordinatesIterator
+    // or simply a copy of InputData::GridCoordinates
+    typedef typename thrust::permutation_iterator<typename InputDataSet::GridCoordinatesIterator, IndicesIterator> GridCoordinatesIterator;
+
+    extraction(InputDataSet input, Predicate predicate) {
+
+    }
+
 
 };
+#endif
 
 int main()
 {

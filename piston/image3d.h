@@ -49,6 +49,9 @@ public:
 	    return thrust::make_tuple(xx, yy, zz);
 	}
     };
+
+//    typedef MemorySpace MemorySpace;
+
     typedef typename thrust::counting_iterator<IndexType, MemorySpace> CountingIterator;
     typedef typename thrust::transform_iterator<grid_coordinates_functor, CountingIterator> GridCoordinatesIterator;
 
