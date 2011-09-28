@@ -317,8 +317,9 @@ struct threshold_geometry
 	    p[6] = p[0] + make_float3(1.0f, 1.0f, 1.0f);
 	    p[7] = p[0] + make_float3(0.0f, 1.0f, 1.0f);
 
+	    // FixME: should output 8 vertices/scalars with 24 indices
 	    for (int v = 0; v < 24; v++) {
-		*(vertices + valid_cell_id*24 + v) = make_float4(p[vertices_for_faces[v]]);
+		*(vertices + valid_cell_id*24 + v) = make_float4(p[vertices_for_faces[v]], 1.0f);
 	    }
 	}
     };

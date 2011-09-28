@@ -35,7 +35,7 @@ struct sphere : piston::implicit_function3d<IndexType, ValueType>
 	const IndexType xx = x - x_o;
 	const IndexType yy = y - y_o;
 	const IndexType zz = z - z_o;
-	return (xx*xx + yy*yy + zz*zz); //- radius*radius);
+	return (xx*xx + yy*yy + zz*zz);
     }
 };
 

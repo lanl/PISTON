@@ -41,12 +41,7 @@ public:
 	    const IndexType y = (PointId/xdim) % ydim;
 	    const IndexType z = PointId/PointsPerLayer;
 
-	    // scale and shift such that x, y, z <- [-1,1]
-	    const IndexType xx = 2*x/(xdim-1) - 1;
-	    const IndexType yy = 2*y/(ydim-1) - 1;
-	    const IndexType zz = 2*z/(zdim-1) - 1;
-
-	    return thrust::make_tuple(xx, yy, zz);
+	    return thrust::make_tuple(x, y, z);
 	}
     };
 
