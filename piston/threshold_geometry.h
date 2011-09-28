@@ -13,21 +13,42 @@
 #include <piston/image3d.h>
 #include <piston/sphere.h>
 #include <piston/cutil_math.h>
+#include <piston/choose_container.h>
+
+using namespace piston::detail;
 
 template <typename InputDataSet, typename ThresholdFunction>
 struct threshold_geometry
 {
     typedef typename InputDataSet::PointDataIterator InputPointDataIterator;
-    typedef thrust::host_vector<int> IndicesContainer;
+
+    typedef typename thrust::iterator_difference<InputPointDataIterator>::type	diff_type;
+    typedef typename thrust::iterator_space<InputPointDataIterator>::type	space_type;
+    typedef typename thrust::iterator_value<InputPointDataIterator>::type	value_type;
+
+    typedef typename thrust::counting_iterator<int, space_type>	CountingIterator;
+
+    typedef typename choose_container<InputPointDataIterator, int>::type  IndicesContainer;
+    typedef typename choose_container<InputPointDataIterator, bool>::type ValidFlagsContainer;
+
+    typedef typename choose_container<InputPointDataIterator, float4>::type VerticesContainer;
+
     typedef typename IndicesContainer::iterator IndicesIterator;
-    typedef typename thrust::counting_iterator<int, thrust::host_space_tag>	CountingIterator;
-    typedef thrust::host_vector<bool> ValidFlagsContainer;
     typedef typename ValidFlagsContainer::iterator ValidFlagsIterator;
 
-    typedef typename thrust::host_vector<float4>::iterator VerticesIterator;
+    typedef typename VerticesContainer::iterator VerticesIterator;
 
     InputDataSet &input;
-    ThresholdFunction &threshold;
+    ThresholdFunction threshold;
+
+    ValidFlagsContainer valid_cell_flags;
+    IndicesContainer    valid_cell_enum;
+    IndicesContainer    valid_cell_indices;
+    IndicesContainer    num_boundary_cell_neighbors;
+    ValidFlagsContainer boundary_cell_flags;
+    IndicesContainer    boundary_cell_enum;
+    IndicesContainer    boundary_cell_indices;
+    VerticesContainer   vertices;
 
     threshold_geometry(InputDataSet input, ThresholdFunction threshold) :
 	input(input), threshold(threshold) {}
@@ -35,17 +56,13 @@ struct threshold_geometry
     void operator()() {
 	const int NCells = (input.xdim - 1)*(input.ydim - 1)*(input.zdim - 1);
 
-	thrust::host_vector<bool> valid_cell_flags(NCells);
+	valid_cell_flags.resize(NCells);
+	// test and enumerate cells that pass threshold
 	thrust::transform(CountingIterator(0), CountingIterator(0)+NCells,
 	                  valid_cell_flags.begin(),
 	                  threshold_cell(input, threshold));
 
-	thrust::host_vector<int> valid_cell_enum(NCells);
-	// test and enumerate cells that pass threshold
-//	thrust::transform_inclusive_scan(CountingIterator(0), CountingIterator(0)+NCells,
-//	                                 valid_cell_enum.begin(),
-//	                                 threshold_cell(input, threshold),
-//	                                 thrust::plus<int>());
+	valid_cell_enum.resize(NCells);
 	// enumerate valid cells
 	thrust::inclusive_scan(valid_cell_flags.begin(), valid_cell_flags.end(),
 	                       valid_cell_enum.begin());
@@ -57,7 +74,7 @@ struct threshold_geometry
 
 	std::cout << "number of valid cells: " << num_valid_cells << std::endl;
 
-	thrust::host_vector<int> valid_cell_indices(num_valid_cells);
+	valid_cell_indices.resize(num_valid_cells);
 	// generate indices to cells that pass threshold
 	thrust::upper_bound(valid_cell_enum.begin(), valid_cell_enum.end(),
 	                    CountingIterator(0), CountingIterator(0)+num_valid_cells,
@@ -66,7 +83,8 @@ struct threshold_geometry
 	thrust::copy(valid_cell_indices.begin(), valid_cell_indices.end(), std::ostream_iterator<int>(std::cout, " "));
 	std::cout << std::endl;
 
-	thrust::host_vector<int> num_boundary_cell_neighbors(num_valid_cells);
+	// calculate how many neighbors of a cell are at the boundary of the blob.
+	num_boundary_cell_neighbors.resize(num_valid_cells);
 	thrust::transform(valid_cell_indices.begin(), valid_cell_indices.end(),
 	                  num_boundary_cell_neighbors.begin(),
 	                  boundary_cell_neighbors(input, valid_cell_flags.begin()));
@@ -74,7 +92,8 @@ struct threshold_geometry
 	thrust::copy(num_boundary_cell_neighbors.begin(), num_boundary_cell_neighbors.end(), std::ostream_iterator<int>(std::cout, " "));
 	std::cout << std::endl;
 
-	thrust::host_vector<bool> boundary_cell_flags(num_valid_cells);
+	// test if a cell is at the boundary of the blob.
+	boundary_cell_flags.resize(num_valid_cells);
 	thrust::transform(num_boundary_cell_neighbors.begin(), num_boundary_cell_neighbors.end(),
 	                  boundary_cell_flags.begin(),
 	                  is_boundary_cell());
@@ -82,17 +101,20 @@ struct threshold_geometry
 	thrust::copy(boundary_cell_flags.begin(), boundary_cell_flags.end(), std::ostream_iterator<int>(std::cout, " "));
 	std::cout << std::endl;
 
-	thrust::host_vector<int> boundary_cell_enum(num_valid_cells);
+	// enumerate how many boundary cells we have
+	boundary_cell_enum.resize(num_valid_cells);
 	thrust::inclusive_scan(boundary_cell_flags.begin(), boundary_cell_flags.end(),
 	                       boundary_cell_enum.begin());
 	std::cout << "boundary cells enum: ";
 	thrust::copy(boundary_cell_enum.begin(), boundary_cell_enum.end(), std::ostream_iterator<int>(std::cout, " "));
 	std::cout << std::endl;
 
+	// total number of boundary cells
 	int num_boundary_cells = boundary_cell_enum.back();
 	std::cout << "number of boundary cells: " << num_boundary_cells << std::endl;
 
-	thrust::host_vector<int> boundary_cell_indices(num_boundary_cells);
+	// search for indices to boundary cells among all valid cells
+	boundary_cell_indices.resize(num_boundary_cells);
 	thrust::upper_bound(boundary_cell_enum.begin(), boundary_cell_enum.end(),
 	                    CountingIterator(0), CountingIterator(0)+num_boundary_cells,
 	                    boundary_cell_indices.begin());
@@ -100,30 +122,21 @@ struct threshold_geometry
 	thrust::copy(boundary_cell_indices.begin(), boundary_cell_indices.end(), std::ostream_iterator<int>(std::cout, " "));
 	std::cout << std::endl;
 
-	std::cout << "indices to boundary cells in all cells: ";
-	thrust::copy(thrust::make_permutation_iterator(valid_cell_indices.begin(), boundary_cell_indices.begin()),
-	             thrust::make_permutation_iterator(valid_cell_indices.begin(), boundary_cell_indices.end()),
-	             std::ostream_iterator<int>(std::cout, " "));
-	std::cout << std::endl;
+//	std::cout << "indices to boundary cells in all cells: ";
+//	thrust::copy(thrust::make_permutation_iterator(valid_cell_indices.begin(), boundary_cell_indices.begin()),
+//	             thrust::make_permutation_iterator(valid_cell_indices.begin(), boundary_cell_indices.end()),
+//	             std::ostream_iterator<int>(std::cout, " "));
+//	std::cout << std::endl;
 
-	thrust::host_vector<float4> vertices(num_valid_cells*24);
+	vertices.resize(num_valid_cells*24);
 
 	thrust::for_each(thrust::make_zip_iterator(thrust::make_tuple(boundary_cell_indices.begin(),
 	                                                              thrust::make_permutation_iterator(valid_cell_indices.begin(), boundary_cell_indices.begin()))),
 	                 thrust::make_zip_iterator(thrust::make_tuple(boundary_cell_indices.end(),
 	                                                              thrust::make_permutation_iterator(valid_cell_indices.begin(), boundary_cell_indices.begin()))),
 	                 generate_quads(input, thrust::raw_pointer_cast(&*vertices.begin())));
-	thrust::for_each(vertices.begin(), vertices.end(), print_float4());
-
     }
 
-    struct print_float4 : public thrust::unary_function<float4, void>
-    {
-	__host__ __device__
-	void operator() (float4 p) {
-	    std::cout << "(" << p.x << ", " << p.y << ", " << p.z << ")" << std::endl;
-	}
-    };
 
     // FixME: the input data type should really be cells rather than cell_ids
     struct threshold_cell : public thrust::unary_function<int, bool>
@@ -251,8 +264,6 @@ struct threshold_geometry
 	    const int valid_cell_id  = thrust::get<0>(indices_tuple);
 	    const int global_cell_id = thrust::get<1>(indices_tuple);
 
-	    std::cout << "valid cell id: " << valid_cell_id << ", global_cell_id: " << global_cell_id << std::endl;
-
 	    const int vertices_for_faces[] =
 	    {
 		 0, 1, 5, 4, // face 0
@@ -312,4 +323,10 @@ struct threshold_geometry
 	}
     };
 
+    VerticesIterator verticesBegin() {
+	return vertices.begin();
+    }
+    VerticesIterator verticesEnd() {
+	return vertices.end();
+    }
 };

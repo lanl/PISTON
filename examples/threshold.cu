@@ -79,6 +79,14 @@ struct threshold_between : thrust::unary_function<float, bool>
     }
 };
 
+struct print_float4 : public thrust::unary_function<float4, void>
+{
+	__host__ __device__
+	void operator() (float4 p) {
+	    std::cout << "(" << p.x << ", " << p.y << ", " << p.z << ")" << std::endl;
+	}
+};
+
 int main()
 {
     sfield<int, float> scalar_field(GRID_SIZE, GRID_SIZE, GRID_SIZE);
@@ -87,6 +95,8 @@ int main()
 
     threshold_geometry<sfield<int, float>, threshold_between> threshold(scalar_field, threshold_between(0, 1));
     threshold();
+
+    thrust::for_each(threshold.verticesBegin(), threshold.verticesEnd(), print_float4());
 
     return 0;
 }
