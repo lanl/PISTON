@@ -68,59 +68,59 @@ struct threshold_geometry
 	                       valid_cell_enum.begin());
 	int num_valid_cells = valid_cell_enum.back();
 
-	std::cout << "valid cells enum: ";
-	thrust::copy(valid_cell_enum.begin(), valid_cell_enum.end(), std::ostream_iterator<int>(std::cout, " "));
-	std::cout << std::endl;
+//	std::cout << "valid cells enum: ";
+//	thrust::copy(valid_cell_enum.begin(), valid_cell_enum.end(), std::ostream_iterator<int>(std::cout, " "));
+//	std::cout << std::endl;
 
-	std::cout << "number of valid cells: " << num_valid_cells << std::endl;
+//	std::cout << "number of valid cells: " << num_valid_cells << std::endl;
 
 	valid_cell_indices.resize(num_valid_cells);
 	// generate indices to cells that pass threshold
 	thrust::upper_bound(valid_cell_enum.begin(), valid_cell_enum.end(),
 	                    CountingIterator(0), CountingIterator(0)+num_valid_cells,
 	                    valid_cell_indices.begin());
-	std::cout << "indices to valid cells: ";
-	thrust::copy(valid_cell_indices.begin(), valid_cell_indices.end(), std::ostream_iterator<int>(std::cout, " "));
-	std::cout << std::endl;
+//	std::cout << "indices to valid cells: ";
+//	thrust::copy(valid_cell_indices.begin(), valid_cell_indices.end(), std::ostream_iterator<int>(std::cout, " "));
+//	std::cout << std::endl;
 
 	// calculate how many neighbors of a cell are at the boundary of the blob.
 	num_boundary_cell_neighbors.resize(num_valid_cells);
 	thrust::transform(valid_cell_indices.begin(), valid_cell_indices.end(),
 	                  num_boundary_cell_neighbors.begin(),
 	                  boundary_cell_neighbors(input, valid_cell_flags.begin()));
-	std::cout << "# of boundary cell neighbors: ";
-	thrust::copy(num_boundary_cell_neighbors.begin(), num_boundary_cell_neighbors.end(), std::ostream_iterator<int>(std::cout, " "));
-	std::cout << std::endl;
+//	std::cout << "# of boundary cell neighbors: ";
+//	thrust::copy(num_boundary_cell_neighbors.begin(), num_boundary_cell_neighbors.end(), std::ostream_iterator<int>(std::cout, " "));
+//	std::cout << std::endl;
 
 	// test if a cell is at the boundary of the blob.
 	boundary_cell_flags.resize(num_valid_cells);
 	thrust::transform(num_boundary_cell_neighbors.begin(), num_boundary_cell_neighbors.end(),
 	                  boundary_cell_flags.begin(),
 	                  is_boundary_cell());
-	std::cout << "is boundary cell: ";
-	thrust::copy(boundary_cell_flags.begin(), boundary_cell_flags.end(), std::ostream_iterator<int>(std::cout, " "));
-	std::cout << std::endl;
+//	std::cout << "is boundary cell: ";
+//	thrust::copy(boundary_cell_flags.begin(), boundary_cell_flags.end(), std::ostream_iterator<int>(std::cout, " "));
+//	std::cout << std::endl;
 
 	// enumerate how many boundary cells we have
 	boundary_cell_enum.resize(num_valid_cells);
 	thrust::inclusive_scan(boundary_cell_flags.begin(), boundary_cell_flags.end(),
 	                       boundary_cell_enum.begin());
-	std::cout << "boundary cells enum: ";
-	thrust::copy(boundary_cell_enum.begin(), boundary_cell_enum.end(), std::ostream_iterator<int>(std::cout, " "));
-	std::cout << std::endl;
+//	std::cout << "boundary cells enum: ";
+//	thrust::copy(boundary_cell_enum.begin(), boundary_cell_enum.end(), std::ostream_iterator<int>(std::cout, " "));
+//	std::cout << std::endl;
 
 	// total number of boundary cells
 	int num_boundary_cells = boundary_cell_enum.back();
-	std::cout << "number of boundary cells: " << num_boundary_cells << std::endl;
+//	std::cout << "number of boundary cells: " << num_boundary_cells << std::endl;
 
 	// search for indices to boundary cells among all valid cells
 	boundary_cell_indices.resize(num_boundary_cells);
 	thrust::upper_bound(boundary_cell_enum.begin(), boundary_cell_enum.end(),
 	                    CountingIterator(0), CountingIterator(0)+num_boundary_cells,
 	                    boundary_cell_indices.begin());
-	std::cout << "indices to boundary cells in valid cells: ";
-	thrust::copy(boundary_cell_indices.begin(), boundary_cell_indices.end(), std::ostream_iterator<int>(std::cout, " "));
-	std::cout << std::endl;
+//	std::cout << "indices to boundary cells in valid cells: ";
+//	thrust::copy(boundary_cell_indices.begin(), boundary_cell_indices.end(), std::ostream_iterator<int>(std::cout, " "));
+//	std::cout << std::endl;
 
 //	std::cout << "indices to boundary cells in all cells: ";
 //	thrust::copy(thrust::make_permutation_iterator(valid_cell_indices.begin(), boundary_cell_indices.begin()),
@@ -195,7 +195,7 @@ struct threshold_geometry
 	    valid &= threshold(f6);
 	    valid &= threshold(f7);
 
-	    std::cout << "cell id: " << cell_id << ", valid: " << valid << std::endl;
+//	    std::cout << "cell id: " << cell_id << ", valid: " << valid << std::endl;
 	    return valid;
 	}
     };

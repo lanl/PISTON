@@ -263,8 +263,8 @@ void initGL(int argc, char **argv)
 int main(int argc, char *argv[])
 {
     sfield<int, float> scalar_field(GRID_SIZE, GRID_SIZE, GRID_SIZE);
-    thrust::copy(scalar_field.point_data_begin(), scalar_field.point_data_end(), std::ostream_iterator<float>(std::cout, " "));
-    std::cout << std::endl;
+//    thrust::copy(scalar_field.point_data_begin(), scalar_field.point_data_end(), std::ostream_iterator<float>(std::cout, " "));
+//    std::cout << std::endl;
 
     threshold_geometry<sfield<int, float>, threshold_between> threshold(scalar_field, threshold_between(9, 25));
     threshold();
