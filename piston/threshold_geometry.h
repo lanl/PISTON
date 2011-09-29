@@ -5,10 +5,12 @@
  *      Author: ollie
  */
 
-#include <thrust/host_vector.h>
 #include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/zip_iterator.h>
+#include <thrust/iterator/permutation_iterator.h>
 #include <thrust/transform_scan.h>
 #include <thrust/binary_search.h>
+#include <thrust/tuple.h>
 
 #include <piston/image3d.h>
 #include <piston/sphere.h>
@@ -73,6 +75,12 @@ struct threshold_geometry
 //	std::cout << std::endl;
 
 //	std::cout << "number of valid cells: " << num_valid_cells << std::endl;
+
+	// no valid cells at all, return with empty vertices vector.
+	if (num_valid_cells == 0) {
+	    vertices.clear();
+	    return;
+	}
 
 	valid_cell_indices.resize(num_valid_cells);
 	// generate indices to cells that pass threshold
@@ -230,12 +238,12 @@ struct threshold_geometry
 	    const int y = (valid_cell_id / (xdim - 1)) % (ydim -1);
 	    const int z = valid_cell_id / cells_per_layer;
 
-	    int boundary = *(valid_cell_flags + n0) || (y == 0);
-	    boundary    += *(valid_cell_flags + n1) || (x == (xdim - 1));
-	    boundary    += *(valid_cell_flags + n2) || (y == (ydim - 1));
-	    boundary    += *(valid_cell_flags + n3) || (x == 0);
-	    boundary    += *(valid_cell_flags + n4) || (z == 0);
-	    boundary    += *(valid_cell_flags + n5) || (z == (zdim - 1));
+	    int boundary = !(y == 0)          && *(valid_cell_flags + n0);
+	    boundary    += !(x == (xdim - 2)) && *(valid_cell_flags + n1);
+	    boundary    += !(y == (ydim - 2)) && *(valid_cell_flags + n2);
+	    boundary    += !(x == 0)          && *(valid_cell_flags + n3);
+	    boundary    += !(z == 0)          && *(valid_cell_flags + n4);
+	    boundary    += !(z == (zdim - 2)) && *(valid_cell_flags + n5);
 
 	    return boundary;
 	}
@@ -245,7 +253,9 @@ struct threshold_geometry
     {
 	__host__ __device__
 	bool operator() (int num_boundary_cell_neighbors) const {
-	    return num_boundary_cell_neighbors != 0;
+//	    return !(num_boundary_cell_neighbors == 0 ||
+//		     num_boundary_cell_neighbors != 6);
+	    return num_boundary_cell_neighbors != 6;
 	}
     };
 

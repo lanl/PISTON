@@ -11,6 +11,7 @@
 
 static const int GRID_SIZE = 16;
 
+#if 1
 template <typename IndexType, typename ValueType>
 struct height_field : public piston::image3d<IndexType, ValueType, thrust::host_space_tag>
 {
@@ -43,6 +44,7 @@ struct height_field : public piston::image3d<IndexType, ValueType, thrust::host_
 	return iter + this->NPoints;
     }
 };
+#endif
 
 template <typename IndexType, typename ValueType>
 struct sfield : public piston::image3d<IndexType, ValueType, thrust::host_space_tag>
@@ -85,7 +87,7 @@ struct print_float4 : public thrust::unary_function<float4, void>
 {
 	__host__ __device__
 	void operator() (float4 p) {
-	    std::cout << "(" << p.x << ", " << p.y << ", " << p.z << ")" << std::endl;
+//	    std::cout << "(" << p.x << ", " << p.y << ", " << p.z << ")" << std::endl;
 	}
 };
 
@@ -266,7 +268,7 @@ int main(int argc, char *argv[])
 //    thrust::copy(scalar_field.point_data_begin(), scalar_field.point_data_end(), std::ostream_iterator<float>(std::cout, " "));
 //    std::cout << std::endl;
 
-    threshold_geometry<sfield<int, float>, threshold_between> threshold(scalar_field, threshold_between(9, 25));
+    threshold_geometry<sfield<int, float>, threshold_between> threshold(scalar_field, threshold_between(4, 36));
     threshold();
 
     threshold_p = &threshold;
