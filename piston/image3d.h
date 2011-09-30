@@ -23,6 +23,7 @@ public:
     int ydim;
     int zdim;
     int NPoints;
+    int NCells;
 
     // TODO: should be in detail namespace with 2d variant.
     struct grid_coordinates_functor : public thrust::unary_function<IndexType, thrust::tuple<IndexType, IndexType, IndexType> >
@@ -48,12 +49,16 @@ public:
 //    typedef MemorySpace MemorySpace;
 
     typedef typename thrust::counting_iterator<IndexType, MemorySpace> CountingIterator;
+//    typedef typename thrust::counting_iterator<IndexType> CountingIterator;
+//    typedef typename thrust::counting_iterator<IndexType, thrust::detail::default_device_space_tag> CountingIterator;
     typedef typename thrust::transform_iterator<grid_coordinates_functor, CountingIterator> GridCoordinatesIterator;
 
     GridCoordinatesIterator grid_coordinates_iterator;
 
     image3d(int xdim, int ydim, int zdim) :
-	xdim(xdim), ydim(ydim), zdim(zdim), NPoints(xdim*ydim*zdim),
+	xdim(xdim), ydim(ydim), zdim(zdim),
+	NPoints(xdim*ydim*zdim),
+	NCells((xdim-1)*(ydim-1)*(zdim-1)),
 	grid_coordinates_iterator(CountingIterator(0), grid_coordinates_functor(xdim, ydim, zdim)) {}
 
     void resize(int xdim, int ydim, int zdim) {

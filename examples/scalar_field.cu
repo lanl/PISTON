@@ -13,13 +13,14 @@
 #include <piston/sphere.h>
 
 static const int GRID_SIZE = 3;
+#define SPACE thrust::detail::default_device_space_tag
 
 using namespace piston;
 
 template <typename IndexType, typename ValueType>
-struct sfield : public piston::image3d<IndexType, ValueType, thrust::host_space_tag>
+struct sfield : public piston::image3d<IndexType, ValueType, SPACE>
 {
-    typedef piston::image3d<IndexType, ValueType, thrust::host_space_tag> Parent;
+    typedef piston::image3d<IndexType, ValueType, SPACE> Parent;
 
     typedef thrust::transform_iterator<sphere<IndexType, ValueType>,
 				       typename Parent::GridCoordinatesIterator> PointDataIterator;
@@ -40,9 +41,9 @@ struct sfield : public piston::image3d<IndexType, ValueType, thrust::host_space_
 };
 
 template <typename IndexType, typename ValueType>
-struct sfield_gb : public piston::image3d<IndexType, ValueType, thrust::host_space_tag>
+struct sfield_gb : public piston::image3d<IndexType, ValueType, SPACE>
 {
-    typedef piston::image3d<IndexType, ValueType, thrust::host_space_tag> Parent;
+    typedef piston::image3d<IndexType, ValueType, SPACE> Parent;
 
     typedef thrust::host_vector<thrust::tuple<IndexType, IndexType, IndexType> > GridCoordinatesContainer;
     GridCoordinatesContainer grid_coordinates_vector;
@@ -77,9 +78,9 @@ struct sfield_gb : public piston::image3d<IndexType, ValueType, thrust::host_spa
 };
 
 template <typename IndexType, typename ValueType>
-struct sfield_gbpb : public piston::image3d<IndexType, ValueType, thrust::host_space_tag>
+struct sfield_gbpb : public piston::image3d<IndexType, ValueType, SPACE>
 {
-    typedef piston::image3d<IndexType, ValueType, thrust::host_space_tag> Parent;
+    typedef piston::image3d<IndexType, ValueType, SPACE> Parent;
 
     typedef thrust::host_vector<thrust::tuple<IndexType, IndexType, IndexType> > GridCoordinatesContainer;
     GridCoordinatesContainer grid_coordinates_vector;
@@ -117,6 +118,7 @@ struct sfield_gbpb : public piston::image3d<IndexType, ValueType, thrust::host_s
 
 struct print_coordinate : public thrust::unary_function<thrust::tuple<int , int, int>, void>
 {
+    __host__ __device__
     void operator()(thrust::tuple<int, int, int> pos) const {
 	std::cout << "("  << thrust::get<0>(pos)
 		  << ", " << thrust::get<1>(pos)
@@ -129,24 +131,27 @@ int main()
 {
     // the basic 3D scalar field, grid coordinates and scalar values are computed on the fly
     sfield<int, int> scalar_field(GRID_SIZE, GRID_SIZE, GRID_SIZE);
-    std::cout << typeid(scalar_field.grid_coordinates_begin()).name() << std::endl;
-    thrust::for_each(scalar_field.grid_coordinates_begin(), scalar_field.grid_coordinates_end(), print_coordinate());
-    std::cout << typeid(scalar_field.point_data_begin()).name() << std::endl;
-    thrust::copy(scalar_field.point_data_begin(), scalar_field.point_data_end(), std::ostream_iterator<int>(std::cout, " "));
-    std::cout << std::endl;
+//    std::cout << typeid(scalar_field.grid_coordinates_begin()).name() << std::endl;
+//    thrust::for_each(scalar_field.grid_coordinates_begin(), scalar_field.grid_coordinates_end(), print_coordinate());
+    thrust::host_vector<int> temp(scalar_field.point_data_begin(), scalar_field.point_data_end());
+        thrust::copy(temp.begin(), temp.end(), std::ostream_iterator<int>(std::cout, " "));
+        std::cout << std::endl;
+//    std::cout << typeid(scalar_field.point_data_begin()).name() << std::endl;
+//    thrust::copy(scalar_field.point_data_begin(), scalar_field.point_data_end(), std::ostream_iterator<int>(std::cout, " "));
+//    std::cout << std::endl;
 
-    sfield_gb<int, int> scalar_field_gb(GRID_SIZE, GRID_SIZE, GRID_SIZE);
-    std::cout << typeid(scalar_field_gb.grid_coordinates_begin()).name() << std::endl;
-    thrust::for_each(scalar_field_gb.grid_coordinates_begin(), scalar_field_gb.grid_coordinates_end(), print_coordinate());
-    std::cout << typeid(scalar_field_gb.point_data_begin()).name() << std::endl;
-    thrust::copy(scalar_field_gb.point_data_begin(), scalar_field_gb.point_data_end(), std::ostream_iterator<int>(std::cout, " "));
-    std::cout << std::endl;
-
-    sfield_gbpb<int, int> scalar_field_gbpb(GRID_SIZE, GRID_SIZE, GRID_SIZE);
-    std::cout << typeid(scalar_field_gbpb.grid_coordinates_begin()).name() << std::endl;
-    thrust::for_each(scalar_field_gbpb.grid_coordinates_begin(), scalar_field_gbpb.grid_coordinates_end(), print_coordinate());
-    std::cout << typeid(scalar_field_gbpb.point_data_begin()).name() << std::endl;
-    thrust::copy(scalar_field_gbpb.point_data_begin(), scalar_field_gbpb.point_data_end(), std::ostream_iterator<int>(std::cout, " "));
-    std::cout << std::endl;
+//    sfield_gb<int, int> scalar_field_gb(GRID_SIZE, GRID_SIZE, GRID_SIZE);
+//    std::cout << typeid(scalar_field_gb.grid_coordinates_begin()).name() << std::endl;
+//    thrust::for_each(scalar_field_gb.grid_coordinates_begin(), scalar_field_gb.grid_coordinates_end(), print_coordinate());
+//    std::cout << typeid(scalar_field_gb.point_data_begin()).name() << std::endl;
+//    thrust::copy(scalar_field_gb.point_data_begin(), scalar_field_gb.point_data_end(), std::ostream_iterator<int>(std::cout, " "));
+//    std::cout << std::endl;
+//
+//    sfield_gbpb<int, int> scalar_field_gbpb(GRID_SIZE, GRID_SIZE, GRID_SIZE);
+//    std::cout << typeid(scalar_field_gbpb.grid_coordinates_begin()).name() << std::endl;
+//    thrust::for_each(scalar_field_gbpb.grid_coordinates_begin(), scalar_field_gbpb.grid_coordinates_end(), print_coordinate());
+//    std::cout << typeid(scalar_field_gbpb.point_data_begin()).name() << std::endl;
+//    thrust::copy(scalar_field_gbpb.point_data_begin(), scalar_field_gbpb.point_data_end(), std::ostream_iterator<int>(std::cout, " "));
+//    std::cout << std::endl;
     return 0;
 }
