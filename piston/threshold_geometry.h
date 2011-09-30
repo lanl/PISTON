@@ -165,7 +165,7 @@ struct threshold_geometry
 
 	const ThresholdFunction &threshold;
 	__host__ __device__
-	static bool test(const float f) { return (f >=4 && f <= 16); }
+	bool test(const float f) const { return (f >=4 && f <= 16); }
 
 	threshold_cell(InputDataSet &input, ThresholdFunction threshold) :
 	    point_data(thrust::raw_pointer_cast(&*input.point_data_begin())),
