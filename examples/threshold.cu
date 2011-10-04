@@ -15,7 +15,7 @@
 #define SPACE thrust::detail::default_device_space_tag
 
 using namespace piston;
-static const int GRID_SIZE = 8;
+static const int GRID_SIZE = 256;
 
 #if 1
 template <typename IndexType, typename ValueType>
@@ -197,7 +197,78 @@ void keyboard( unsigned char key, int x, int y )
 }
 
 
-threshold_geometry<sphere_field<int, float>, threshold_between> *threshold_p;
+threshold_geometry<sphere_field<int, float> > *threshold_p;
+
+template <typename ValueType>
+struct color_map : thrust::unary_function<ValueType, float4>
+{
+    const ValueType min;
+    const ValueType max;
+
+    __host__ __device__
+    color_map(ValueType min, ValueType max) :
+	min(min), max(max) {}
+
+    __host__ __device__
+    float4 operator()(ValueType val) {
+	// HSV rainbow for height field, stolen form Manta
+	const float V = 0.7f, S = 1.0f;
+	float H = (1.0f - static_cast<float> (val) / (max - min));
+
+	if (H < 0.0f)
+	    H = 0.0f;
+	else if (H > 1.0f)
+	    H = 1.0f;
+	H *= 4.0f;
+
+	float i = floor(H);
+	float f = H - i;
+
+	float p = V * (1.0 - S);
+	float q = V * (1.0 - S * f);
+	float t = V * (1.0 - S * (1 - f));
+
+	float R, G, B;
+	if (i == 0.0) {
+	    R = V;
+	    G = t;
+	    B = p;
+	} else if (i == 1.0) {
+	    R = q;
+	    G = V;
+	    B = p;
+	} else if (i == 2.0) {
+	    R = p;
+	    G = V;
+	    B = t;
+	} else if (i == 3.0) {
+	    R = p;
+	    G = q;
+	    B = V;
+	} else if (i == 4.0) {
+	    R = t;
+	    G = p;
+	    B = V;
+	} else {
+	    // i == 5.0
+	    R = V;
+	    G = p;
+	    B = q;
+	}
+	return make_float4(R, G, B, 1.0);
+    }
+};
+
+struct tuple2float4 : thrust::unary_function<thrust::tuple<int, int, int>, float4>
+{
+	__host__ __device__
+	float4 operator()(thrust::tuple<int, int, int> xyz) {
+	    return make_float4((float) thrust::get<0>(xyz),
+	                       (float) thrust::get<1>(xyz),
+	                       (float) thrust::get<2>(xyz),
+	                       1.0f);
+	}
+};
 
 void display()
 {
@@ -220,15 +291,15 @@ void display()
     glTranslatef(-(GRID_SIZE-1)/2, -(GRID_SIZE-1)/2, -(GRID_SIZE-1)/2);
     glTranslatef(translate.x, translate.y, translate.z);
 
-    thrust::host_vector<float4> vertices(threshold_p->verticesBegin(),
-                                         threshold_p->verticesEnd());
+    thrust::host_vector<float4> vertices(thrust::make_transform_iterator(threshold_p->vertices_begin(), tuple2float4()),
+                                         thrust::make_transform_iterator(threshold_p->vertices_end(),   tuple2float4()));
+    thrust::host_vector<float4> colors(thrust::make_transform_iterator(threshold_p->scalars_begin(), color_map<float>(4.0f, 256.0f)),
+                                       thrust::make_transform_iterator(threshold_p->scalars_end(),  color_map<float>(4.0f, 256.0f)));
 
-//    thrust::for_each(vertices.begin(), vertices.end(), print_float4());
-
-    glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+//    glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 
 //    glNormalPointer(GL_FLOAT, 0, &normals[0]);
-//    glColorPointer(3, GL_FLOAT, 0, &normals[0]);
+    glColorPointer(4, GL_FLOAT, 0, &colors[0]);
     glVertexPointer(4, GL_FLOAT, 0, &vertices[0]);
     glDrawArrays(GL_QUADS, 0, vertices.size());
 
@@ -303,7 +374,7 @@ void initGL(int argc, char **argv)
     // enable vertex and normal arrays
     glEnableClientState(GL_VERTEX_ARRAY);
 //    glEnableClientState(GL_NORMAL_ARRAY);
-//    glEnableClientState(GL_COLOR_ARRAY);
+    glEnableClientState(GL_COLOR_ARRAY);
 
 //    glutReshapeFunc( reshape);
     glutDisplayFunc(display);
@@ -320,11 +391,12 @@ int main(int argc, char *argv[])
 {
 
     sphere_field<int, float> scalar_field(GRID_SIZE, GRID_SIZE, GRID_SIZE);
-    thrust::copy(scalar_field.point_data_begin(), scalar_field.point_data_end(), std::ostream_iterator<float>(std::cout, " "));
-    std::cout << std::endl;
+//    thrust::copy(scalar_field.point_data_begin(), scalar_field.point_data_end(), std::ostream_iterator<float>(std::cout, " "));
+//    std::cout << std::endl;
 
-    threshold_geometry<sphere_field<int, float>, threshold_between> threshold(scalar_field, threshold_between(4, 16));
-    threshold();
+    threshold_geometry<sphere_field<int, float> > threshold(scalar_field, 4, 256);
+//    for (int i = 0; i < 10; i++)
+	threshold();
 
     threshold_p = &threshold;
 
