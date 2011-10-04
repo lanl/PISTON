@@ -49,8 +49,6 @@ public:
 //    typedef MemorySpace MemorySpace;
 
     typedef typename thrust::counting_iterator<IndexType, MemorySpace> CountingIterator;
-//    typedef typename thrust::counting_iterator<IndexType> CountingIterator;
-//    typedef typename thrust::counting_iterator<IndexType, thrust::detail::default_device_space_tag> CountingIterator;
     typedef typename thrust::transform_iterator<grid_coordinates_functor, CountingIterator> GridCoordinatesIterator;
 
     GridCoordinatesIterator grid_coordinates_iterator;
