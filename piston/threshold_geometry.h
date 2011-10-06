@@ -132,7 +132,7 @@ struct threshold_geometry
 
 	// total number of exterior cells
 	int num_exterior_cells = exterior_cell_enum.back();
-//	std::cout << "number of boundary cells: " << num_boundary_cells << std::endl;
+//	std::cout << "number of exterior cells: " << num_exterior_cells << std::endl;
 
 	// search for indices to exterior cells among all valid cells
 	exterior_cell_indices.resize(num_exterior_cells);
@@ -149,11 +149,11 @@ struct threshold_geometry
 //	             std::ostream_iterator<int>(std::cout, " "));
 //	std::cout << std::endl;
 
-	vertices_indices.resize(num_valid_cells*24);
-
-	thrust::for_each(thrust::make_zip_iterator(thrust::make_tuple(exterior_cell_indices.begin(),
+	// generate 6 quards for each exterior cell
+	vertices_indices.resize(num_exterior_cells*24);
+	thrust::for_each(thrust::make_zip_iterator(thrust::make_tuple(CountingIterator(0),
 	                                                              thrust::make_permutation_iterator(valid_cell_indices.begin(), exterior_cell_indices.begin()))),
-	                 thrust::make_zip_iterator(thrust::make_tuple(exterior_cell_indices.end(),
+	                 thrust::make_zip_iterator(thrust::make_tuple(CountingIterator(0) + num_exterior_cells,
 	                                                              thrust::make_permutation_iterator(valid_cell_indices.begin(), exterior_cell_indices.begin()))),
 	                 generate_quads(input, thrust::raw_pointer_cast(&*vertices_indices.begin())));
 
@@ -292,18 +292,21 @@ struct threshold_geometry
 	const int zdim;
 	const int cells_per_layer;
 
-	int *vertices_indices;
+	// crazy C++ const correctness, vertices_indices is a pointer that
+	// does not change the address it points to.
+	int * const vertices_indices;
 
-	generate_quads(InputDataSet &input, int *vertices_indices) :
+	generate_quads(InputDataSet &input, int * const vertices_indices) :
 	    xdim(input.xdim), ydim(input.ydim), zdim(input.zdim),
 	    cells_per_layer((xdim - 1) * (ydim - 1)),
 	    vertices_indices(vertices_indices) {}
 
 	__host__ __device__
-	void operator() (thrust::tuple<int, int> indices_tuple) {
-	    const int valid_cell_id  = thrust::get<0>(indices_tuple);
-	    const int global_cell_id = thrust::get<1>(indices_tuple);
+	void operator() (thrust::tuple<int, int> indices_tuple) const {
+	    const int exterior_cell_id = thrust::get<0>(indices_tuple);
+	    const int global_cell_id   = thrust::get<1>(indices_tuple);
 
+//	    std::cout << "exterior id: " << exterior_cell_id << ", global_cell_id: " << global_cell_id << std::endl;
 	    const int vertices_for_faces[] =
 	    {
 		 0, 1, 5, 4, // face 0
@@ -320,7 +323,7 @@ struct threshold_geometry
 
 	    // indices to the eight vertices of the voxel
 	    int i[8];
-	    i[0] = x    + y*xdim + z * xdim * ydim;
+	    i[0] = x      + y*xdim + z * xdim * ydim;
 	    i[1] = i[0]   + 1;
 	    i[2] = i[0]   + 1	+ xdim;
 	    i[3] = i[0]   + xdim;
@@ -331,7 +334,7 @@ struct threshold_geometry
 	    i[7] = i[3]   + xdim * ydim;
 
 	    for (int v = 0; v < 24; v++) {
-		*(vertices_indices + valid_cell_id*24 + v) = i[vertices_for_faces[v]];
+		*(vertices_indices + exterior_cell_id*24 + v) = i[vertices_for_faces[v]];
 	    }
 	}
     };

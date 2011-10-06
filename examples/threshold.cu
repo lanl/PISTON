@@ -394,13 +394,13 @@ int main(int argc, char *argv[])
 //    thrust::copy(scalar_field.point_data_begin(), scalar_field.point_data_end(), std::ostream_iterator<float>(std::cout, " "));
 //    std::cout << std::endl;
 
-    threshold_geometry<sphere_field<int, float> > threshold(scalar_field, 4, 256);
+    threshold_geometry<sphere_field<int, float> > threshold(scalar_field, 4, 1600);
 //    for (int i = 0; i < 10; i++)
 	threshold();
 
-    threshold_p = &threshold;
+//    threshold_p = &threshold;
 
-    initGL(argc, argv);
+//    initGL(argc, argv);
 
     return 0;
 }
