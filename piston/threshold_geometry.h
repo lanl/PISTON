@@ -38,7 +38,7 @@ struct threshold_geometry
     typedef typename thrust::counting_iterator<int, space_type>	CountingIterator;
 
     typedef typename choose_container<InputPointDataIterator, int>::type  IndicesContainer;
-    typedef typename choose_container<InputPointDataIterator, bool>::type ValidFlagsContainer;
+    typedef typename choose_container<InputPointDataIterator, int>::type ValidFlagsContainer;
 
     typedef typename IndicesContainer::iterator IndicesIterator;
     typedef typename ValidFlagsContainer::iterator ValidFlagsIterator;
@@ -235,9 +235,9 @@ struct threshold_geometry
 	const int zdim;
 	const int cells_per_layer;
 
-	const bool *valid_cell_flags;
+	const int *valid_cell_flags;
 
-	valid_cell_neighbors(InputDataSet &input, const bool *valid_cell_flags) :
+	valid_cell_neighbors(InputDataSet &input, const int *valid_cell_flags) :
 	    xdim(input.xdim), ydim(input.ydim), zdim(input.zdim),
 	    cells_per_layer((xdim - 1) * (ydim - 1)),
 	    valid_cell_flags(valid_cell_flags) {}
