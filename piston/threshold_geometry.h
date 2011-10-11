@@ -11,6 +11,8 @@
 #include <thrust/transform_scan.h>
 #include <thrust/binary_search.h>
 #include <thrust/tuple.h>
+#include <thrust/sort.h>
+#include <thrust/unique.h>
 
 #include <piston/image3d.h>
 #include <piston/sphere.h>
@@ -39,6 +41,7 @@ struct threshold_geometry
 
     typedef typename choose_container<InputPointDataIterator, int>::type  IndicesContainer;
     typedef typename choose_container<InputPointDataIterator, int>::type ValidFlagsContainer;
+    typedef typename choose_container<InputPointDataIterator, thrust::tuple<int, int, int> >::type VerticesContainer;
 
     typedef typename IndicesContainer::iterator IndicesIterator;
     typedef typename ValidFlagsContainer::iterator ValidFlagsIterator;
@@ -157,8 +160,48 @@ struct threshold_geometry
 	                                                              thrust::make_permutation_iterator(valid_cell_indices.begin(), exterior_cell_indices.begin()))),
 	                 generate_quads(input, thrust::raw_pointer_cast(&*vertices_indices.begin())));
 
+	VerticesContainer vertices_sorted(this->vertices_begin(), this->vertices_end());
+
+	thrust::sort(vertices_sorted.begin(), vertices_sorted.end(), tuple3_less<int>());
+	vertices_sorted.erase(thrust::unique(vertices_sorted.begin(), vertices_sorted.end(),
+	                                     tuple3_equal<int>()), vertices_sorted.end());
+
+	std::cout << "# unsorted vertices: " << vertices_indices.size() << ", # sorted vertices: " << vertices_sorted.size() << std::endl;
+	IndicesContainer sorted_indices(num_exterior_cells*24);
+	thrust::lower_bound(vertices_sorted.begin(), vertices_sorted.end(),
+	                    this->vertices_begin(), this->vertices_end(),
+	                    sorted_indices.begin(),
+	                    tuple3_less<int>());
     }
 
+    template <typename T>
+    struct tuple3_equal : public thrust::unary_function<thrust::tuple<T, T, T>, bool>
+    {
+	__host__ __device__
+	bool operator() (thrust::tuple<T, T, T> t1, thrust::tuple<T, T, T> t2) {
+	    return thrust::get<0>(t1) == thrust::get<0>(t2) &&
+		   thrust::get<1>(t1) == thrust::get<1>(t2) &&
+		   thrust::get<2>(t1) == thrust::get<2>(t2);
+	}
+    };
+    template <typename T>
+    struct tuple3_less : public thrust::unary_function<thrust::tuple<T, T, T>, bool>
+    {
+	__host__ __device__
+	bool operator() (thrust::tuple<T, T, T> t1, thrust::tuple<T, T, T> t2) {
+	    if (thrust::get<0>(t1) < thrust::get<0>(t2))
+		return true;
+	    else if (thrust::get<0>(t1) > thrust::get<0>(t2))
+		return false;
+
+	    if (thrust::get<1>(t1) < thrust::get<1>(t2))
+		return true;
+	    else if (thrust::get<1>(t1) > thrust::get<1>(t2))
+		return false;
+
+	    return thrust::get<2>(t1) < thrust::get<2>(t2);
+	}
+    };
 
     // FixME: the input data type should really be cells rather than cell_ids
     // FixME: change float to value_type

@@ -6,13 +6,19 @@
  */
 
 #include <thrust/device_vector.h>
+
 #if 1
+#include <GL/glew.h>
+#include <GL/gl.h>
+#include <cuda_gl_interop.h>
+#include <GL/glext.h>
 #include <GL/glut.h>
 #include <piston/sphere.h>
 #include <piston/threshold_geometry.h>
 
 //#define SPACE  thrust::host_space_tag
 #define SPACE thrust::detail::default_device_space_tag
+#define USE_INTEROP 1
 
 using namespace piston;
 static const int GRID_SIZE = 256;
@@ -196,9 +202,6 @@ void keyboard( unsigned char key, int x, int y )
     }
 }
 
-
-threshold_geometry<sphere_field<int, float> > *threshold_p;
-
 template <typename ValueType>
 struct color_map : thrust::unary_function<ValueType, float4>
 {
@@ -270,6 +273,34 @@ struct tuple2float4 : thrust::unary_function<thrust::tuple<int, int, int>, float
 	}
 };
 
+
+threshold_geometry<sphere_field<int, float> > *threshold_p;
+
+GLuint quads_vbo[2];
+unsigned int buffer_size;
+
+void create_vbo()
+{
+    glGenBuffers(2, quads_vbo);
+
+    buffer_size = thrust::distance(threshold_p->vertices_begin(), threshold_p->vertices_end())* sizeof(float4);
+
+    // initialize vertex buffer object
+    glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[0]);
+    glBufferData(GL_ARRAY_BUFFER, buffer_size, 0, GL_DYNAMIC_DRAW);
+
+    // initialize color buffer
+    glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[1]);
+    glBufferData(GL_ARRAY_BUFFER, buffer_size, 0, GL_DYNAMIC_DRAW);
+
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    // register this buffer object with CUDA
+    cudaGLRegisterBufferObject(quads_vbo[0]);
+    cudaGLRegisterBufferObject(quads_vbo[1]);
+}
+
 void display()
 {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -291,20 +322,45 @@ void display()
     glTranslatef(-(GRID_SIZE-1)/2, -(GRID_SIZE-1)/2, -(GRID_SIZE-1)/2);
     glTranslatef(translate.x, translate.y, translate.z);
 
+#if USE_INTEROP
+    float4 *raw_ptr;
+
+    //    glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[0]);
+    cudaGLMapBufferObject((void**)&raw_ptr, quads_vbo[0]);
+    thrust::copy(thrust::make_transform_iterator(threshold_p->vertices_begin(), tuple2float4()),
+                 thrust::make_transform_iterator(threshold_p->vertices_end(),   tuple2float4()),
+                 thrust::device_ptr<float4>(raw_ptr));
+    cudaGLUnmapBufferObject(quads_vbo[0]);
+
+    glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[0]);
+    glVertexPointer(4, GL_FLOAT, 0, 0);
+
+    cudaGLMapBufferObject((void**)&raw_ptr, quads_vbo[1]);
+    thrust::transform(threshold_p->scalars_begin(), threshold_p->scalars_end(),
+                      thrust::device_ptr<float4>(raw_ptr),
+                      color_map<float>(4.0f, 256.0f));
+    cudaGLUnmapBufferObject(quads_vbo[1]);
+
+    glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[1]);
+    glColorPointer(4, GL_FLOAT, 0, 0);
+
+    //    glNormalPointer(GL_FLOAT, 0, &normals[0]);
+
+    glDrawArrays(GL_QUADS, 0, buffer_size/sizeof(float4));
+
+#else
     thrust::host_vector<float4> vertices(thrust::make_transform_iterator(threshold_p->vertices_begin(), tuple2float4()),
                                          thrust::make_transform_iterator(threshold_p->vertices_end(),   tuple2float4()));
     thrust::host_vector<float4> colors(thrust::make_transform_iterator(threshold_p->scalars_begin(), color_map<float>(4.0f, 256.0f)),
-                                       thrust::make_transform_iterator(threshold_p->scalars_end(),  color_map<float>(4.0f, 256.0f)));
-
-//    glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+                                       thrust::make_transform_iterator(threshold_p->scalars_end(),   color_map<float>(4.0f, 256.0f)));
 
 //    glNormalPointer(GL_FLOAT, 0, &normals[0]);
     glColorPointer(4, GL_FLOAT, 0, &colors[0]);
     glVertexPointer(4, GL_FLOAT, 0, &vertices[0]);
-    glDrawArrays(GL_QUADS, 0, vertices.size());
 
-    // set view matrix for 2D message
-    // TBD
+    glDrawArrays(GL_QUADS, 0, vertices.size());
+#endif
+
     glutSwapBuffers();
 }
 
@@ -326,6 +382,8 @@ void initGL(int argc, char **argv)
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
     glutInitWindowSize(800, 800);
     glutCreateWindow("Marching Cube");
+
+    glewInit();
 
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
     glEnable(GL_DEPTH_TEST);
@@ -376,6 +434,9 @@ void initGL(int argc, char **argv)
 //    glEnableClientState(GL_NORMAL_ARRAY);
     glEnableClientState(GL_COLOR_ARRAY);
 
+#if USE_INTEROP
+    create_vbo();
+#endif
 //    glutReshapeFunc( reshape);
     glutDisplayFunc(display);
     glutKeyboardFunc(keyboard);
@@ -398,9 +459,9 @@ int main(int argc, char *argv[])
 //    for (int i = 0; i < 10; i++)
 	threshold();
 
-//    threshold_p = &threshold;
+    threshold_p = &threshold;
 
-//    initGL(argc, argv);
+    initGL(argc, argv);
 
     return 0;
 }

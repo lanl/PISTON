@@ -63,6 +63,8 @@ public:
 	this->xdim = xdim;
 	this->ydim = ydim;
 	this->zdim = zdim;
+	grid_coordinates_iterator = thrust::make_transform_iterator(CountingIterator(0),
+	                                                            grid_coordinates_functor(xdim, ydim, zdim));
     }
 
     GridCoordinatesIterator grid_coordinates_begin() {
