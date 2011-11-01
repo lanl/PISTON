@@ -8,6 +8,7 @@
 #ifndef IMAGE3D_H_
 #define IMAGE3D_H_
 
+#include <thrust/functional.h>
 #include <thrust/tuple.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
@@ -25,13 +26,12 @@ public:
     int NPoints;
     int NCells;
 
-    // TODO: should be in detail namespace with 2d variant.
     struct grid_coordinates_functor : public thrust::unary_function<IndexType, thrust::tuple<IndexType, IndexType, IndexType> >
     {
-	const int xdim;
-	const int ydim;
-	const int zdim;
-	const int PointsPerLayer;
+	int xdim;
+	int ydim;
+	int zdim;
+	int PointsPerLayer;
 
 	grid_coordinates_functor(int xdim, int ydim, int zdim) :
 	    xdim(xdim), ydim(ydim), zdim(zdim), PointsPerLayer(xdim*ydim) {}
@@ -45,8 +45,6 @@ public:
 	    return thrust::make_tuple(x, y, z);
 	}
     };
-
-//    typedef MemorySpace MemorySpace;
 
     typedef typename thrust::counting_iterator<IndexType, MemorySpace> CountingIterator;
     typedef typename thrust::transform_iterator<grid_coordinates_functor, CountingIterator> GridCoordinatesIterator;
@@ -63,6 +61,8 @@ public:
 	this->xdim = xdim;
 	this->ydim = ydim;
 	this->zdim = zdim;
+	this->NPoints = xdim*ydim*zdim;
+	this->NCells  = (xdim-1)*(ydim-1)*(zdim-1);
 	grid_coordinates_iterator = thrust::make_transform_iterator(CountingIterator(0),
 	                                                            grid_coordinates_functor(xdim, ydim, zdim));
     }

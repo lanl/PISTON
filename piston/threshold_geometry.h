@@ -15,18 +15,19 @@
 #include <thrust/unique.h>
 
 #include <piston/image3d.h>
-#include <piston/sphere.h>
 #include <piston/cutil_math.h>
 #include <piston/choose_container.h>
 
-using namespace piston::detail;
+namespace piston
+{
 
 /* Terminologies:
  * 	Boundary: cells at the borders of the input dataset
  * 	Valid   : cells with all the vertices passing the threshold
  * 	Invalid : cells with at least one vertices failing the threshold
  * 	Exterior valid : valid cells that generate geometry
- * 	Interior valid : valid cells that don't generate geometry */
+ * 	Interior valid : valid cells that don't generate geometry, they are valid
+ * 	cells surrounded by other valid cells, i.e. the number of valid neighbors is 6 */
 template <typename InputDataSet>
 struct threshold_geometry
 {
@@ -39,9 +40,8 @@ struct threshold_geometry
 
     typedef typename thrust::counting_iterator<int, space_type>	CountingIterator;
 
-    typedef typename choose_container<InputPointDataIterator, int>::type  IndicesContainer;
-    typedef typename choose_container<InputPointDataIterator, int>::type ValidFlagsContainer;
-    typedef typename choose_container<InputPointDataIterator, thrust::tuple<int, int, int> >::type VerticesContainer;
+    typedef typename detail::choose_container<InputPointDataIterator, int>::type  IndicesContainer;
+    typedef typename detail::choose_container<InputPointDataIterator, int>::type  ValidFlagsContainer;
 
     typedef typename IndicesContainer::iterator IndicesIterator;
     typedef typename ValidFlagsContainer::iterator ValidFlagsIterator;
@@ -61,7 +61,7 @@ struct threshold_geometry
     IndicesContainer    exterior_cell_indices;
     IndicesContainer	vertices_indices;
 
-    threshold_geometry(InputDataSet &input,float min_value, float max_value ) :
+    threshold_geometry(InputDataSet &input, float min_value, float max_value ) :
 	input(input), min_value(min_value), max_value(max_value) {}
 
     void operator()() {
@@ -159,49 +159,7 @@ struct threshold_geometry
 	                 thrust::make_zip_iterator(thrust::make_tuple(CountingIterator(0) + num_exterior_cells,
 	                                                              thrust::make_permutation_iterator(valid_cell_indices.begin(), exterior_cell_indices.begin()))),
 	                 generate_quads(input, thrust::raw_pointer_cast(&*vertices_indices.begin())));
-
-	VerticesContainer vertices_sorted(this->vertices_begin(), this->vertices_end());
-
-	thrust::sort(vertices_sorted.begin(), vertices_sorted.end(), tuple3_less<int>());
-	vertices_sorted.erase(thrust::unique(vertices_sorted.begin(), vertices_sorted.end(),
-	                                     tuple3_equal<int>()), vertices_sorted.end());
-
-	std::cout << "# unsorted vertices: " << vertices_indices.size() << ", # sorted vertices: " << vertices_sorted.size() << std::endl;
-	IndicesContainer sorted_indices(num_exterior_cells*24);
-	thrust::lower_bound(vertices_sorted.begin(), vertices_sorted.end(),
-	                    this->vertices_begin(), this->vertices_end(),
-	                    sorted_indices.begin(),
-	                    tuple3_less<int>());
     }
-
-    template <typename T>
-    struct tuple3_equal : public thrust::unary_function<thrust::tuple<T, T, T>, bool>
-    {
-	__host__ __device__
-	bool operator() (thrust::tuple<T, T, T> t1, thrust::tuple<T, T, T> t2) {
-	    return thrust::get<0>(t1) == thrust::get<0>(t2) &&
-		   thrust::get<1>(t1) == thrust::get<1>(t2) &&
-		   thrust::get<2>(t1) == thrust::get<2>(t2);
-	}
-    };
-    template <typename T>
-    struct tuple3_less : public thrust::unary_function<thrust::tuple<T, T, T>, bool>
-    {
-	__host__ __device__
-	bool operator() (thrust::tuple<T, T, T> t1, thrust::tuple<T, T, T> t2) {
-	    if (thrust::get<0>(t1) < thrust::get<0>(t2))
-		return true;
-	    else if (thrust::get<0>(t1) > thrust::get<0>(t2))
-		return false;
-
-	    if (thrust::get<1>(t1) < thrust::get<1>(t2))
-		return true;
-	    else if (thrust::get<1>(t1) > thrust::get<1>(t2))
-		return false;
-
-	    return thrust::get<2>(t1) < thrust::get<2>(t2);
-	}
-    };
 
     // FixME: the input data type should really be cells rather than cell_ids
     // FixME: change float to value_type
@@ -226,7 +184,7 @@ struct threshold_geometry
 	    point_data(input.point_data_begin()),
 	    min_value(min_value), max_value(max_value),
 	    xdim(input.xdim), ydim(input.ydim), zdim(input.zdim),
-	    cells_per_layer((xdim - 1) * (ydim - 1)){}
+	    cells_per_layer((xdim - 1) * (ydim - 1)) {}
 
 	__host__ __device__
 	bool operator() (int cell_id) const {
@@ -305,14 +263,14 @@ struct threshold_geometry
 	    // we are taking advantage of short-circuit && operator here,
 	    // the coordinates of the cell is tested first so we won't
 	    // access to data past boundary.
-	    int boundary = !(y == 0)          && *(valid_cell_flags + n0);
-	    boundary    += !(x == (xdim - 2)) && *(valid_cell_flags + n1);
-	    boundary    += !(y == (ydim - 2)) && *(valid_cell_flags + n2);
-	    boundary    += !(x == 0)          && *(valid_cell_flags + n3);
-	    boundary    += !(z == 0)          && *(valid_cell_flags + n4);
-	    boundary    += !(z == (zdim - 2)) && *(valid_cell_flags + n5);
+	    int num_valid_cells = !(y == 0)          && *(valid_cell_flags + n0);
+	    num_valid_cells    += !(x == (xdim - 2)) && *(valid_cell_flags + n1);
+	    num_valid_cells    += !(y == (ydim - 2)) && *(valid_cell_flags + n2);
+	    num_valid_cells    += !(x == 0)          && *(valid_cell_flags + n3);
+	    num_valid_cells    += !(z == 0)          && *(valid_cell_flags + n4);
+	    num_valid_cells    += !(z == (zdim - 2)) && *(valid_cell_flags + n5);
 
-	    return boundary;
+	    return num_valid_cells;
 	}
     };
 
@@ -320,10 +278,8 @@ struct threshold_geometry
     struct is_exterior_cell : public thrust::unary_function<int, bool>
     {
 	__host__ __device__
-	bool operator() (int num_boundary_cell_neighbors) const {
-//	    return !(num_boundary_cell_neighbors == 0 ||
-//		     num_boundary_cell_neighbors != 6);
-	    return num_boundary_cell_neighbors != 6;
+	bool operator() (int num_valid_cell_neighbors) const {
+	    return num_valid_cell_neighbors != 6;
 	}
     };
 
@@ -349,7 +305,6 @@ struct threshold_geometry
 	    const int exterior_cell_id = thrust::get<0>(indices_tuple);
 	    const int global_cell_id   = thrust::get<1>(indices_tuple);
 
-//	    std::cout << "exterior id: " << exterior_cell_id << ", global_cell_id: " << global_cell_id << std::endl;
 	    const int vertices_for_faces[] =
 	    {
 		 0, 1, 5, 4, // face 0
@@ -401,3 +356,5 @@ struct threshold_geometry
 		vertices_indices.size();
     }
 };
+
+}

@@ -5,150 +5,22 @@
  *      Author: ollie
  */
 
-#include <thrust/device_vector.h>
-
-#if 1
 #include <GL/glew.h>
 #include <GL/gl.h>
-#include <cuda_gl_interop.h>
-#include <GL/glext.h>
 #include <GL/glut.h>
-#include <piston/sphere.h>
+
+#include <cuda_gl_interop.h>
+
+#include <piston/util/sphere_field.h>
 #include <piston/threshold_geometry.h>
+#include <sys/time.h>
+#include <stdio.h>
+
+using namespace piston;
 
 //#define SPACE  thrust::host_space_tag
 #define SPACE thrust::detail::default_device_space_tag
-#define USE_INTEROP 1
-
-using namespace piston;
 static const int GRID_SIZE = 256;
-
-#if 1
-template <typename IndexType, typename ValueType>
-struct height_field : public piston::image3d<IndexType, ValueType, SPACE>
-{
-    struct height_functor : public piston::implicit_function3d<IndexType, ValueType> {
-	typedef piston::implicit_function3d<IndexType, ValueType> Parent;
-	typedef typename Parent::InputType InputType;
-
-	__host__ __device__
-	ValueType operator()(InputType pos) const {
-	    return thrust::get<2>(pos);
-	};
-    };
-
-    typedef piston::image3d<IndexType, ValueType, SPACE> Parent;
-
-    typedef thrust::transform_iterator<height_functor,
-				       typename Parent::GridCoordinatesIterator> PointDataIterator;
-    PointDataIterator iter;
-
-    height_field(int xdim, int ydim, int zdim) :
-	Parent(xdim, ydim, zdim),
-	iter(this->grid_coordinates_iterator,
-	     height_functor()){}
-
-    PointDataIterator point_data_begin() {
-	return iter;
-    }
-
-    PointDataIterator point_data_end() {
-	return iter + this->NPoints;
-    }
-};
-#endif
-
-#if 0
-
-template <typename IndexType, typename ValueType>
-struct sphere_field : public piston::image3d<IndexType, ValueType, SPACE>
-{
-    typedef piston::image3d<IndexType, ValueType, SPACE> Parent;
-
-    typedef thrust::transform_iterator<piston::sphere<IndexType, ValueType>,
-				       typename Parent::GridCoordinatesIterator> PointDataIterator;
-    PointDataIterator iter;
-
-    sphere_field(int xdim, int ydim, int zdim) :
-	Parent(xdim, ydim, zdim),
-	iter(this->grid_coordinates_iterator,
-	     piston::sphere<IndexType, ValueType>(xdim/2, ydim/2, zdim/2, 1)){}
-
-    PointDataIterator point_data_begin() {
-	return iter;
-    }
-
-    PointDataIterator point_data_end() {
-	return iter+this->NPoints;
-    }
-};
-
-#else
-
-template <typename IndexType, typename ValueType>
-struct sphere_field : public piston::image3d<IndexType, ValueType, SPACE>
-{
-    typedef piston::image3d<IndexType, ValueType, SPACE> Parent;
-
-//    typedef thrust::host_vector<thrust::tuple<IndexType, IndexType, IndexType> > GridCoordinatesContainer;
-    typedef typename choose_container<typename Parent::CountingIterator, thrust::tuple<IndexType, IndexType, IndexType> >::type GridCoordinatesContainer;
-    GridCoordinatesContainer grid_coordinates_vector;
-    typedef typename GridCoordinatesContainer::iterator GridCoordinatesIterator;
-    GridCoordinatesIterator  grid_coordinates_iterator;
-
-//    typedef thrust::host_vector<ValueType> PointDataContainer;
-    typedef typename choose_container<typename Parent::CountingIterator, ValueType>::type PointDataContainer;
-    PointDataContainer point_data_vector;
-    typedef typename PointDataContainer::iterator PointDataIterator;
-    PointDataIterator point_data_iterator;
-
-    sphere_field(int xdim, int ydim, int zdim) :
-	Parent(xdim, ydim, zdim),
-	grid_coordinates_vector(Parent::grid_coordinates_begin(), Parent::grid_coordinates_end()),
-	grid_coordinates_iterator(grid_coordinates_vector.begin()),
-	point_data_vector(thrust::make_transform_iterator(grid_coordinates_iterator, sphere<IndexType, ValueType>(xdim/2, ydim/2, zdim/2, 1)),
-	                  thrust::make_transform_iterator(grid_coordinates_iterator, sphere<IndexType, ValueType>(xdim/2, ydim/2, zdim/2, 1))+this->NPoints),
-	point_data_iterator(point_data_vector.begin()) {}
-
-    GridCoordinatesIterator grid_coordinates_begin() {
-	return grid_coordinates_iterator;
-    }
-    GridCoordinatesIterator grid_coordinates_end() {
-	return grid_coordinates_iterator+this->NPoints;
-    }
-
-    PointDataIterator point_data_begin() {
-	return point_data_iterator;
-    }
-    PointDataIterator point_data_end() {
-	return point_data_iterator+this->NPoints;
-    }
-};
-
-#endif
-
-struct threshold_between : thrust::unary_function<float, bool>
-{
-    float min_value;
-    float max_value;
-
-    threshold_between(float min_value, float max_value) :
-	min_value(min_value), max_value(max_value) {}
-
-    __host__ __device__
-    bool operator() (float val) const {
-	return (min_value <= val) && (val <= max_value);
-    }
-};
-
-struct print_float4 : public thrust::unary_function<float4, void>
-{
-	__host__ __device__
-	void operator() (float4 p) {
-//	    std::cout << "(" << p.x << ", " << p.y << ", " << p.z << ")" << std::endl;
-	}
-};
-
 
 int mouse_old_x, mouse_old_y;
 int mouse_buttons = 0;
@@ -274,35 +146,52 @@ struct tuple2float4 : thrust::unary_function<thrust::tuple<int, int, int>, float
 };
 
 
-threshold_geometry<sphere_field<int, float> > *threshold_p;
+threshold_geometry<sphere_field<int, float, SPACE> > *threshold_p;
 
 GLuint quads_vbo[2];
+struct cudaGraphicsResource *quads_pos_res, *quads_color_res;
 unsigned int buffer_size;
 
 void create_vbo()
 {
     glGenBuffers(2, quads_vbo);
+    int error;
 
+    std::cout << "number of vertices: " << thrust::distance(threshold_p->vertices_begin(), threshold_p->vertices_end()) << std::endl;
     buffer_size = thrust::distance(threshold_p->vertices_begin(), threshold_p->vertices_end())* sizeof(float4);
 
     // initialize vertex buffer object
     glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[0]);
     glBufferData(GL_ARRAY_BUFFER, buffer_size, 0, GL_DYNAMIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    // register this buffer object with CUDA
+    if ((error = cudaGraphicsGLRegisterBuffer(&quads_pos_res, quads_vbo[0],
+                                              cudaGraphicsMapFlagsWriteDiscard)) != cudaSuccess) {
+	std::cout << "register pos buffer cuda error: " << error << "\n";
+    }
 
-    // initialize color buffer
+    // initialize color buffer object
     glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[1]);
     glBufferData(GL_ARRAY_BUFFER, buffer_size, 0, GL_DYNAMIC_DRAW);
-
-
     glBindBuffer(GL_ARRAY_BUFFER, 0);
-
     // register this buffer object with CUDA
-    cudaGLRegisterBufferObject(quads_vbo[0]);
-    cudaGLRegisterBufferObject(quads_vbo[1]);
+    if (cudaGraphicsGLRegisterBuffer(&quads_color_res, quads_vbo[1],
+                                     cudaGraphicsMapFlagsWriteDiscard) != cudaSuccess) {
+	std::cout << "register color buffer cuda error: " << error << "\n";
+    }
 }
+
+struct timeval begin, end, diff;
+int frame_count = 0;
 
 void display()
 {
+    if (frame_count == 0) {
+	gettimeofday(&begin, 0);
+    }
+
+//    (*threshold_p)();
+
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     if (wireframe) {
@@ -322,46 +211,48 @@ void display()
     glTranslatef(-(GRID_SIZE-1)/2, -(GRID_SIZE-1)/2, -(GRID_SIZE-1)/2);
     glTranslatef(translate.x, translate.y, translate.z);
 
-#if USE_INTEROP
     float4 *raw_ptr;
+    size_t num_bytes;
 
-    //    glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[0]);
-    cudaGLMapBufferObject((void**)&raw_ptr, quads_vbo[0]);
+    cudaGraphicsMapResources(1, &quads_pos_res, 0);
+    cudaGraphicsResourceGetMappedPointer((void**)&raw_ptr, &num_bytes, quads_pos_res);
     thrust::copy(thrust::make_transform_iterator(threshold_p->vertices_begin(), tuple2float4()),
                  thrust::make_transform_iterator(threshold_p->vertices_end(),   tuple2float4()),
                  thrust::device_ptr<float4>(raw_ptr));
-    cudaGLUnmapBufferObject(quads_vbo[0]);
-
+    cudaGraphicsUnmapResources(1, &quads_pos_res, 0);
     glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[0]);
     glVertexPointer(4, GL_FLOAT, 0, 0);
+    glEnableClientState(GL_VERTEX_ARRAY);
 
-    cudaGLMapBufferObject((void**)&raw_ptr, quads_vbo[1]);
+    cudaGraphicsMapResources(1, &quads_color_res, 0);
+    cudaGraphicsResourceGetMappedPointer((void**)&raw_ptr, &num_bytes, quads_color_res);
     thrust::transform(threshold_p->scalars_begin(), threshold_p->scalars_end(),
                       thrust::device_ptr<float4>(raw_ptr),
-                      color_map<float>(4.0f, 256.0f));
-    cudaGLUnmapBufferObject(quads_vbo[1]);
-
+                      color_map<float>(4.0f, 1600.0f));
+    cudaGraphicsUnmapResources(1, &quads_color_res, 0);
     glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[1]);
     glColorPointer(4, GL_FLOAT, 0, 0);
-
-    //    glNormalPointer(GL_FLOAT, 0, &normals[0]);
+    glEnableClientState(GL_COLOR_ARRAY);
 
     glDrawArrays(GL_QUADS, 0, buffer_size/sizeof(float4));
 
-#else
-    thrust::host_vector<float4> vertices(thrust::make_transform_iterator(threshold_p->vertices_begin(), tuple2float4()),
-                                         thrust::make_transform_iterator(threshold_p->vertices_end(),   tuple2float4()));
-    thrust::host_vector<float4> colors(thrust::make_transform_iterator(threshold_p->scalars_begin(), color_map<float>(4.0f, 256.0f)),
-                                       thrust::make_transform_iterator(threshold_p->scalars_end(),   color_map<float>(4.0f, 256.0f)));
-
-//    glNormalPointer(GL_FLOAT, 0, &normals[0]);
-    glColorPointer(4, GL_FLOAT, 0, &colors[0]);
-    glVertexPointer(4, GL_FLOAT, 0, &vertices[0]);
-
-    glDrawArrays(GL_QUADS, 0, vertices.size());
-#endif
+    glDisableClientState(GL_VERTEX_ARRAY);
+    glDisableClientState(GL_VERTEX_ARRAY);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     glutSwapBuffers();
+
+    gettimeofday(&end, 0);
+    timersub(&end, &begin, &diff);
+    frame_count++;
+    float seconds = diff.tv_sec + 1.0E-6*diff.tv_usec;
+    if (seconds > 0.1f) {
+	char title[256];
+	sprintf(title, "Threshold filter, fps: %2.2f", float(frame_count)/seconds);
+	glutSetWindowTitle(title);
+	seconds = 0.0f;
+	frame_count = 0;
+    }
 }
 
 void idle()
@@ -374,6 +265,7 @@ void idle()
 //	    delta = 0.05;
 //	glutPostRedisplay();
     }
+    glutPostRedisplay();
 }
 
 void initGL(int argc, char **argv)
@@ -381,39 +273,39 @@ void initGL(int argc, char **argv)
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
     glutInitWindowSize(800, 800);
-    glutCreateWindow("Marching Cube");
+    glutCreateWindow("Threshold");
 
     glewInit();
 
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
     glEnable(GL_DEPTH_TEST);
-    glShadeModel(GL_SMOOTH);
+//    glShadeModel(GL_SMOOTH);
 
     // good old-fashioned fixed function lighting
-//    float black[] = { 0.0, 0.0, 0.0, 1.0 };
-    float white[] = { 0.8, 0.8, 0.8, 1.0 };
-//    float ambient[] = { 0.5, 0.0, 0.0, 1.0 };
-//    float diffuse[] = { 0.5, 0.0, 0.0, 1.0 };
-    float lightPos[] = { 100.0, 100.0, -100.0, 1.0 };
+    float black[]    = { 0.0f, 0.0f, 0.0f, 1.0f };
+    float white[]    = { 0.8f, 0.8f, 0.8f, 1.0f };
+    float ambient[]  = { 0.1f, 0.1f, 0.1f, 1.0f };
+    float diffuse[]  = { 0.9f, 0.9f, 0.9f, 1.0f };
+    float lightPos[] = { 0.0f, 0.0f, 1.0f, 0.0f};
 
-//    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, ambient);
-//    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, diffuse);
-//    glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, white);
-    glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 100);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, ambient);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, diffuse);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, black);
+
+    //glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, white);
+    //glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 100);
 
     glLightfv(GL_LIGHT0, GL_AMBIENT, white);
     glLightfv(GL_LIGHT0, GL_DIFFUSE, white);
     glLightfv(GL_LIGHT0, GL_SPECULAR, white);
     glLightfv(GL_LIGHT0, GL_POSITION, lightPos);
 
-    glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER, 1);
-//    glLightModelfv(GL_LIGHT_MODEL_AMBIENT, ambient);
+//    glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER, 1);
+    glLightModelfv(GL_LIGHT_MODEL_AMBIENT, black);
 //    glLightModeli(GL_LIGHT_MODEL_TWO_SIDE, 1);
 
     glEnable(GL_LIGHTING);
     glEnable(GL_LIGHT0);
-//    glEnable(GL_NORMALIZE);
     glEnable(GL_COLOR_MATERIAL);
 
     /* Setup the view of the cube. */
@@ -430,38 +322,33 @@ void initGL(int argc, char **argv)
     glPushMatrix();
 
     // enable vertex and normal arrays
-    glEnableClientState(GL_VERTEX_ARRAY);
+//    glEnableClientState(GL_VERTEX_ARRAY);
 //    glEnableClientState(GL_NORMAL_ARRAY);
-    glEnableClientState(GL_COLOR_ARRAY);
+//    glEnableClientState(GL_COLOR_ARRAY);
 
-#if USE_INTEROP
+
+}
+
+int main(int argc, char *argv[])
+{
+    initGL(argc, argv);
+    cudaGLSetGLDevice(0);
+
+    sphere_field<int, float, SPACE> scalar_field(GRID_SIZE, GRID_SIZE, GRID_SIZE);
+
+    threshold_geometry<sphere_field<int, float, SPACE> > threshold(scalar_field, 4, 1600);
+    threshold();
+    threshold_p = &threshold;
+
     create_vbo();
-#endif
+
 //    glutReshapeFunc( reshape);
     glutDisplayFunc(display);
     glutKeyboardFunc(keyboard);
     glutMouseFunc(mouse);
     glutMotionFunc(motion);
-//    glutIdleFunc(idle);
+    glutIdleFunc(idle);
     glutMainLoop();
-}
-
-#endif
-
-int main(int argc, char *argv[])
-{
-
-    sphere_field<int, float> scalar_field(GRID_SIZE, GRID_SIZE, GRID_SIZE);
-//    thrust::copy(scalar_field.point_data_begin(), scalar_field.point_data_end(), std::ostream_iterator<float>(std::cout, " "));
-//    std::cout << std::endl;
-
-    threshold_geometry<sphere_field<int, float> > threshold(scalar_field, 4, 1600);
-//    for (int i = 0; i < 10; i++)
-	threshold();
-
-    threshold_p = &threshold;
-
-    initGL(argc, argv);
 
     return 0;
 }
