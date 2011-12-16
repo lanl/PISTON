@@ -1,0 +1,47 @@
+PISTON: A Portable Cross-Platform Data-Parallel Visualization and Analysis Library
+Li-Ta Lo, Chris Sewell, and Jim Ahrens, Copyright 2011
+
+This project uses CMake.  Create a build directory, pointing to this directory as the root of the source directory.
+Installations of NVIDIA's CUDA toolkit (including the thrust include files), NVIDIA's GPU Computing SDK, and VTK are
+required, and locations for these installations may be provided in the CMake configuration.  Some of the demos also
+require QT4.  
+
+Data files for the PISTON examples are distributed in a separate gzip, and the location of these extracted files may
+also be configured with CMake.
+
+Filters for the currently implemented PISTON operators (isosurface and cut surfaces using marching_cube.h and thresholding
+using threshold_geometry.h) are located in the piston subdirectory, along with data structures for input data and other
+utilities.
+
+This distribution includes example and demo applications that run using the CUDA and OpenMP backends provided by the thrust 
+library.  We have also developed a prototype OpenCL backend for the isosurface and cut surface operators, but that is not
+included in this distribution as it is still in development.
+
+The examples subdirectory includes several simple applications illustrating PISTON operators.  The marching_cube example 
+generates an isosurface on a Rayleigh-Taylor instability data set.  The tangle example generates an isosurface on an
+implicitly-defined field, mimicking the marching cubes example that is part of NVIDIA's GPU Computing SDK.  The threshold
+example applies the thresholding operator to an implicitly-defined sphere field, while the eddy example applies this
+operator to an ocean eddy data set.  Most of the examples only generate geometry, not normals or colors, and run with the
+CUDA backend.  They use the CUDA interop extension to render the computation results directly on the graphics card.
+
+The demos subdirectory includes some more polished applications illustrating PISTON operators, some of which were shown
+in the Los Alamos National Lab booth at the 2011 Supercomputing Conference.  They do compute normals and colors.  The swdemoGPU, 
+swdemoOMP, and bigdemoGPU applications have a QT user interface to allow the user to scroll through isovalues, cut surface 
+positions, and/or threshold ranges.  The swdemoGPU and swdemoOMP applications compile from the same exact code, the only difference 
+being a compiler switch indicating whether thrust will compile to the CUDA or OpenMP backend.  The user can switch between four 
+data sets: Rayleigh-Taylor instability, ocean temperature, ocean eddies, and wind turbine, which together exercise all the 
+currently implemented PISTON operators.  The number of processors used by OpenMP in swdemoOMP can be controlled by setting the
+OMP_NUM_THREADS environment variable.  The bigdemoGPU application allows the user to interactively vary the isovalue for 
+contouring a single large ocean temperature data set (1800x1200x42).  The contourGPU and contourOMP applications use a glut 
+interface instead of QT.  The first command-line parameter for these applications indicates the data set to use, and the 
+second parameter indicates the number of isosurfaces to compute in a timed loop without rendering.  If this second parameter 
+is zero or not given, a single isosurface will be computed and rendered to the screen (rather than performing the timed 
+computation loop).  The data set index refers to the datasetX.txt metafiles in the data directory that specify data file 
+names and parameters, with X being the given data set index.  The contourVTK and contourPAR applications behave the same way 
+as the contourGPU and contourOMP applications, but use serial VTK and parallel VTK, respectively, instead of PISTON.  The 
+contourPAR application may be run using mpirun: mpirun -np {x} ./contourPAR {dataSetIndex}, where x is the number of 
+processors to use.  The PISTON applications using the CUDA backend (swdemoGPU, bigdemoGPU, and contourGPU) use the interop 
+extension by default, but can be run without this by removing the USE_INTEROP flag from the command-line parameters in the 
+CMakeLists.txt file.       
+
+

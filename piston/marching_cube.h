@@ -1,9 +1,21 @@
 /*
- * marching_cube.h
- *
- *  Created on: Oct 24, 2011
- *      Author: ollie
- */
+Copyright (c) 2011, Los Alamos National Security, LLC
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+
+    Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+    Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation
+    	and/or other materials provided with the distribution.
+    Neither the name of the Los Alamos National Laboratory nor the names of its contributors may be used to endorse or promote products derived from this
+    	software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY
+DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
+OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
 
 #ifndef MARCHING_CUBE_H_
 #define MARCHING_CUBE_H_
@@ -18,6 +30,8 @@
 #include <piston/image3d.h>
 #include <piston/cutil_math.h>
 #include <piston/choose_container.h>
+
+#define MIN_VALID_VALUE -500.0
 
 namespace piston {
 
@@ -54,6 +68,10 @@ public:
     InputDataSet2 &source;		// scalar field for generating interpolated scalar values
 
     value_type isovalue;
+    value_type minIso, maxIso;
+    bool colorFlip;
+    bool discardMinVals;
+    bool useInterop;
 
     TableContainer	triTable;	// a copy of triangle edge indices table in host|device_vector
     TableContainer	numVertsTable;	// a copy of number of vertices per cell table in host|device_vector
@@ -65,82 +83,129 @@ public:
     IndicesContainer	validCellIndices;// a sequence of indices to valid cells
 
     IndicesContainer 	numVerticesEnum;// enumeration of output vertices, only valid ones
+    IndicesContainer	cellToVertexMap;
+
+    unsigned int numTotalVertices;
+    float4 *vertexBufferData;
+    float3 *normalBufferData;
+    float4 *colorBufferData;
+    struct cudaGraphicsResource* vboResources[3]; // vertex buffers for interop
 
     VerticesContainer	vertices; 	// output vertices, only valid ones
     NormalsContainer	normals;	// surface normal computed by cross product of triangle edges
     ScalarContainer	scalars;	// interpolated scalar output
 
     marching_cube(InputDataSet1 &input, InputDataSet2 &source, value_type isovalue = value_type()) :
-	input(input), source(source), isovalue(isovalue),
-	triTable((int*) triTable_array, (int*) triTable_array+256*16),
+	input(input), source(source), isovalue(isovalue), discardMinVals(true), colorFlip(false),
+	triTable((int*) triTable_array, (int*) triTable_array+256*16), useInterop(false),
 	numVertsTable((int *) numVerticesTable_array, (int *) numVerticesTable_array+256)
 	{}
 
-    void operator()() {
-	const int NCells = input.NCells;
+    void freeMemory(bool includeInput=true)
+    {
+      if (includeInput) { cubeIndex.clear();  numVertices.clear();  validCellEnum.clear();  cellToVertexMap.clear(); }
+      validCellIndices.clear();  numVerticesEnum.clear();
+      vertices.clear();  normals.clear();  scalars.clear();
+    }
 
-	// classify all cells, generate indices into triTable and numVertsTable,
-	// we also use numVertsTable to generate numVertices for each cell
-	cubeIndex.resize(NCells);
-	numVertices.resize(NCells);
-	thrust::transform(CountingIterator(0), CountingIterator(0)+NCells,
-	                  thrust::make_zip_iterator(thrust::make_tuple(cubeIndex.begin(), numVertices.begin())),
-	                  classify_cell(input, isovalue,
-	                                thrust::raw_pointer_cast(&*triTable.begin()),
-	                                thrust::raw_pointer_cast(&*numVertsTable.begin())));
+    void operator()()
+    {
+	  const int NCells = input.NCells;
 
-	// enumerating number of valid cells
-	validCellEnum.resize(NCells);
-	thrust::transform_inclusive_scan(numVertices.begin(), numVertices.end(),
-	                                 validCellEnum.begin(),
-	                                 is_valid_cell(),
-	                                 thrust::plus<int>());
+	  // classify all cells, generate indices into triTable and numVertsTable,
+	  // we also use numVertsTable to generate numVertices for each cell
+	  cubeIndex.resize(NCells);
+	  numVertices.resize(NCells);
 
-	unsigned int numValidCells = validCellEnum.back();
+	  thrust::transform(CountingIterator(0), CountingIterator(0)+NCells,
+	                    thrust::make_zip_iterator(thrust::make_tuple(cubeIndex.begin(), numVertices.begin())),
+	                    classify_cell(input, isovalue, discardMinVals,
+	                                  thrust::raw_pointer_cast(&*triTable.begin()),
+	                                  thrust::raw_pointer_cast(&*numVertsTable.begin())));
 
-//	std::cout << "num valid cells: " << numValidCells << std::endl;
+	  // enumerating number of valid cells
+	  validCellEnum.resize(NCells);
+	  thrust::transform_inclusive_scan(numVertices.begin(), numVertices.end(),
+	                                   validCellEnum.begin(),
+	                                   is_valid_cell(),
+	                                   thrust::plus<int>());
 
-	// resize vectors according to number of valid cells
-	validCellIndices.resize(numValidCells);
-	numVerticesEnum.resize(numValidCells);
+	  unsigned int numValidCells = validCellEnum.back();
 
-	// find indices to valid cells
-	thrust::upper_bound(validCellEnum.begin(), validCellEnum.end(),
-	                    CountingIterator(0), CountingIterator(0)+numValidCells,
-	                    validCellIndices.begin());
+	  //std::cout << "num valid cells: " << numValidCells << std::endl;
 
-	// use indices to valid cells to fetch number of vertices generated by
-	// valid cells and do an enumeration to get the output indices for
-	// the first vertex generated by the valid cells.
-	thrust::exclusive_scan(thrust::make_permutation_iterator(numVertices.begin(), validCellIndices.begin()),
-	                       thrust::make_permutation_iterator(numVertices.begin(), validCellIndices.begin()) + numValidCells,
-	                       numVerticesEnum.begin());
+	  // resize vectors according to number of valid cells
+	  validCellIndices.resize(numValidCells);
+	  numVerticesEnum.resize(numValidCells);
 
-	// get the total number of vertices,
-	unsigned int numTotalVertices;
-	if (numValidCells == 0)
-	    numTotalVertices = 0;
-	else
-	    numTotalVertices = numVertices[validCellIndices.back()] + numVerticesEnum.back();
+	  // find indices to valid cells
+	  thrust::upper_bound(validCellEnum.begin(), validCellEnum.end(),
+	                      CountingIterator(0), CountingIterator(0)+numValidCells,
+	                      validCellIndices.begin());
 
-//	std::cout << "num total vertices: " << numTotalVertices << std::endl;
+	  // use indices to valid cells to fetch number of vertices generated by
+	  // valid cells and do an enumeration to get the output indices for
+	  // the first vertex generated by the valid cells.
+	  thrust::exclusive_scan(thrust::make_permutation_iterator(numVertices.begin(), validCellIndices.begin()),
+	                         thrust::make_permutation_iterator(numVertices.begin(), validCellIndices.begin()) + numValidCells,
+	                         numVerticesEnum.begin());
 
-	vertices.resize(numTotalVertices);
-	normals.resize(numTotalVertices);
-	scalars.resize(numTotalVertices);
+	  // get the total number of vertices,
+	  if (numValidCells == 0) numTotalVertices = 0;
+	  else numTotalVertices = numVertices[validCellIndices.back()] + numVerticesEnum.back();
 
-	// do edge interpolation for each valid cell
-	thrust::for_each(thrust::make_zip_iterator(thrust::make_tuple(validCellIndices.begin(), numVerticesEnum.begin(),
-	                                                              thrust::make_permutation_iterator(cubeIndex.begin(),   validCellIndices.begin()),
-	                                                              thrust::make_permutation_iterator(numVertices.begin(), validCellIndices.begin()))),
-	                 thrust::make_zip_iterator(thrust::make_tuple(validCellIndices.end(),   numVerticesEnum.end(),
-	                                                              thrust::make_permutation_iterator(cubeIndex.begin(),   validCellIndices.begin()) + numValidCells,
-	                                                              thrust::make_permutation_iterator(numVertices.begin(), validCellIndices.begin()) + numValidCells)),
-	                 isosurface_functor(input, source,isovalue,
-	                                    thrust::raw_pointer_cast(&*triTable.begin()),
-	                                    thrust::raw_pointer_cast(&*vertices.begin()),
-	                                    thrust::raw_pointer_cast(&*normals.begin()),
-	                                    thrust::raw_pointer_cast(&*scalars.begin())));
+	  //std::cout << "num total vertices: " << numTotalVertices << std::endl;
+
+      if (useInterop)
+      {
+        size_t num_bytes;
+        cudaGraphicsMapResources(1, &vboResources[0], 0);
+        cudaGraphicsResourceGetMappedPointer((void **)&vertexBufferData, &num_bytes,  vboResources[0]);
+
+        if (vboResources[1])
+        {
+          cudaGraphicsMapResources(1, &vboResources[1], 0);
+          cudaGraphicsResourceGetMappedPointer((void **)&colorBufferData, &num_bytes,  vboResources[1]);
+        }
+
+        cudaGraphicsMapResources(1, &vboResources[2], 0);
+        cudaGraphicsResourceGetMappedPointer((void **)&normalBufferData, &num_bytes,  vboResources[2]);
+      }
+      else
+      {
+	    vertices.resize(numTotalVertices);
+        normals.resize(numTotalVertices);
+      }
+      scalars.resize(numTotalVertices);
+
+	  // do edge interpolation for each valid cell
+      if (useInterop)
+      {
+	    thrust::for_each(thrust::make_zip_iterator(thrust::make_tuple(validCellIndices.begin(), numVerticesEnum.begin(),
+		                                           thrust::make_permutation_iterator(cubeIndex.begin(), validCellIndices.begin()),
+		                                           thrust::make_permutation_iterator(numVertices.begin(), validCellIndices.begin()))),
+		                 thrust::make_zip_iterator(thrust::make_tuple(validCellIndices.end(), numVerticesEnum.end(),
+		                                           thrust::make_permutation_iterator(cubeIndex.begin(), validCellIndices.begin()) + numValidCells,
+		                                           thrust::make_permutation_iterator(numVertices.begin(), validCellIndices.begin()) + numValidCells)),
+		                 isosurface_functor(input, source, isovalue, thrust::raw_pointer_cast(&*triTable.begin()),
+		                                    vertexBufferData, normalBufferData, thrust::raw_pointer_cast(&*scalars.begin())));
+        if (vboResources[1]) thrust::transform(scalars.begin(), scalars.end(), thrust::device_ptr<float4>(colorBufferData), color_map<float>(minIso, maxIso, colorFlip));
+        for (int i=0; i<3; i++) cudaGraphicsUnmapResources(1, &vboResources[i], 0);
+      }
+      else
+      {
+	    thrust::for_each(thrust::make_zip_iterator(thrust::make_tuple(validCellIndices.begin(), numVerticesEnum.begin(),
+	                                                                  thrust::make_permutation_iterator(cubeIndex.begin(),   validCellIndices.begin()),
+	                                                                  thrust::make_permutation_iterator(numVertices.begin(), validCellIndices.begin()))),
+	                     thrust::make_zip_iterator(thrust::make_tuple(validCellIndices.end(),   numVerticesEnum.end(),
+	                                                                  thrust::make_permutation_iterator(cubeIndex.begin(),   validCellIndices.begin()) + numValidCells,
+	                                                                  thrust::make_permutation_iterator(numVertices.begin(), validCellIndices.begin()) + numValidCells)),
+	                     isosurface_functor(input, source,isovalue,
+	                                        thrust::raw_pointer_cast(&*triTable.begin()),
+	                                        thrust::raw_pointer_cast(&*vertices.begin()),
+	                                        thrust::raw_pointer_cast(&*normals.begin()),
+	                                        thrust::raw_pointer_cast(&*scalars.begin())));
+      }
     }
 
     struct classify_cell : public thrust::unary_function<int, thrust::tuple<int, int> >
@@ -155,12 +220,13 @@ public:
 	const int ydim;
 	const int zdim;
 	const int cells_per_layer;
+	const bool discardMinVals;
 
 	classify_cell(InputDataSet1 &input,
-	              float isovalue,
+	              float isovalue, bool discardMinVals,
 	              const int *triTable, const int *numVertsTable) :
 	        	  point_data(input.point_data_begin()), isovalue(isovalue),
-	        	  triTable(triTable), numVertsTable(numVertsTable),
+	        	  discardMinVals(discardMinVals), triTable(triTable), numVertsTable(numVertsTable),
 	        	  xdim(input.xdim), ydim(input.ydim), zdim(input.zdim),
 	        	  cells_per_layer((xdim - 1) * (ydim - 1)) {}
 
@@ -205,7 +271,10 @@ public:
 	    cubeindex += (f6 > isovalue)*64;
 	    cubeindex += (f7 > isovalue)*128;
 
-	    return thrust::make_tuple(cubeindex, numVertsTable[cubeindex]);
+	    bool valid = (!discardMinVals) || ((f0 > MIN_VALID_VALUE) && (f1 > MIN_VALID_VALUE) && (f2 > MIN_VALID_VALUE) && (f3 > MIN_VALID_VALUE) &&
+	    	    	    	               (f4 > MIN_VALID_VALUE) && (f5 > MIN_VALID_VALUE) && (f6 > MIN_VALID_VALUE) && (f7 > MIN_VALID_VALUE));
+
+	    return thrust::make_tuple(cubeindex, valid*numVertsTable[cubeindex]);
 	}
     };
 

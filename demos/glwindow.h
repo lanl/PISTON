@@ -17,25 +17,61 @@ OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY TH
 NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef IMPLICIT_FUNCTION_H_
-#define IMPLICIT_FUNCTION_H_
+#ifndef GLWIDGET_H
+#define GLWIDGET_H
 
-#include <thrust/tuple.h>
-#include <thrust/functional.h>
+#include <QGLWidget>
 
-namespace piston
+class IsoRender;
+
+class GLWindow : public QGLWidget
 {
-    template <typename IndexType, typename ValueType>
-    struct implicit_function2d : public thrust::unary_function<thrust::tuple<IndexType, IndexType>, ValueType>
-    {
-	typedef thrust::tuple<IndexType, IndexType> InputType;
-    };
+    Q_OBJECT
 
-    template <typename IndexType, typename ValueType>
-    struct implicit_function3d : public thrust::unary_function<thrust::tuple<IndexType, IndexType, IndexType>, ValueType>
-    {
-	typedef thrust::tuple<IndexType, IndexType, IndexType> InputType;
-    };
-}
+public:
+    GLWindow(QWidget *parent = 0);
+    ~GLWindow();
 
-#endif /* IMPLICIT_FUNCTION_H_ */
+    QSize minimumSizeHint() const;
+    QSize sizeHint() const;
+
+    void initialize(int dataSetIndex, bool aBigDemo);
+
+public slots:
+    void setIsovalue(int value);
+    void setPlaneLevel(int value);
+    void setDataSet1(bool enabled);
+    void setDataSet2(bool enabled);
+    void setDataSet3(bool enabled);
+    void setDataSet4(bool enabled);
+    void resetView();
+    void setShowIsosurface(bool show);
+    void setShowCutPlane(bool show);
+
+signals:
+    void xRotationChanged(int angle);
+    void yRotationChanged(int angle);
+    void zRotationChanged(int angle);
+    void setPlaneSlider(int value);
+    void setIsoSlider(int value);
+    void setShowIsosurfaceCheckBox(bool check);
+    void setShowClipPlaneCheckBox(bool check);
+
+protected:
+    void initializeGL();
+    void paintGL();
+    void resizeGL(int width, int height);
+    void mousePressEvent(QMouseEvent *event);
+    void mouseMoveEvent(QMouseEvent *event);
+
+private:
+    IsoRender* isoRender;
+    QPoint lastPos;
+    QTimer *timer;
+    int renderFlag;
+    bool bigDemo;
+};
+
+#endif
+
+

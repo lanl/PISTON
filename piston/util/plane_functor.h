@@ -19,17 +19,24 @@ struct plane_functor : public piston::implicit_function3d<IndexType, ValueType>
     typedef piston::implicit_function3d<IndexType, ValueType> Parent;
     typedef typename Parent::InputType InputType;
 
+    int pointsPerLayer, xDim, yDim, zDim;
     const float3 origin;
     const float3 normal;
 
-    plane_functor(float3 origin, float3 normal) :
-	origin(origin), normal(normal) {}
+    plane_functor(float3 origin, float3 normal, int xDim, int yDim, int zDim) :
+	origin(origin), normal(normal), xDim(xDim), yDim(yDim), zDim(zDim), pointsPerLayer(yDim*xDim) {}
 
     __host__ __device__
-    float operator()(int pointId) const {
-	const IndexType x = thrust::get<0>(pos);
-	const IndexType y = thrust::get<1>(pos);
-	const IndexType z = thrust::get<2>(pos);
+    float operator()(InputType pos) const {
+    	const IndexType xc = thrust::get<0>(pos);
+    	const IndexType yc = thrust::get<1>(pos);
+    	const IndexType zc = thrust::get<2>(pos);
+
+    	// scale and shift such that x, y, z <- [-1,1]
+    	const float x = 2*static_cast<float>(xc)/(xDim-1) - 1;
+    	const float y = 2*static_cast<float>(yc)/(yDim-1) - 1;
+    	const float z = 2*static_cast<float>(zc)/(zDim-1) - 1;
+
         return dot(make_float3(x, y, z) - origin, normal);
     }
 };

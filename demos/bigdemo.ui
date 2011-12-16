@@ -1,0 +1,345 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Form</class>
+ <widget class="QWidget" name="Form">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>2100</width>
+    <height>1059</height>
+   </rect>
+  </property>
+  <property name="acceptDrops">
+   <bool>true</bool>
+  </property>
+  <property name="windowTitle">
+   <string>PISTON Demo</string>
+  </property>
+  <layout class="QHBoxLayout" name="horizontalLayout_3">
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayout_2">
+     <item>
+      <widget class="GLWindow" name="widget" native="true">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+         <horstretch>8</horstretch>
+         <verstretch>1</verstretch>
+        </sizepolicy>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <layout class="QVBoxLayout" name="verticalLayout_2">
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout" stretch="3,0,0,3,0">
+         <item>
+          <widget class="QScrollBar" name="verticalScrollBar_2">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Fixed" vsizetype="Expanding">
+             <horstretch>1</horstretch>
+             <verstretch>3</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="value">
+            <number>50</number>
+           </property>
+           <property name="orientation">
+            <enum>Qt::Vertical</enum>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLabel" name="label_2">
+           <property name="text">
+            <string>C
+u
+t
+
+P
+l
+a
+n
+e</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="horizontalSpacer">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeType">
+            <enum>QSizePolicy::Fixed</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>10</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item>
+          <widget class="QScrollBar" name="verticalScrollBar">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Fixed" vsizetype="Expanding">
+             <horstretch>1</horstretch>
+             <verstretch>3</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="orientation">
+            <enum>Qt::Vertical</enum>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLabel" name="label_3">
+           <property name="text">
+            <string>I
+s
+o
+s
+u
+r
+f
+a
+c
+e</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="groupBox">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="title">
+          <string/>
+         </property>
+         <layout class="QVBoxLayout" name="verticalLayout">
+          <item>
+           <widget class="QLabel" name="label">
+            <property name="text">
+             <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Cantarell'; font-size:11pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Display&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="IsosurfacesCheckBox">
+            <property name="text">
+             <string>Show isosurfaces</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="ClipPlaneCheckBox">
+            <property name="text">
+             <string>Show Clip Plane</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="ResetViewButton">
+            <property name="text">
+             <string>Reset View</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>GLWindow</class>
+   <extends>QWidget</extends>
+   <header>glwindow.h</header>
+   <container>1</container>
+   <slots>
+    <signal>setZoomSlider(int)</signal>
+    <signal>setPlaneSlider(int)</signal>
+    <signal>setIsoSlider(int)</signal>
+    <signal>setShowIsosurfaceCheckBox(bool)</signal>
+    <signal>setShowClipPlaneCheckBox(bool)</signal>
+    <slot>setIsovalue(int)</slot>
+    <slot>setPlaneLevel(int)</slot>
+    <slot>setZoom(int)</slot>
+    <slot>setDataSet1(bool)</slot>
+    <slot>setDataSet2(bool)</slot>
+    <slot>setDataSet3(bool)</slot>
+    <slot>resetView()</slot>
+    <slot>setShowIsosurface(bool)</slot>
+    <slot>setShowCutPlane(bool)</slot>
+    <slot>setDataSet4(bool)</slot>
+   </slots>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections>
+  <connection>
+   <sender>verticalScrollBar</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>widget</receiver>
+   <slot>setIsovalue(int)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>2054</x>
+     <y>448</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>1896</x>
+     <y>458</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>verticalScrollBar_2</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>widget</receiver>
+   <slot>setPlaneLevel(int)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>2002</x>
+     <y>285</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>1896</x>
+     <y>285</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>widget</sender>
+   <signal>setPlaneSlider(int)</signal>
+   <receiver>verticalScrollBar_2</receiver>
+   <slot>setValue(int)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1838</x>
+     <y>345</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>2002</x>
+     <y>351</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>widget</sender>
+   <signal>setIsoSlider(int)</signal>
+   <receiver>verticalScrollBar</receiver>
+   <slot>setValue(int)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1793</x>
+     <y>546</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>2051</x>
+     <y>564</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>ResetViewButton</sender>
+   <signal>clicked()</signal>
+   <receiver>widget</receiver>
+   <slot>resetView()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1960</x>
+     <y>1033</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>1707</x>
+     <y>1043</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>IsosurfacesCheckBox</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>widget</receiver>
+   <slot>setShowIsosurface(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1956</x>
+     <y>955</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>1798</x>
+     <y>900</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>ClipPlaneCheckBox</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>widget</receiver>
+   <slot>setShowCutPlane(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1989</x>
+     <y>979</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>1863</x>
+     <y>932</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>widget</sender>
+   <signal>setShowIsosurfaceCheckBox(bool)</signal>
+   <receiver>IsosurfacesCheckBox</receiver>
+   <slot>setChecked(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1868</x>
+     <y>851</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>2000</x>
+     <y>951</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>widget</sender>
+   <signal>setShowClipPlaneCheckBox(bool)</signal>
+   <receiver>ClipPlaneCheckBox</receiver>
+   <slot>setChecked(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1873</x>
+     <y>781</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>2055</x>
+     <y>991</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
+</ui>

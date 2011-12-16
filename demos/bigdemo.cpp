@@ -17,25 +17,16 @@ OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY TH
 NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef IMPLICIT_FUNCTION_H_
-#define IMPLICIT_FUNCTION_H_
+#include "ui_bigdemo.h"
 
-#include <thrust/tuple.h>
-#include <thrust/functional.h>
-
-namespace piston
+int main(int argc, char *argv[])
 {
-    template <typename IndexType, typename ValueType>
-    struct implicit_function2d : public thrust::unary_function<thrust::tuple<IndexType, IndexType>, ValueType>
-    {
-	typedef thrust::tuple<IndexType, IndexType> InputType;
-    };
+    QApplication app(argc, argv);
+    QWidget widget;
+    Ui::Form ui;
+    ui.setupUi(&widget);
 
-    template <typename IndexType, typename ValueType>
-    struct implicit_function3d : public thrust::unary_function<thrust::tuple<IndexType, IndexType, IndexType>, ValueType>
-    {
-	typedef thrust::tuple<IndexType, IndexType, IndexType> InputType;
-    };
+    ui.widget->initialize(-1, true);
+    widget.show();
+    return app.exec();
 }
-
-#endif /* IMPLICIT_FUNCTION_H_ */

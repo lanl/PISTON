@@ -5,6 +5,6 @@ project(piston)
 find_package(CUDA)
 
 include_directories(${CMAKE_SOURCE_DIR})
-#include_directories(/home/ollie/workspace/thrust)
 
 add_subdirectory(examples)
+add_subdirectory(demos)
