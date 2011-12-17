@@ -27,7 +27,7 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVE
 #include <thrust/unique.h>
 
 #include <piston/image3d.h>
-#include <piston/cutil_math.h>
+#include <cutil_math.h>
 #include <piston/choose_container.h>
 
 struct tuple2float4 : thrust::unary_function<thrust::tuple<int, int, int>, float4>

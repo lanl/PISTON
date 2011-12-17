@@ -3,6 +3,7 @@ find_package(GLUT)
 
 find_package(VTK)
 include(${VTK_USE_FILE})
+include_directories(${CUDA_SDK_ROOT_DIR}/C/common/inc/)
 
 set (DATA_DIR "" CACHE PATH "Data directory")
 

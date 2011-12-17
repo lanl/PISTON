@@ -25,7 +25,7 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVE
 
 #include <vtkXMLImageDataReader.h>
 
-#include <piston/cutil_math.h>
+#include <cutil_math.h>
 #include <piston/choose_container.h>
 
 #define SPACE thrust::detail::default_device_space_tag

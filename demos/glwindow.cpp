@@ -179,12 +179,12 @@ void GLWindow::mouseMoveEvent(QMouseEvent *event)
     if (event->buttons() & Qt::LeftButton)
     {
       Quaternion newRotX;
-      newRotX.FromEuler(-0.2*dx, 0.0, 0.0);
-      isoRender->qrot = isoRender->qrot * newRotX;
+      newRotX.setEulerAngles(-0.2*dx*3.14159/180.0, 0.0, 0.0);
+      isoRender->qrot.mul(newRotX);
 
       Quaternion newRotY;
-      newRotY.FromEuler(0.0, 0.0, -0.2*dy);
-      isoRender->qrot = isoRender->qrot * newRotY;
+      newRotY.setEulerAngles(0.0, 0.0, -0.2*dy*3.14159/180.0);
+      isoRender->qrot.mul(newRotY);
     }
     else if (event->buttons() & Qt::RightButton)
     {

@@ -15,9 +15,6 @@ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIME
 DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
 OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
 NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-This file (quaternion.h) contains code derived from this example on the web: http://content.gpwiki.org/index.php/OpenGL:Tutorials:Using_Quaternions_to_represent_rotation,
-which is re-distributed under this licence: http://www.gnu.org/licenses/old-licenses/fdl-1.2.txt .
 */
 
 #include <math.h>
@@ -31,14 +28,9 @@ public:
 	Quaternion() { x = y = z = w = 0.0; }
 	Quaternion(double x, double y, double z, double w) : x(x), y(y), z(z), w(w) {};
 	void set(double ax, double ay, double az, double aw) { x = ax; y = ay; z = az; w = aw; }
-	void normalise();
-	Quaternion getConjugate();
-	Quaternion operator* (const Quaternion &rq);
-	float3 operator* (const float3 &vec);
-	void FromAxis(const float3 &v, float angle);
-	void FromEuler(float pitch, float yaw, float roll);
-	void getMatrix(float* m) const;
-	void getAxisAngle(float3 *axis, float *angle);
+	void mul(Quaternion q);
+	void setEulerAngles(float pitch, float yaw, float roll);
+	void getRotMat(float* m) const;
 
 	double x,y,z,w;
 };

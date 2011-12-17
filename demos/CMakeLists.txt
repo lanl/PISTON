@@ -9,6 +9,7 @@ add_definitions(${QT_DEFINITIONS})
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${CMAKE_SOURCE_DIR}/demos)
+include_directories(${CUDA_SDK_ROOT_DIR}/C/common/inc/)
 
 set (DATA_DIR "" CACHE PATH "Data directory")
 

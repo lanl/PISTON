@@ -49,12 +49,12 @@ void motion(int x, int y)
     if (mouse_buttons == 1)
     {
       Quaternion newRotX;
-      newRotX.FromEuler(-0.2*dx, 0.0, 0.0);
-      isorender->qrot = isorender->qrot * newRotX;
+      newRotX.setEulerAngles(-0.2*dx*3.14159/180.0, 0.0, 0.0);
+      isorender->qrot.mul(newRotX);
 
       Quaternion newRotY;
-      newRotY.FromEuler(0.0, 0.0, -0.2*dy);
-      isorender->qrot = isorender->qrot * newRotY;
+      newRotY.setEulerAngles(0.0, 0.0, -0.2*dy*3.14159/180.0);
+      isorender->qrot.mul(newRotY);
     }
     else if (mouse_buttons == 2)
     {

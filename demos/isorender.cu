@@ -244,7 +244,7 @@ void IsoRender::display()
 
     float3 center = make_float3(center_pos.x, center_pos.y, center_pos.z);
 
-    qrot.getMatrix(rotationMatrix);
+    qrot.getRotMat(rotationMatrix);
     glMultMatrixf(rotationMatrix);
 
     GLfloat matrix[16];

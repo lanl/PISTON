@@ -23,7 +23,7 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVE
 
 #include <cuda_gl_interop.h>
 
-#include <piston/cutil_math.h>
+#include <cutil_math.h>
 #include <piston/choose_container.h>
 
 template <typename ValueType>
