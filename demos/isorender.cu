@@ -1,20 +1,25 @@
 /*
 Copyright (c) 2011, Los Alamos National Security, LLC
 All rights reserved.
+Copyright 2011. Los Alamos National Security, LLC. This software was produced under U.S. Government contract DE-AC52-06NA25396 for Los Alamos National Laboratory (LANL),
+which is operated by Los Alamos National Security, LLC for the U.S. Department of Energy. The U.S. Government has rights to use, reproduce, and distribute this software.
 
-Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+NEITHER THE GOVERNMENT NOR LOS ALAMOS NATIONAL SECURITY, LLC MAKES ANY WARRANTY, EXPRESS OR IMPLIED, OR ASSUMES ANY LIABILITY FOR THE USE OF THIS SOFTWARE.
 
-    Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
-    Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation
-    	and/or other materials provided with the distribution.
-    Neither the name of the Los Alamos National Laboratory nor the names of its contributors may be used to endorse or promote products derived from this
-    	software without specific prior written permission.
+If software is modified to produce derivative works, such modified software should be clearly marked, so as not to confuse it with the version available from LANL.
 
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY
-DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
-OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Additionally, redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+·         Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+·         Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other
+          materials provided with the distribution.
+·         Neither the name of Los Alamos National Security, LLC, Los Alamos National Laboratory, LANL, the U.S. Government, nor the names of its contributors may be used
+          to endorse or promote products derived from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY LOS ALAMOS NATIONAL SECURITY, LLC AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL LOS ALAMOS NATIONAL SECURITY, LLC OR CONTRIBUTORS BE LIABLE FOR ANY
+DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,
+OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include <thrust/host_vector.h>
@@ -77,6 +82,7 @@ struct TGAHeader
 
 IsoRender::IsoRender()
 {
+	userMode = DEFAULT_MODE;
     animate = false;
     mouse_buttons = 0;
     translate = make_float3(0.0, 0.0, 0.0);
@@ -233,7 +239,7 @@ void IsoRender::display()
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    gluPerspective(cameraFOV, 2.0, 200.0, 4000.0);
+    gluPerspective(cameraFOV, 2.0, zNear, zFar);
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
@@ -431,7 +437,7 @@ void IsoRender::display()
       for (int c=0; c<strlen(line); c++)
         glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, line[c]);
 
-#if THRUST_DEVICE_BACKEND == THRUST_DEVICE_BACKEND_CUDA
+/*#if THRUST_DEVICE_BACKEND == THRUST_DEVICE_BACKEND_CUDA
       sprintf(line, "Quadro 6000 GPU (448 cores)");
 #endif
 #if THRUST_DEVICE_BACKEND == THRUST_DEVICE_BACKEND_OMP
@@ -439,7 +445,7 @@ void IsoRender::display()
 #endif
       glRasterPos2f(10.0, viewportHeight/8.0-20);
       for (int c=0; c<strlen(line); c++)
-        glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, line[c]);
+        glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, line[c]);*/
 
       sprintf(line, "Dimensions: %d x %d x %d", xMax-xMin+1, yMax-yMin+1, zMax-zMin+1);
       glRasterPos2f(10.0, viewportHeight/8.0-40);
@@ -608,7 +614,7 @@ void IsoRender::initGL(bool aAllowInterop, bool aBigDemo, bool aShowLabels, int 
     glEnable(GL_COLOR_MATERIAL);
 
     glMatrixMode(GL_PROJECTION);
-    gluPerspective(cameraFOV, 2.0, 200.0, 4000.0);
+    gluPerspective(cameraFOV, 2.0, zNear, zFar);
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
@@ -661,7 +667,8 @@ void IsoRender::initGL(bool aAllowInterop, bool aBigDemo, bool aShowLabels, int 
     }
 
     //printf("Error code: %s\n", cudaGetErrorString(errorCode));
-    read(aDataSet);
+    if (userMode == DEFAULT_MODE) read(aDataSet);
+    else read(userFileName, userMode);
 }
 
 
@@ -721,6 +728,128 @@ void IsoRender::screenShot(std::string fileName, unsigned int width, unsigned in
 }
 
 
+void IsoRender::createOperators()
+{
+	if ((contours[dataSetIndex] == 0) && (thresholds[dataSetIndex] == 0))
+	{
+	  readers[dataSetIndex]->Update();
+	  output = readers[dataSetIndex]->GetOutput();
+	  images[dataSetIndex] = new vtk_image3d<int, float, SPACE>(output);
+	}
+
+	if ((includeContours) && (contours[dataSetIndex] == 0))
+	{
+	  contours[dataSetIndex] = new marching_cube<vtk_image3d<int, float, SPACE>, vtk_image3d<int, float, SPACE> >(*(images[dataSetIndex]), *(images[dataSetIndex]), isovalue);
+	  contours[dataSetIndex]->useInterop = useInterop;
+	  contours[dataSetIndex]->discardMinVals = discardMinVals;
+	}
+
+	if ((includePlane) && (planeContours[dataSetIndex] == 0))
+	{
+	  planeFields[dataSetIndex] = new plane_field<int, float, SPACE>(make_float3(0, 0, 0), plane_normal, xMax-xMin+1, yMax-yMin+1, zMax-zMin+1);
+	  planeContours[dataSetIndex] = new marching_cube<plane_field<int, float, SPACE>, vtk_image3d<int, float, SPACE> >(*(planeFields[dataSetIndex]), *(images[dataSetIndex]), isovalue);
+	  planeContours[dataSetIndex]->useInterop = useInterop;
+	}
+
+	if (includeThreshold && (thresholds[dataSetIndex] == 0))
+	{
+	  thresholds[dataSetIndex] = new threshold_geometry<vtk_image3d<int, float, SPACE> >(*(images[dataSetIndex]), thresholdFloor, threshold);
+	  thresholds[dataSetIndex]->useInterop = useInterop;
+	}
+
+	if ((includeConstantContours) && (constantContours[dataSetIndex] == 0))
+	{
+	  if (useContours) constantContours[dataSetIndex] = contours[dataSetIndex];
+	  else constantContours[dataSetIndex] = new marching_cube<vtk_image3d<int, float, SPACE>, vtk_image3d<int, float, SPACE> >(*(images[dataSetIndex]), *(images[dataSetIndex]), isovalue);
+	}
+	if (includeConstantContours)
+	{
+	  if (useInterop)
+	  {
+	    for (int i=0; i<3; i++) if (i != 1) constantContours[dataSetIndex]->vboResources[i] = constantResources[i];
+	    constantContours[dataSetIndex]->vboResources[1] = 0;
+	    constantContours[dataSetIndex]->useInterop = useInterop;
+	  }
+	  constantContours[dataSetIndex]->discardMinVals = false;
+	  constantContours[dataSetIndex]->set_isovalue(-99999.9);
+	  constantContours[dataSetIndex]->discardMinVals = false;
+	  (*(constantContours[dataSetIndex]))();
+	  if (!useInterop)
+	  {
+	    constantVertices.assign(constantContours[dataSetIndex]->vertices_begin(), constantContours[dataSetIndex]->vertices_end());
+	    constantNormals.assign(constantContours[dataSetIndex]->normals_begin(), constantContours[dataSetIndex]->normals_end());
+	  }
+	  numConstantVertices = constantContours[dataSetIndex]->numTotalVertices;
+	  if (!useContours) constantContours[dataSetIndex]->freeMemory(false);
+	  constantContours[dataSetIndex]->discardMinVals = true;
+	}
+}
+
+
+int IsoRender::read(char* aFileName, int aMode)
+{
+	dataSetIndex = 1;  numIters = 0;  saveFrames = 0;
+
+	char filename[1024];
+	sprintf(filename, "%s/%s", STRINGIZE_VALUE_OF(DATA_DIRECTORY), userFileName);
+	readers[dataSetIndex]->SetFileName(filename);
+
+	readers[dataSetIndex]->Update();
+	output = readers[dataSetIndex]->GetOutput();
+
+	int dims[3];  output->GetDimensions(dims);
+	xMin = yMin = zMin = 0;  xMax = dims[0]-1;  yMax = dims[1]-1;  zMax = dims[2]-1;
+	for (int i=0; i<3; i++) std::cout << dims[i] << " ";
+	std::cout << std::endl;
+
+	NPoints = (xMax - xMin + 1) * (yMax - yMin + 1) * (zMax - zMin + 1);
+	center_pos = make_float3((xMax - xMin + 1)/2.0, (yMax - yMin + 1)/2.0, (zMax - zMin + 1)/2.0);
+
+	if (userRange)
+	{
+	  minIso = userMin;  maxIso = userMax;  minThreshold = thresholdFloor = userMin;  maxThreshold = userMax;
+	}
+   	else
+	{
+	  float* rawData = (float*)(output->GetScalarPointer());
+	  float minVal = FLT_MAX;  float maxVal = FLT_MIN;
+	  for (int i=0; i<NPoints; i++)
+	  {
+	    if (rawData[i] < minVal) minVal = rawData[i];
+	    if (rawData[i] > maxVal) maxVal = rawData[i];
+	  }
+	  minIso = minVal + (0.01*(maxVal - minVal));  maxIso = maxVal - (0.01*(maxVal - minVal));
+	  minThreshold = thresholdFloor = minIso;  maxThreshold = maxIso;
+	}
+	isovaluePct = 0.5;
+
+    discardMinVals = true;
+	plane_normal.x = 0.0;  plane_normal.y = 0.0;  plane_normal.z = 1.0;  planeLevelPct = 0.5;
+	zoomLevelPctDefault = 0.5;  cameraFOV = 36.0;  cameraZ = 3.0*max(max(xMax, yMax), zMax);
+	zFar = 4000.0;  zNear = 200.0;
+
+	zoomLevelBase = cameraFOV;
+	qDefault.set(0, 0, 0, 1);  qrot.set(qDefault.x, qDefault.y, qDefault.z, qDefault.w);
+	zoomLevelPct = zoomLevelPctDefault;
+    isovalue = minIso;  threshold = minThreshold;
+
+	cameraFOV = zoomLevelBase*zoomLevelPct;  camera_up = make_float3(0,1,0);
+
+	includeContours = (userMode == ISOSURFACE_MODE);  includeThreshold = (userMode == THRESHOLD_MODE);  includePlane = (userMode == CUT_SURFACE_MODE);
+	includeConstantContours = false;  includePolygons = false;
+    useContours = includeContours; useThreshold = includeThreshold; useConstantContours = includeConstantContours;
+
+    createOperators();
+
+    lastIsovalue = -9999.9;
+	lastPlaneLevel = -9999.9;
+	lastThreshold = -9999.9;
+	std::cout << "Read user file " << dataSetIndex << std::endl;
+
+    return 0;
+}
+
+
 int IsoRender::read(int aDataSetIndex, int aNumIters, int aSaveFrames, char* aFrameDirectory)
 {
     dataSetIndex = aDataSetIndex;
@@ -728,7 +857,7 @@ int IsoRender::read(int aDataSetIndex, int aNumIters, int aSaveFrames, char* aFr
     saveFrames = aSaveFrames;
     if (saveFrames) strcpy(frameDirectory, aFrameDirectory);
 
-    char metafile[1024]; char fname[1024]; char pname[1024]; char dtag[1024]; float3 plane_normal; float qx, qy, qz, qw;
+    char metafile[1024]; char fname[1024]; char pname[1024]; char dtag[1024]; float qx, qy, qz, qw;
     fname[0] = 0; pname[0] = 0;
     sprintf(metafile, "%s/dataset%d.txt", STRINGIZE_VALUE_OF(DATA_DIRECTORY), dataSetIndex);
 
@@ -763,7 +892,7 @@ int IsoRender::read(int aDataSetIndex, int aNumIters, int aSaveFrames, char* aFr
     NPoints = (xMax - xMin + 1) * (yMax - yMin + 1) * (zMax - zMin + 1);
     center_pos = make_float3((xMax - xMin + 1)/2.0, (yMax - yMin + 1)/2.0, (zMax - zMin + 1)/2.0);
 
-    zoomLevelBase = cameraFOV;
+    zoomLevelBase = cameraFOV;  zNear = 200.0;  zFar = 4000.0;
     qDefault.set(qx, qy, qz, qw);  qrot.set(qDefault.x, qDefault.y, qDefault.z, qDefault.w);
     zoomLevelPct = zoomLevelPctDefault;
     isovalue = minIso;  threshold = minThreshold;
@@ -801,59 +930,7 @@ int IsoRender::read(int aDataSetIndex, int aNumIters, int aSaveFrames, char* aFr
       }
     }
 
-    if ((contours[dataSetIndex] == 0) && (thresholds[dataSetIndex] == 0))
-    {
-      readers[dataSetIndex]->Update();
-      output = readers[dataSetIndex]->GetOutput();
-      images[dataSetIndex] = new vtk_image3d<int, float, SPACE>(output);
-    }
-
-    if ((includeContours) && (contours[dataSetIndex] == 0))
-    {
-    	contours[dataSetIndex] = new marching_cube<vtk_image3d<int, float, SPACE>, vtk_image3d<int, float, SPACE> >(*(images[dataSetIndex]), *(images[dataSetIndex]), isovalue);
-    	contours[dataSetIndex]->useInterop = useInterop;
-    	contours[dataSetIndex]->discardMinVals = discardMinVals;
-    }
-
-    if ((includePlane) && (planeContours[dataSetIndex] == 0))
-    {
-      planeFields[dataSetIndex] = new plane_field<int, float, SPACE>(make_float3(0, 0, 0), plane_normal, xMax-xMin+1, yMax-yMin+1, zMax-zMin+1);
-      planeContours[dataSetIndex] = new marching_cube<plane_field<int, float, SPACE>, vtk_image3d<int, float, SPACE> >(*(planeFields[dataSetIndex]), *(images[dataSetIndex]), isovalue);
-      planeContours[dataSetIndex]->useInterop = useInterop;
-    }
-
-    if (includeThreshold && (thresholds[dataSetIndex] == 0))
-    {
-      thresholds[dataSetIndex] = new threshold_geometry<vtk_image3d<int, float, SPACE> >(*(images[dataSetIndex]), thresholdFloor, threshold);
-      thresholds[dataSetIndex]->useInterop = useInterop;
-    }
-
-    if ((includeConstantContours) && (constantContours[dataSetIndex] == 0))
-    {
-      if (useContours) constantContours[dataSetIndex] = contours[dataSetIndex];
-      else constantContours[dataSetIndex] = new marching_cube<vtk_image3d<int, float, SPACE>, vtk_image3d<int, float, SPACE> >(*(images[dataSetIndex]), *(images[dataSetIndex]), isovalue);
-    }
-    if (includeConstantContours)
-    { 
-      if (useInterop)
-      {
-        for (int i=0; i<3; i++) if (i != 1) constantContours[dataSetIndex]->vboResources[i] = constantResources[i];
-        constantContours[dataSetIndex]->vboResources[1] = 0;
-        constantContours[dataSetIndex]->useInterop = useInterop;
-      }
-      constantContours[dataSetIndex]->discardMinVals = false;
-      constantContours[dataSetIndex]->set_isovalue(-99999.9);
-      constantContours[dataSetIndex]->discardMinVals = false;
-      (*(constantContours[dataSetIndex]))();
-      if (!useInterop)
-      {
-        constantVertices.assign(constantContours[dataSetIndex]->vertices_begin(), constantContours[dataSetIndex]->vertices_end());
-        constantNormals.assign(constantContours[dataSetIndex]->normals_begin(), constantContours[dataSetIndex]->normals_end());
-      }
-      numConstantVertices = constantContours[dataSetIndex]->numTotalVertices;
-      if (!useContours) constantContours[dataSetIndex]->freeMemory(false);
-      constantContours[dataSetIndex]->discardMinVals = true;
-    }
+    createOperators();
 
     lastIsovalue = -9999.9;
     lastPlaneLevel = -9999.9;

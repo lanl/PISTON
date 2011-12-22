@@ -35,6 +35,20 @@ cuda_add_executable(swdemoOMP ${swdemo_SOURCES} ${swdemo_HEADERS_MOC} ${swdemo_F
 target_link_libraries(swdemoOMP GLEW pthread vtkIO gomp ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES} ${QT_LIBRARIES})
 
 
+set(demo_SOURCES demo.cpp glwindow.cpp isorender.cu quaternion.cpp)
+set(demo_HEADERS glwindow.h)
+set(demo_FORMS demo.ui)
+QT4_WRAP_CPP(demo_HEADERS_MOC ${demo_HEADERS})
+QT4_WRAP_UI(demo_FORMS_HEADERS ${demo_FORMS})
+
+cuda_add_executable(demoGPU ${demo_SOURCES} ${demo_HEADERS_MOC} ${demo_FORMS_HEADERS} OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}" -DUSE_INTEROP)
+target_link_libraries(demoGPU GLEW pthread vtkIO ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES} ${QT_LIBRARIES})
+
+cuda_add_executable(demoOMP ${demo_SOURCES} ${demo_HEADERS_MOC} ${demo_FORMS_HEADERS} 
+	OPTIONS -Xcompiler -fopenmp OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}" -DTHRUST_DEVICE_BACKEND=THRUST_DEVICE_BACKEND_OMP)
+target_link_libraries(demoOMP GLEW pthread vtkIO gomp ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES} ${QT_LIBRARIES})
+
+
 set(bigdemo_SOURCES bigdemo.cpp glwindow.cpp isorender.cu quaternion.cpp)
 set(bigdemo_HEADERS glwindow.h)
 set(bigdemo_FORMS bigdemo.ui)

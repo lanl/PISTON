@@ -22,20 +22,22 @@ OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABIL
 ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include <math.h>
-#include <stdlib.h>
+#include "ui_demo.h"
+#include <iostream>
 
-#include <thrust/host_vector.h>
-
-class Quaternion
+int main(int argc, char *argv[])
 {
-public:
-	Quaternion() { x = y = z = 0.0; w = 1.0; }
-	Quaternion(double x, double y, double z, double w) : x(x), y(y), z(z), w(w) {};
-	void set(double ax, double ay, double az, double aw) { x = ax; y = ay; z = az; w = aw; }
-	void mul(Quaternion q);
-	void setEulerAngles(float pitch, float yaw, float roll);
-	void getRotMat(float* m) const;
+	if (argc < 2)
+	{
+	  std::cout << "Usage: demoGPU filename operator OR demoOMP filename operator" << std::endl;
+	  return 1;
+	}
+    QApplication app(argc, argv);
+    QWidget widget;
+    Ui::Form ui;
+    ui.setupUi(&widget);
 
-	double x,y,z,w;
-};
+    ui.widget->initialize(argc, argv);
+    widget.show();
+    return app.exec();
+}
