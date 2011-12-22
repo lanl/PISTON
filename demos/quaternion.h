@@ -25,7 +25,7 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVE
 class Quaternion
 {
 public:
-	Quaternion() { x = y = z = w = 0.0; }
+	Quaternion() { x = y = z = 0.0; w = 1.0; }
 	Quaternion(double x, double y, double z, double w) : x(x), y(y), z(z), w(w) {};
 	void set(double ax, double ay, double az, double aw) { x = ax; y = ay; z = az; w = aw; }
 	void mul(Quaternion q);

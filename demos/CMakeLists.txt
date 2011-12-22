@@ -53,3 +53,7 @@ target_link_libraries(contourVTK vtkRendering vtkFiltering vtkIO vtkCommon vtkGr
 add_executable(contourPAR contourPAR.cpp)
 set_source_files_properties(contourPAR.cpp PROPERTIES COMPILE_FLAGS "-fopenmp -DDATA_DIRECTORY=${DATA_DIR}")
 target_link_libraries(contourPAR vtkRendering vtkFiltering vtkIO vtkCommon vtkGraphics vtkParallel)
+
+
+cuda_add_executable(glyphGPU glyph.cu glyphrender.cu quaternion.cpp OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}" -DUSE_INTEROP)
+target_link_libraries(glyphGPU pthread vtkIO vtkRendering vtkFiltering vtkCommon vtkGraphics GLEW ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
