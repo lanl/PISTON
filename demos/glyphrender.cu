@@ -76,9 +76,9 @@ void GlyphRender::display()
 
       if (!useInterop)
       {
-    	vertices.assign(glyphs->vertices_begin(), glyphs->vertices_end());
     	normals.assign(glyphs->normals_begin(), glyphs->normals_end());
     	indices.assign(glyphs->indices_begin(), glyphs->indices_end());
+    	vertices.assign(glyphs->vertices_begin(), glyphs->vertices_end());
       }
     }
 
@@ -88,7 +88,6 @@ void GlyphRender::display()
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     gluPerspective(30.0, 2.0, 0.01, 100.0);
-    //gluPerspective(cameraFOV, 2.0, 200.0, 4000.0);
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
@@ -110,11 +109,15 @@ void GlyphRender::display()
     offset.x = center.x - offset.x; offset.y = center.y - offset.y; offset.z = center.z - offset.z;
     glTranslatef(-offset.x, -offset.y, -offset.z);*/
 
+    glColor4f(0.5, 0.5, 0.5, 1.0);
+
     if (includeGlyphs)
     {
       glEnableClientState(GL_VERTEX_ARRAY);
       glDisableClientState(GL_COLOR_ARRAY);
       glEnableClientState(GL_NORMAL_ARRAY);
+
+      //std::cout << "Rendering " << indices.size() << std::endl;
 
       /*if (useInterop)
       {
@@ -133,7 +136,7 @@ void GlyphRender::display()
         glNormalPointer(GL_FLOAT, 0, &normals[0]);
         //glColorPointer(4, GL_FLOAT, 0, &colors[0]);
         glVertexPointer(3, GL_FLOAT, 0, &vertices[0]);
-        glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, &indices[0]);
+        glDrawElements(GL_TRIANGLES, 3*indices.size(), GL_UNSIGNED_INT, &indices[0]);
         //glDrawArrays(GL_TRIANGLES, 0, vertices.size());
       }
     }
@@ -145,9 +148,9 @@ void GlyphRender::display()
       glEnableClientState(GL_VERTEX_ARRAY);
 
       glNormalPointer(GL_FLOAT, 0, &inputNormalsHost[0]);
-      //glColorPointer(3, GL_FLOAT, 0, colorsx);
+      //glColorPointer(4, GL_FLOAT, 0, &inputColorsHost[0]);
       glVertexPointer(3, GL_FLOAT, 0, &inputVerticesHost[0]);
-      glDrawElements(GL_TRIANGLES, inputIndicesHost.size(), GL_UNSIGNED_INT, &inputIndicesHost[0]);
+      glDrawElements(GL_TRIANGLES, 3*inputIndicesHost.size(), GL_UNSIGNED_INT, &inputIndicesHost[0]);
     }
 
     glDisableClientState(GL_VERTEX_ARRAY);
@@ -195,7 +198,7 @@ void GlyphRender::initGL(bool aAllowInterop)
 
     float white[] = { 0.5, 0.5, 0.5, 1.0 };
     float black[] = { 0.0, 0.0, 0.0, 1.0 };
-    float lightPos[] = { 100.0, 100.0, -100.0, 1.0 };
+    float lightPos[] = { 0.0, 0.0, 10.0, 1.0 };
     glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, white);
     glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 100);
     glLightfv(GL_LIGHT0, GL_AMBIENT, white);
@@ -242,21 +245,24 @@ void GlyphRender::initGL(bool aAllowInterop)
 }
 
 
-void GlyphRender::copyPolyData(vtkPolyData *polyData, thrust::device_vector<float> &points, thrust::device_vector<float> &vectors, thrust::device_vector<GLuint> &indices)
+void GlyphRender::copyPolyData(vtkPolyData *polyData, thrust::device_vector<float3> &points, thrust::device_vector<float3> &vectors, thrust::device_vector<uint3> &indexes)
 {
 	vtkPoints* pts = polyData->GetPoints();
 	vtkFloatArray* verts = vtkFloatArray::SafeDownCast(pts->GetData());
 	vtkFloatArray* norms = vtkFloatArray::SafeDownCast(polyData->GetPointData()->GetNormals());
-    float* vData = verts->GetPointer(0);
-	float* nData = norms->GetPointer(0);
-	points.assign(vData, vData+verts->GetNumberOfTuples()*3);
-	vectors.assign(nData, nData+norms->GetNumberOfTuples()*3);
+    float3* vData = (float3*)verts->GetPointer(0);
+	float3* nData = (float3*)norms->GetPointer(0);
+	points.assign(vData, vData+verts->GetNumberOfTuples());
+	vectors.assign(nData, nData+norms->GetNumberOfTuples());
 
 	vtkCellArray* cellArray = polyData->GetPolys();
 	vtkIdTypeArray* conn = cellArray->GetData();
 	vtkIdType* cData = conn->GetPointer(0);
 	for (int i=0; i<3*polyData->GetNumberOfPolys(); i++) cData[i] = cData[(i/3)*4+(i%3)+1];
-	indices.assign(cData, cData+3*polyData->GetNumberOfPolys());
+	thrust::host_vector<uint> indexTemp;
+	indexTemp.assign(cData, cData+3*polyData->GetNumberOfPolys());
+	uint3* c3Data = (uint3*)(thrust::raw_pointer_cast(&*indexTemp.begin()));
+	indexes.assign(c3Data, c3Data+polyData->GetNumberOfPolys());
 }
 
 
@@ -285,8 +291,8 @@ int GlyphRender::read()
 
 	copyPolyData(arrowPoly, glyphVertices, glyphNormals, glyphIndices);
 
-	glyphs = new glyph<thrust::device_vector<float>::iterator, thrust::device_vector<float>::iterator, thrust::device_vector<float>::iterator,
-			           thrust::device_vector<float>::iterator, thrust::device_vector<GLuint>::iterator>
+	glyphs = new glyph<thrust::device_vector<float3>::iterator, thrust::device_vector<float3>::iterator, thrust::device_vector<float3>::iterator,
+			           thrust::device_vector<float3>::iterator, thrust::device_vector<uint3>::iterator>
                       (inputVertices.begin(), inputNormals.begin(), glyphVertices.begin(), glyphNormals.begin(), glyphIndices.begin(),
                        inputVertices.size(), glyphVertices.size(), glyphIndices.size());
 
@@ -295,9 +301,9 @@ int GlyphRender::read()
 	cameraFOV = zoomLevelBase*zoomLevelPct;  camera_up = make_float3(0,1,0);
 
 	includeGlyphs = true; includeInput = true;
-	inputVerticesHost = inputVertices;
 	inputIndicesHost = inputIndices;
 	inputNormalsHost = inputNormals;
+	inputVerticesHost = inputVertices;
 
     return 0;
 }
