@@ -32,38 +32,7 @@
      <item>
       <layout class="QVBoxLayout" name="verticalLayout_2">
        <item>
-        <layout class="QHBoxLayout" name="horizontalLayout" stretch="3,0,0,3,0">
-         <item>
-          <widget class="QScrollBar" name="verticalScrollBar_2">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Fixed" vsizetype="Expanding">
-             <horstretch>1</horstretch>
-             <verstretch>3</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="value">
-            <number>50</number>
-           </property>
-           <property name="orientation">
-            <enum>Qt::Vertical</enum>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QLabel" name="label_2">
-           <property name="text">
-            <string>C
-u
-t
-
-P
-l
-a
-n
-e</string>
-           </property>
-          </widget>
-         </item>
+        <layout class="QHBoxLayout" name="horizontalLayout" stretch="0,3,0">
          <item>
           <spacer name="horizontalSpacer">
            <property name="orientation">
@@ -96,16 +65,12 @@ e</string>
          <item>
           <widget class="QLabel" name="label_3">
            <property name="text">
-            <string>I
-s
-o
-s
-u
-r
-f
+            <string>V
 a
-c
-e</string>
+l
+u
+e
+</string>
            </property>
           </widget>
          </item>
@@ -157,38 +122,6 @@ e</string>
     <hint type="destinationlabel">
      <x>1896</x>
      <y>458</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>verticalScrollBar_2</sender>
-   <signal>valueChanged(int)</signal>
-   <receiver>widget</receiver>
-   <slot>setPlaneLevel(int)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>2002</x>
-     <y>285</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>1896</x>
-     <y>285</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>widget</sender>
-   <signal>setPlaneSlider(int)</signal>
-   <receiver>verticalScrollBar_2</receiver>
-   <slot>setValue(int)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>1838</x>
-     <y>345</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>2002</x>
-     <y>351</y>
     </hint>
    </hints>
   </connection>
