@@ -39,12 +39,13 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 
 namespace piston {
 
-template <typename InputPoints, typename InputVectors, typename GlyphVertices, typename GlyphNormals, typename GlyphIndices>
+template <typename InputPoints, typename InputVectors, typename InputScalars, typename GlyphVertices, typename GlyphNormals, typename GlyphIndices>
 class glyph
 {
 public:
 	InputPoints inputPoints;
 	InputVectors inputVectors;
+	InputScalars inputScalars;
 	GlyphVertices glyphVertices;
 	GlyphNormals glyphNormals;
 	GlyphIndices glyphIndices;
@@ -53,22 +54,33 @@ public:
 
 	typedef typename detail::choose_container<GlyphVertices, float3>::type VerticesContainer;
 	typedef typename detail::choose_container<GlyphNormals, float3>::type	NormalsContainer;
+	typedef typename detail::choose_container<InputScalars, float>::type	ScalarsContainer;
 	typedef typename detail::choose_container<GlyphIndices, uint3>::type	IndicesContainer;
 
 	typedef typename VerticesContainer::iterator VerticesIterator;
 	typedef typename IndicesContainer::iterator  IndicesIterator;
 	typedef typename NormalsContainer::iterator  NormalsIterator;
+	typedef typename ScalarsContainer::iterator  ScalarsIterator;
 
 	typedef typename thrust::counting_iterator<int>	CountingIterator;
 
 	VerticesContainer	vertices;
 	NormalsContainer	normals;
 	IndicesContainer	indices;
+    ScalarsContainer    scalars;
 
+    unsigned int numIndices;
+    float minValue, maxValue;
+    bool useInterop;
+    float3 *vertexBufferData;
+    float3 *normalBufferData;
+    float4 *colorBufferData;
+    uint3 *indexBufferData;
+    struct cudaGraphicsResource* vboResources[4];
 
-	glyph(InputPoints inputPoints, InputVectors inputVectors, GlyphVertices glyphVertices, GlyphNormals glyphNormals, GlyphIndices glyphIndices,
-		  int nPoints, int nVertices, int nIndices) : inputPoints(inputPoints), inputVectors(inputVectors), glyphVertices(glyphVertices), glyphNormals(glyphNormals),
-		  glyphIndices(glyphIndices), nPoints(nPoints), nVertices(nVertices), nIndices(nIndices) {};
+	glyph(InputPoints inputPoints, InputVectors inputVectors, InputScalars inputScalars, GlyphVertices glyphVertices, GlyphNormals glyphNormals, GlyphIndices glyphIndices,
+		  int nPoints, int nVertices, int nIndices) : inputPoints(inputPoints), inputVectors(inputVectors), inputScalars(inputScalars), glyphVertices(glyphVertices), glyphNormals(glyphNormals),
+		  glyphIndices(glyphIndices), nPoints(nPoints), nVertices(nVertices), nIndices(nIndices), useInterop(false) {};
 
 	void operator()()
 	{
@@ -76,15 +88,70 @@ public:
 	  normals.resize(NCells*nVertices);
 	  indices.resize(NCells*nIndices);
 	  vertices.resize(NCells*nVertices);
+	  scalars.resize(NCells*nVertices);
+	  numIndices = NCells*nIndices;
 
-	  thrust::for_each(CountingIterator(0), CountingIterator(0)+NCells, generate_glyphs(inputPoints, inputVectors, glyphVertices, glyphNormals, glyphIndices,
-			  thrust::raw_pointer_cast(&*vertices.begin()), thrust::raw_pointer_cast(&*normals.begin()), thrust::raw_pointer_cast(&*indices.begin()), nVertices, nIndices));
+	  if (useInterop)
+	  {
+	    size_t num_bytes;
+	    cudaGraphicsMapResources(1, &vboResources[0], 0);
+	    cudaGraphicsResourceGetMappedPointer((void **)&vertexBufferData, &num_bytes, vboResources[0]);
+
+	    if (vboResources[1])
+	    {
+	      cudaGraphicsMapResources(1, &vboResources[1], 0);
+	      cudaGraphicsResourceGetMappedPointer((void **)&colorBufferData, &num_bytes, vboResources[1]);
+	    }
+
+	    cudaGraphicsMapResources(1, &vboResources[2], 0);
+	    cudaGraphicsResourceGetMappedPointer((void **)&normalBufferData, &num_bytes, vboResources[2]);
+
+	    cudaGraphicsMapResources(1, &vboResources[3], 0);
+	    cudaGraphicsResourceGetMappedPointer((void **)&indexBufferData, &num_bytes, vboResources[3]);
+	  }
+
+      if (useInterop)
+      {
+    	thrust::for_each(CountingIterator(0), CountingIterator(0)+NCells, generate_glyphs(inputPoints, inputVectors, inputScalars, glyphVertices, glyphNormals, glyphIndices,
+    	  			     vertexBufferData, normalBufferData, indexBufferData, thrust::raw_pointer_cast(&*scalars.begin()), nVertices, nIndices));
+	    /*thrust::for_each(thrust::make_zip_iterator(thrust::make_tuple(validCellIndices.begin(), numVerticesEnum.begin(),
+		                                           thrust::make_permutation_iterator(cubeIndex.begin(), validCellIndices.begin()),
+		                                           thrust::make_permutation_iterator(numVertices.begin(), validCellIndices.begin()))),
+		             thrust::make_zip_iterator(thrust::make_tuple(validCellIndices.end(), numVerticesEnum.end(),
+		                                       thrust::make_permutation_iterator(cubeIndex.begin(), validCellIndices.begin()) + numValidCells,
+		                                       thrust::make_permutation_iterator(numVertices.begin(), validCellIndices.begin()) + numValidCells)),
+		             isosurface_functor(isovalue, input, source, xDim, yDim, CellsPerLayer,
+		                                thrust::raw_pointer_cast(&*triTable.begin()),
+		                                vertexBufferData, normalBufferData, thrust::raw_pointer_cast(&*scalars.begin())));*/
+        if (vboResources[1]) thrust::transform(scalars.begin(), scalars.end(), thrust::device_ptr<float4>(colorBufferData), color_map<float>(minValue, maxValue));
+      }
+      else
+      {
+	    thrust::for_each(CountingIterator(0), CountingIterator(0)+NCells, generate_glyphs(inputPoints, inputVectors, inputScalars, glyphVertices, glyphNormals, glyphIndices,
+			    thrust::raw_pointer_cast(&*vertices.begin()), thrust::raw_pointer_cast(&*normals.begin()), thrust::raw_pointer_cast(&*indices.begin()),
+			    thrust::raw_pointer_cast(&*scalars.begin()), nVertices, nIndices));
+      }
+
+	  if (useInterop)
+	  {
+	    /*thrust::copy(vertices.begin(), vertices_end(), thrust::device_ptr<float3>)
+	  	thrust::copy(thrust::make_transform_iterator(vertices_begin(), tuple2float4()),
+	  	             thrust::make_transform_iterator(vertices_end(),   tuple2float4()),
+	  	             thrust::device_ptr<float4>(vertexBufferData));
+	  	thrust::copy(normals_begin(), normals_end(), thrust::device_ptr<float3>(normalBufferData));
+	  	thrust::transform(scalars_begin(), scalars_end(),
+	  		              thrust::device_ptr<float4>(colorBufferData),
+	  		              color_map<float>(minThresholdRange, maxThresholdRange, true) );*/
+
+	  	for (int i=0; i<4; i++) cudaGraphicsUnmapResources(1, &vboResources[i], 0);
+	  }
 	}
 
 	struct generate_glyphs : public thrust::unary_function<int, void>
 	{
 	  InputPoints inputPoints;
 	  InputVectors inputVectors;
+	  InputScalars inputScalars;
 	  GlyphVertices glyphVertices;
 	  GlyphNormals glyphNormals;
 	  GlyphIndices glyphIndices;
@@ -92,13 +159,15 @@ public:
 	  float3* vertices;
 	  float3* normals;
 	  uint3* indices;
+	  float* scalars;
 
 	  int nVertices, nIndices;
 
 	  __host__ __device__
-	  generate_glyphs(InputPoints inputPoints, InputVectors inputVectors, GlyphVertices glyphVertices, GlyphNormals glyphNormals, GlyphIndices glyphIndices,
-			          float3* vertices, float3* normals, uint3* indices, int nVertices, int nIndices) : inputPoints(inputPoints), inputVectors(inputVectors),
-			          glyphVertices(glyphVertices), glyphNormals(glyphNormals), glyphIndices(glyphIndices), vertices(vertices), normals(normals), indices(indices), nVertices(nVertices), nIndices(nIndices) {};
+	  generate_glyphs(InputPoints inputPoints, InputVectors inputVectors, InputScalars inputScalars, GlyphVertices glyphVertices, GlyphNormals glyphNormals, GlyphIndices glyphIndices,
+			          float3* vertices, float3* normals, uint3* indices, float* scalars, int nVertices, int nIndices) : inputPoints(inputPoints), inputVectors(inputVectors), inputScalars(inputScalars),
+			          glyphVertices(glyphVertices), glyphNormals(glyphNormals), glyphIndices(glyphIndices), vertices(vertices), normals(normals), indices(indices), scalars(scalars),
+			          nVertices(nVertices), nIndices(nIndices) {};
 
 	  __host__ __device__
 	  void operator() (int id) const
@@ -130,9 +199,9 @@ public:
 		  float3 result;
 		  float3 glyphV = *(glyphVertices+(i%(nVertices)));
 		  float x[3]; x[0] = glyphV.x; x[1] = glyphV.y; x[2] = glyphV.z;
-		  result.x = R[0]*x[0] + R[1]*x[1] + R[2]*x[2] + p[0];
-		  result.y = R[3]*x[0] + R[4]*x[1] + R[5]*x[2] + p[1];
-		  result.z = R[6]*x[0] + R[7]*x[1] + R[8]*x[2] + p[2];
+		  result.x = *(inputScalars+id)*(R[0]*x[0] + R[1]*x[1] + R[2]*x[2]) + p[0];
+		  result.y = *(inputScalars+id)*(R[3]*x[0] + R[4]*x[1] + R[5]*x[2]) + p[1];
+		  result.z = *(inputScalars+id)*(R[6]*x[0] + R[7]*x[1] + R[8]*x[2]) + p[2];
 		  *(vertices+i) = result;
 
 		  float3 glyphN = *(glyphNormals+(i%(nVertices)));
@@ -142,6 +211,7 @@ public:
 		  result.z = R[6]*x[0] + R[7]*x[1] + R[8]*x[2];
 		  *(normals+i) = result;
 
+		  *(scalars+i) = *(inputScalars+id);
 		}
 
         //for (int i=id*(nVertices); i<(id+1)*(nVertices); i++) *(vertices+i) = *(glyphVertices+(i%(nVertices))) + *(inputPoints+id);
@@ -158,6 +228,8 @@ public:
 	NormalsIterator normals_end()      { return normals.end();    }
 	IndicesIterator indices_begin()    { return indices.begin();  }
 	IndicesIterator indices_end()      { return indices.end();    }
+	ScalarsIterator scalars_begin()    { return scalars.begin(); }
+	ScalarsIterator scalars_end()      { return scalars.end();   }
 };
 
 }

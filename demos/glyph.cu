@@ -61,7 +61,7 @@ void motion(int x, int y)
       newRotY.setEulerAngles(0.0, 0.0, -0.2*dy*3.14159/180.0);
       glyphrender->qrot.mul(newRotY);
     }
-    else if (mouse_buttons == 2)
+    else if (mouse_buttons == 4)
     {
       glyphrender->setZoomLevelPct(glyphrender->zoomLevelPct + dy/1000.0);
     }
@@ -98,7 +98,7 @@ void initGL(int argc, char **argv)
     glutInitWindowSize(2048, 1024);
     glutCreateWindow("Glyph");
 
-    glyphrender->initGL(false);
+    glyphrender->initGL(true);
 
     glutDisplayFunc(display);
     glutKeyboardFunc(keyboard);

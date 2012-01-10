@@ -30,6 +30,7 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <float.h>
 
 #include "glyphrender.h"
 
@@ -66,11 +67,11 @@ void GlyphRender::display()
 {
     if (true)
     {
-      /*if (useInterop)
+      if (useInterop)
       {
-        for (int i=0; i<3; i++) contours[dataSetIndex]->vboResources[i] = vboResources[i];
-    	  contours[dataSetIndex]->minIso = minIso;  contours[dataSetIndex]->maxIso = maxIso;
-      }*/
+        for (int i=0; i<4; i++) glyphs->vboResources[i] = vboResources[i];
+    	glyphs->minValue = minValue;  glyphs->maxValue = maxValue;
+      }
 
       (*(glyphs))();
 
@@ -79,6 +80,8 @@ void GlyphRender::display()
     	normals.assign(glyphs->normals_begin(), glyphs->normals_end());
     	indices.assign(glyphs->indices_begin(), glyphs->indices_end());
     	vertices.assign(glyphs->vertices_begin(), glyphs->vertices_end());
+    	colors.assign(thrust::make_transform_iterator(glyphs->scalars_begin(), color_map<float>(minValue, maxValue)),
+    	              thrust::make_transform_iterator(glyphs->scalars_end(), color_map<float>(minValue, maxValue)));
       }
     }
 
@@ -87,7 +90,7 @@ void GlyphRender::display()
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    gluPerspective(30.0, 2.0, 0.01, 100.0);
+    gluPerspective(cameraFOV, 2.0, 0.01, 100.0);
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
@@ -111,38 +114,9 @@ void GlyphRender::display()
 
     glColor4f(0.5, 0.5, 0.5, 1.0);
 
-    if (includeGlyphs)
-    {
-      glEnableClientState(GL_VERTEX_ARRAY);
-      glDisableClientState(GL_COLOR_ARRAY);
-      glEnableClientState(GL_NORMAL_ARRAY);
-
-      //std::cout << "Rendering " << indices.size() << std::endl;
-
-      /*if (useInterop)
-      {
-        glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[0]);
-        glVertexPointer(4, GL_FLOAT, 0, 0);
-        glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[1]);
-        glColorPointer(4, GL_FLOAT, 0, 0);
-
-        glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[2]);
-        glNormalPointer(GL_FLOAT, 0, 0);
-
-        glDrawArrays(GL_TRIANGLES, 0, contours[dataSetIndex]->numTotalVertices);
-      }
-      else*/
-      {
-        glNormalPointer(GL_FLOAT, 0, &normals[0]);
-        //glColorPointer(4, GL_FLOAT, 0, &colors[0]);
-        glVertexPointer(3, GL_FLOAT, 0, &vertices[0]);
-        glDrawElements(GL_TRIANGLES, 3*indices.size(), GL_UNSIGNED_INT, &indices[0]);
-        //glDrawArrays(GL_TRIANGLES, 0, vertices.size());
-      }
-    }
-
     if (includeInput)
     {
+      glColor4f(0.5, 0.5, 0.5, 1.0);
       glEnableClientState(GL_NORMAL_ARRAY);
       glDisableClientState(GL_COLOR_ARRAY);
       glEnableClientState(GL_VERTEX_ARRAY);
@@ -151,6 +125,34 @@ void GlyphRender::display()
       //glColorPointer(4, GL_FLOAT, 0, &inputColorsHost[0]);
       glVertexPointer(3, GL_FLOAT, 0, &inputVerticesHost[0]);
       glDrawElements(GL_TRIANGLES, 3*inputIndicesHost.size(), GL_UNSIGNED_INT, &inputIndicesHost[0]);
+    }
+
+    if (includeGlyphs)
+    {
+      glEnableClientState(GL_VERTEX_ARRAY);
+      glEnableClientState(GL_COLOR_ARRAY);
+      glEnableClientState(GL_NORMAL_ARRAY);
+
+      if (useInterop)
+      {
+        glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[0]);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vboBuffers[3]);
+        glVertexPointer(3, GL_FLOAT, 0, 0);
+        glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[1]);
+        glColorPointer(4, GL_FLOAT, 0, 0);
+        glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[2]);
+        glNormalPointer(GL_FLOAT, 0, 0);
+        glDrawElements(GL_TRIANGLES, 3*glyphs->numIndices, GL_UNSIGNED_INT, 0);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+      }
+      else
+      {
+        glNormalPointer(GL_FLOAT, 0, &normals[0]);
+        glColorPointer(4, GL_FLOAT, 0, &colors[0]);
+        glVertexPointer(3, GL_FLOAT, 0, &vertices[0]);
+        glDrawElements(GL_TRIANGLES, 3*indices.size(), GL_UNSIGNED_INT, &indices[0]);
+      }
     }
 
     glDisableClientState(GL_VERTEX_ARRAY);
@@ -168,8 +170,8 @@ void GlyphRender::cleanup()
 	  printf("Deleting VBO\n");
 	  if (vboBuffers[0])
 	  {
-	    for (int i=0; i<3; i++) cudaGraphicsUnregisterResource(vboResources[i]);
-	    for (int i=0; i<3; i++)
+	    for (int i=0; i<4; i++) cudaGraphicsUnregisterResource(vboResources[i]);
+	    for (int i=0; i<4; i++)
 	    {
 	      glBindBuffer(1, vboBuffers[i]);
 	      glDeleteBuffers(1, &(vboBuffers[i]));
@@ -229,15 +231,18 @@ void GlyphRender::initGL(bool aAllowInterop)
       cudaGLSetGLDevice(0);
 
       // initialize contour buffer objects
-      glGenBuffers(3, vboBuffers);
+      glGenBuffers(4, vboBuffers);
       for (int i=0; i<3; i++)
       {
         unsigned int buffer_size = (i == 2) ? GLYPH_BUFFER_SIZE*sizeof(float3) : GLYPH_BUFFER_SIZE*sizeof(float4);
         glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[i]);
         glBufferData(GL_ARRAY_BUFFER, buffer_size, 0, GL_DYNAMIC_DRAW);
       }
+      glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[3]);
+      glBufferData(GL_ARRAY_BUFFER, GLYPH_BUFFER_SIZE*sizeof(uint3), 0, GL_DYNAMIC_DRAW);
+
       glBindBuffer(GL_ARRAY_BUFFER, 0);
-      for (int i=0; i<3; i++) cudaGraphicsGLRegisterBuffer(&(vboResources[i]), vboBuffers[i], cudaGraphicsMapFlagsWriteDiscard);
+      for (int i=0; i<4; i++) cudaGraphicsGLRegisterBuffer(&(vboResources[i]), vboBuffers[i], cudaGraphicsMapFlagsWriteDiscard);
     }
 
     //printf("Error code: %s\n", cudaGetErrorString(errorCode));
@@ -291,11 +296,27 @@ int GlyphRender::read()
 
 	copyPolyData(arrowPoly, glyphVertices, glyphNormals, glyphIndices);
 
-	glyphs = new glyph<thrust::device_vector<float3>::iterator, thrust::device_vector<float3>::iterator, thrust::device_vector<float3>::iterator,
-			           thrust::device_vector<float3>::iterator, thrust::device_vector<uint3>::iterator>
-                      (inputVertices.begin(), inputNormals.begin(), glyphVertices.begin(), glyphNormals.begin(), glyphIndices.begin(),
+	inputScalars.resize(inputVertices.size());
+	maxValue = -FLT_MAX;  minValue = FLT_MAX;
+	for (int i=0; i<inputVertices.size(); i++)
+	{
+		float3 curVertex = inputVertices[i];
+		if (curVertex.x > maxValue) maxValue = curVertex.x;
+		if (curVertex.x < minValue) minValue = curVertex.x;
+	}
+	for (int i=0; i<inputScalars.size(); i++)
+	{
+		float3 curVertex = inputVertices[i];
+		inputScalars[i] = 0.2 + 0.8*((curVertex.x - minValue) / (maxValue - minValue)); //0.2 + 1.6*0.01*(rand() % 100);
+	}
+	minValue = 0.2;  maxValue = 1.0;
+
+	glyphs = new glyph<thrust::device_vector<float3>::iterator, thrust::device_vector<float3>::iterator, thrust::device_vector<float>::iterator,
+			           thrust::device_vector<float3>::iterator, thrust::device_vector<float3>::iterator, thrust::device_vector<uint3>::iterator>
+                      (inputVertices.begin(), inputNormals.begin(), inputScalars.begin(), glyphVertices.begin(), glyphNormals.begin(), glyphIndices.begin(),
                        inputVertices.size(), glyphVertices.size(), glyphIndices.size());
 
+	glyphs->useInterop = useInterop;
 	zoomLevelBase = cameraFOV = 40.0; cameraZ = 2.0; zoomLevelPct = zoomLevelPctDefault = 0.5;
 	center_pos = make_float3(0, 0, 0);
 	cameraFOV = zoomLevelBase*zoomLevelPct;  camera_up = make_float3(0,1,0);
