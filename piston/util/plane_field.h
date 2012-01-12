@@ -45,15 +45,20 @@ struct plane_field : public piston::image3d<IndexType, ValueType, Space>
     PointDataContainer point_data_vector;
     typedef typename PointDataContainer::iterator PointDataIterator;
 
+
     plane_field(float3 origin, float3 normal, int xdim, int ydim, int zdim) :
 	Parent(xdim, ydim, zdim),
 	grid_coordinates_vector(Parent::grid_coordinates_begin(), Parent::grid_coordinates_end()),
 	point_data_vector(thrust::make_transform_iterator(grid_coordinates_vector.begin(), plane_functor<IndexType, ValueType>(origin, normal, xdim, ydim, zdim)),
 	                  thrust::make_transform_iterator(grid_coordinates_vector.end(),   plane_functor<IndexType, ValueType>(origin, normal, xdim, ydim, zdim)))
-	                  {  }
+	                  {}
 
     void resize(float3 origin, float3 normal, int xdim, int ydim, int zdim) {
 	Parent::resize(xdim, ydim, zdim);
+
+	grid_coordinates_vector.resize(this->NPoints);
+	grid_coordinates_vector.assign(Parent::grid_coordinates_begin(), Parent::grid_coordinates_end());
+
 	point_data_vector.resize(this->NPoints);
 	point_data_vector.assign(thrust::make_transform_iterator(grid_coordinates_vector.begin(), plane_functor<IndexType, ValueType>(origin, normal, xdim, ydim, zdim)),
 	                         thrust::make_transform_iterator(grid_coordinates_vector.end(),   plane_functor<IndexType, ValueType>(origin, normal, xdim, ydim, zdim)));

@@ -57,53 +57,6 @@ typedef enum {
 	THRESHOLD_MODE
 } UserModes;
 
-template <typename ValueType>
-struct color_map : thrust::unary_function<ValueType, float4>
-{
-    const ValueType min;
-    const ValueType max;
-    const ValueType minOffset;
-    const ValueType maxOffset;
-    const bool reversed;
-
-    __host__ __device__
-    color_map(ValueType min, ValueType max, bool reversed=false) : min(min), max(max), reversed(reversed), minOffset(min-0.1*(max-min)), maxOffset(max+0.1*(max-min)) {}
-
-    __host__ __device__
-    float4 operator()(ValueType val) 
-    {
-	// HSV rainbow for height field, stolen form Manta
-    if (val < -1000.0) return make_float4(0.0, 0.0, 0.0, 1.0);
-    if (val > max) val = maxOffset; //return make_float4(1.0, 1.0, 1.0, 1.0);
-    if (val < min) val = minOffset; //return make_float4(0.0, 0.0, 0.0, 0.0);
-	const float V = 0.7f, S = 1.0f;
-	float H;
-	if (reversed) H = (static_cast<float> (val - minOffset) / (maxOffset - minOffset));
-	else H = (1.0f - static_cast<float> (val - minOffset) / (maxOffset - minOffset));
-
-	if (H < 0.0f) H = 0.0f;
-	else if (H > 1.0f) H = 1.0f;
-	H *= 4.0f;
-
-	float i = floor(H);
-	float f = H - i;
-
-	float p = V * (1.0 - S);
-	float q = V * (1.0 - S * f);
-	float t = V * (1.0 - S * (1 - f));
-
-	float R, G, B;
-	if (i == 0.0) { R = V; G = t; B = p; } 
-        else if (i == 1.0) { R = q; G = V; B = p; } 
-        else if (i == 2.0) { R = p; G = V; B = t; } 
-        else if (i == 3.0) { R = p; G = q; B = V; } 
-        else if (i == 4.0) { R = t; G = p; B = V; } 
-        else { R = V; G = p; B = q; }
-
-	return make_float4(R, G, B, 1.0);
-    }
-};
-
 #include <piston/image3d.h>
 #include <piston/vtk_image3d.h>
 #include <piston/util/plane_field.h>

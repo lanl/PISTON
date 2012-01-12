@@ -39,10 +39,9 @@ struct sphere_functor : public piston::implicit_function3d<IndexType, ValueType>
     const IndexType x_o;
     const IndexType y_o;
     const IndexType z_o;
-    const IndexType radius;
 
-    sphere_functor(IndexType x, IndexType y, IndexType z, IndexType radius) :
-	x_o(x), y_o(y), z_o(z), radius(radius) {}
+    sphere_functor(IndexType x, IndexType y, IndexType z) :
+	x_o(x), y_o(y), z_o(z) {}
 
     __host__ __device__
     ValueType operator()(InputType pos) const {

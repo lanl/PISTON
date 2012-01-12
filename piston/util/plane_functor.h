@@ -45,14 +45,9 @@ struct plane_functor : public piston::implicit_function3d<IndexType, ValueType>
 
     __host__ __device__
     float operator()(InputType pos) const {
-    	const IndexType xc = thrust::get<0>(pos);
-    	const IndexType yc = thrust::get<1>(pos);
-    	const IndexType zc = thrust::get<2>(pos);
-
-    	// scale and shift such that x, y, z <- [-1,1]
-    	const float x = 2*static_cast<float>(xc)/(xDim-1) - 1;
-    	const float y = 2*static_cast<float>(yc)/(yDim-1) - 1;
-    	const float z = 2*static_cast<float>(zc)/(zDim-1) - 1;
+	const IndexType x = thrust::get<0>(pos);
+	const IndexType y = thrust::get<1>(pos);
+	const IndexType z = thrust::get<2>(pos);
 
         return dot(make_float3(x, y, z) - origin, normal);
     }

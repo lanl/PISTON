@@ -34,16 +34,17 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #include <piston/image3d.h>
 #include <cutil_math.h>
 #include <piston/choose_container.h>
+#include <piston/hsv_color_map.h>
 
 struct tuple2float4 : thrust::unary_function<thrust::tuple<int, int, int>, float4>
 {
-	__host__ __device__
-	float4 operator()(thrust::tuple<int, int, int> xyz) {
-	    return make_float4((float) thrust::get<0>(xyz),
-	                       (float) thrust::get<1>(xyz),
-	                       (float) thrust::get<2>(xyz),
-	                       1.0f);
-	}
+    __host__ __device__
+    float4 operator()(thrust::tuple<int, int, int> xyz) {
+	return make_float4((float) thrust::get<0>(xyz),
+	                   (float) thrust::get<1>(xyz),
+	                   (float) thrust::get<2>(xyz),
+	                   1.0f);
+    }
 };
 
 namespace piston

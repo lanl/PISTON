@@ -1,29 +1,10 @@
 /*
-Copyright (c) 2011, Los Alamos National Security, LLC
-All rights reserved.
-Copyright 2011. Los Alamos National Security, LLC. This software was produced under U.S. Government contract DE-AC52-06NA25396 for Los Alamos National Laboratory (LANL),
-which is operated by Los Alamos National Security, LLC for the U.S. Department of Energy. The U.S. Government has rights to use, reproduce, and distribute this software.
-
-NEITHER THE GOVERNMENT NOR LOS ALAMOS NATIONAL SECURITY, LLC MAKES ANY WARRANTY, EXPRESS OR IMPLIED, OR ASSUMES ANY LIABILITY FOR THE USE OF THIS SOFTWARE.
-
-If software is modified to produce derivative works, such modified software should be clearly marked, so as not to confuse it with the version available from LANL.
-
-Additionally, redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
-·         Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
-·         Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other
-          materials provided with the distribution.
-·         Neither the name of Los Alamos National Security, LLC, Los Alamos National Laboratory, LANL, the U.S. Government, nor the names of its contributors may be used
-          to endorse or promote products derived from this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY LOS ALAMOS NATIONAL SECURITY, LLC AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL LOS ALAMOS NATIONAL SECURITY, LLC OR CONTRIBUTORS BE LIABLE FOR ANY
-DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,
-OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
-
+ * eddy.cu
+ *
+ *  Created on: Oct 21, 2011
+ *      Author: ollie
+ */
 #include <sys/time.h>
-#include <stdio.h>
 
 #include <GL/glew.h>
 #include <GL/gl.h>
@@ -31,14 +12,18 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 
 #include <cuda_gl_interop.h>
 
-#include <piston/util/sphere_field.h>
+#include <vtkXMLImageDataReader.h>
+
 #include <piston/threshold_geometry.h>
+#include <piston/vtk_image3d.h>
+
+static const int GRID_SIZE = 256;
 
 using namespace piston;
 
-//#define SPACE  thrust::host_space_tag
 #define SPACE thrust::detail::default_device_space_tag
-static const int GRID_SIZE = 256;
+//#define SPACE thrust::host_space
+
 
 int mouse_old_x, mouse_old_y;
 int mouse_buttons = 0;
@@ -92,8 +77,7 @@ void keyboard( unsigned char key, int x, int y )
     }
 }
 
-threshold_geometry<sphere_field<int, float, SPACE> > *threshold_p;
-
+threshold_geometry<vtk_image3d<int, float, SPACE> > *threshold_p;
 GLuint quads_vbo[2];
 struct cudaGraphicsResource *quads_pos_res, *quads_color_res;
 unsigned int buffer_size;
@@ -101,8 +85,8 @@ unsigned int buffer_size;
 void create_vbo()
 {
     glGenBuffers(2, quads_vbo);
-    int error;
 
+    int error;
     std::cout << "number of vertices: " << thrust::distance(threshold_p->vertices_begin(), threshold_p->vertices_end()) << std::endl;
     buffer_size = thrust::distance(threshold_p->vertices_begin(), threshold_p->vertices_end())* sizeof(float4);
 
@@ -136,15 +120,17 @@ void display()
 	gettimeofday(&begin, 0);
     }
 
-//    (*threshold_p)();
+    (*threshold_p)();
 
+#if 1
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     if (wireframe) {
 	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     } else {
-	glPolygonMode(GL_BACK, GL_FILL);
-	glPolygonMode(GL_FRONT, GL_FILL);
+//	glPolygonMode(GL_BACK, GL_FILL);
+//	glPolygonMode(GL_FRONT, GL_FILL);
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     }
 
     // set view matrix for 3D scene
@@ -168,33 +154,29 @@ void display()
     cudaGraphicsUnmapResources(1, &quads_pos_res, 0);
     glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[0]);
     glVertexPointer(4, GL_FLOAT, 0, 0);
-    glEnableClientState(GL_VERTEX_ARRAY);
 
     cudaGraphicsMapResources(1, &quads_color_res, 0);
     cudaGraphicsResourceGetMappedPointer((void**)&raw_ptr, &num_bytes, quads_color_res);
     thrust::transform(threshold_p->scalars_begin(), threshold_p->scalars_end(),
                       thrust::device_ptr<float4>(raw_ptr),
-                      color_map<float>(4.0f, 1600.0f));
+                      color_map<float>(200.0f, 400.0f));
     cudaGraphicsUnmapResources(1, &quads_color_res, 0);
     glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[1]);
     glColorPointer(4, GL_FLOAT, 0, 0);
-    glEnableClientState(GL_COLOR_ARRAY);
+
 
     glDrawArrays(GL_QUADS, 0, buffer_size/sizeof(float4));
 
-    glDisableClientState(GL_VERTEX_ARRAY);
-    glDisableClientState(GL_VERTEX_ARRAY);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-
     glutSwapBuffers();
+#endif
 
     gettimeofday(&end, 0);
     timersub(&end, &begin, &diff);
     frame_count++;
     float seconds = diff.tv_sec + 1.0E-6*diff.tv_usec;
-    if (seconds > 0.1f) {
+    if (seconds > 0.5f) {
 	char title[256];
-	sprintf(title, "Threshold filter, fps: %2.2f", float(frame_count)/seconds);
+	sprintf(title, "Threshold, fps: %2.2f", float(frame_count)/seconds);
 	glutSetWindowTitle(title);
 	seconds = 0.0f;
 	frame_count = 0;
@@ -219,35 +201,27 @@ void initGL(int argc, char **argv)
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
     glutInitWindowSize(800, 800);
-    glutCreateWindow("Threshold");
+    glutCreateWindow("Ocean Eddy");
 
     glewInit();
 
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
     glEnable(GL_DEPTH_TEST);
-//    glShadeModel(GL_SMOOTH);
+    glShadeModel(GL_SMOOTH);
 
     // good old-fashioned fixed function lighting
-    float black[]    = { 0.0f, 0.0f, 0.0f, 1.0f };
-    float white[]    = { 0.8f, 0.8f, 0.8f, 1.0f };
-    float ambient[]  = { 0.1f, 0.1f, 0.1f, 1.0f };
-    float diffuse[]  = { 0.9f, 0.9f, 0.9f, 1.0f };
-    float lightPos[] = { 0.0f, 0.0f, 1.0f, 0.0f};
+    float white[] = { 0.8, 0.8, 0.8, 1.0 };
+    float lightPos[] = { 100.0, 100.0, -100.0, 1.0 };
 
-    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, ambient);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, diffuse);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, black);
-
-    //glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, white);
-    //glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 100);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, white);
+    glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 100);
 
     glLightfv(GL_LIGHT0, GL_AMBIENT, white);
     glLightfv(GL_LIGHT0, GL_DIFFUSE, white);
     glLightfv(GL_LIGHT0, GL_SPECULAR, white);
     glLightfv(GL_LIGHT0, GL_POSITION, lightPos);
 
-//    glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER, 1);
-    glLightModelfv(GL_LIGHT_MODEL_AMBIENT, black);
+    glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER, 1);
 //    glLightModeli(GL_LIGHT_MODEL_TWO_SIDE, 1);
 
     glEnable(GL_LIGHTING);
@@ -268,27 +242,29 @@ void initGL(int argc, char **argv)
     glPushMatrix();
 
     // enable vertex and normal arrays
-//    glEnableClientState(GL_VERTEX_ARRAY);
+    glEnableClientState(GL_VERTEX_ARRAY);
 //    glEnableClientState(GL_NORMAL_ARRAY);
-//    glEnableClientState(GL_COLOR_ARRAY);
-
-
+    glEnableClientState(GL_COLOR_ARRAY);
 }
 
-int main(int argc, char *argv[])
+int main(int argc, char **argv)
 {
     initGL(argc, argv);
     cudaGLSetGLDevice(0);
 
-    sphere_field<int, float, SPACE> scalar_field(GRID_SIZE, GRID_SIZE, GRID_SIZE);
+    vtkXMLImageDataReader *reader = vtkXMLImageDataReader::New();
+    reader->SetFileName(argv[1]);
+    reader->Update();
 
-    threshold_geometry<sphere_field<int, float, SPACE> > threshold(scalar_field, 4, 1600);
+    vtkImageData *vtk_image = reader->GetOutput();
+
+    vtk_image3d<int, float, SPACE> image(vtk_image);
+    threshold_geometry<vtk_image3d<int, float, SPACE> > threshold(image, 50.0f, 400.0f);
     threshold();
     threshold_p = &threshold;
 
     create_vbo();
 
-//    glutReshapeFunc( reshape);
     glutDisplayFunc(display);
     glutKeyboardFunc(keyboard);
     glutMouseFunc(mouse);

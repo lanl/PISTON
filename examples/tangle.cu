@@ -107,9 +107,9 @@ struct tangle_field : public piston::image3d<IndexType, ValueType, Space>
 {
     typedef piston::image3d<IndexType, ValueType, Space> Parent;
 
-    typedef typename detail::choose_container<typename Parent::CountingIterator, thrust::tuple<IndexType, IndexType, IndexType> >::type GridCoordinatesContainer;
-    GridCoordinatesContainer grid_coordinates_vector;
-    typedef typename GridCoordinatesContainer::iterator GridCoordinatesIterator;
+//    typedef typename detail::choose_container<typename Parent::CountingIterator, thrust::tuple<IndexType, IndexType, IndexType> >::type GridCoordinatesContainer;
+//    GridCoordinatesContainer grid_coordinates_vector;
+//    typedef typename GridCoordinatesContainer::iterator GridCoordinatesIterator;
 
     typedef typename detail::choose_container<typename Parent::CountingIterator, ValueType>::type PointDataContainer;
     PointDataContainer point_data_vector;
@@ -144,24 +144,27 @@ struct tangle_field : public piston::image3d<IndexType, ValueType, Space>
 
     tangle_field(int xdim, int ydim, int zdim) :
 	Parent(xdim, ydim, zdim),
-	grid_coordinates_vector(Parent::grid_coordinates_begin(), Parent::grid_coordinates_end()),
-	point_data_vector(thrust::make_transform_iterator(grid_coordinates_vector.begin(), tangle_functor(xdim, ydim, zdim)),
-	                  thrust::make_transform_iterator(grid_coordinates_vector.end(),   tangle_functor(xdim, ydim, zdim)))
+//	grid_coordinates_vector(Parent::grid_coordinates_begin(), Parent::grid_coordinates_end()),
+//	point_data_vector(thrust::make_transform_iterator(grid_coordinates_vector.begin(), tangle_functor(xdim, ydim, zdim)),
+//	                  thrust::make_transform_iterator(grid_coordinates_vector.end(),   tangle_functor(xdim, ydim, zdim)))
+//	grid_coordinates_vector(Parent::grid_coordinates_begin(), Parent::grid_coordinates_end()),
+	point_data_vector(thrust::make_transform_iterator(Parent::grid_coordinates_begin(), tangle_functor(xdim, ydim, zdim)),
+	                  thrust::make_transform_iterator(Parent::grid_coordinates_end(),   tangle_functor(xdim, ydim, zdim)))
 	                  {}
 
     void resize(int xdim, int ydim, int zdim) {
 	Parent::resize(xdim, ydim, zdim);
 	point_data_vector.resize(this->NPoints);
-	point_data_vector.assign(thrust::make_transform_iterator(grid_coordinates_vector.begin(), tangle_functor(xdim, ydim, zdim)),
-	                         thrust::make_transform_iterator(grid_coordinates_vector.end(),   tangle_functor(zdim, ydim, zdim)));
+//	point_data_vector.assign(thrust::make_transform_iterator(grid_coordinates_vector.begin(), tangle_functor(xdim, ydim, zdim)),
+//	                         thrust::make_transform_iterator(grid_coordinates_vector.end(),   tangle_functor(zdim, ydim, zdim)));
     }
 
-    GridCoordinatesIterator grid_coordinates_begin() {
-	return grid_coordinates_vector.begin();
-    }
-    GridCoordinatesIterator grid_coordinates_end() {
-	return grid_coordinates_vector.end();
-    }
+//    GridCoordinatesIterator grid_coordinates_begin() {
+//	return grid_coordinates_vector.begin();
+//    }
+//    GridCoordinatesIterator grid_coordinates_end() {
+//	return grid_coordinates_vector.end();
+//    }
 
     PointDataIterator point_data_begin() {
 	return point_data_vector.begin();
@@ -291,8 +294,8 @@ void display()
     struct timeval begin, end, diff;
     gettimeofday(&begin, 0);
 
-//    (*isosurface_p)();
-
+    (*isosurface_p)();
+#if 1
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     if (wireframe) {
@@ -357,8 +360,9 @@ void display()
 
     glutSwapBuffers();
     glBindBuffer(GL_ARRAY_BUFFER, 0);
-    new_frame = false;
 
+    new_frame = false;
+#endif
     gettimeofday(&end, 0);
     timersub(&end, &begin, &diff);
     frame_count++;
@@ -384,6 +388,16 @@ void idle()
 //	    delta = 0.05;
     }
     glutPostRedisplay();
+}
+
+void reshape(int w, int h)
+{
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    gluPerspective(60.0, (float) w / (float) h, 0.1, GRID_SIZE*4.0f);
+
+    glMatrixMode(GL_MODELVIEW);
+    glViewport(0, 0, w, h);
 }
 
 void timer(int value)
@@ -472,7 +486,7 @@ int main(int argc, char *argv[])
     glutMouseFunc(mouse);
     glutMotionFunc(motion);
     glutIdleFunc(idle);
-//    glutTimerFunc(10, timer, 0);
+    glutReshapeFunc(reshape);
 
     glutMainLoop();
 

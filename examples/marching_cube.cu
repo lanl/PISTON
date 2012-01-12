@@ -217,16 +217,18 @@ void create_vbo()
     }
 }
 
+struct timeval begin, end, diff;
 int frame_count = 0;
-float seconds = 0.0f;
 
 void display()
 {
-    struct timeval begin, end, diff;
-    gettimeofday(&begin, 0);
+    if (frame_count == 0) {
+	gettimeofday(&begin, 0);
+    }
 
-//    (*isosurface_p)();
+    (*isosurface_p)();
 
+#if 1
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     if (wireframe) {
@@ -276,7 +278,7 @@ void display()
     cudaGraphicsResourceGetMappedPointer((void**)&raw_ptr, &num_bytes, quads_color_res);
     thrust::transform(isosurface_p->scalars_begin(), isosurface_p->scalars_end(),
                       thrust::device_ptr<float4>(raw_ptr),
-                      color_map<float>(4.0f, 1600.0f));
+                      color_map<float>(31.0f, 500.0f));
     cudaGraphicsUnmapResources(1, &quads_color_res, 0);
     glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[2]);
     glColorPointer(4, GL_FLOAT, 0, 0);
@@ -284,20 +286,19 @@ void display()
     glDrawArrays(GL_TRIANGLES, 0, buffer_size/sizeof(float4));
 
     glutSwapBuffers();
+#endif
 
     gettimeofday(&end, 0);
     timersub(&end, &begin, &diff);
     frame_count++;
-    seconds += diff.tv_sec + 1.0E-6*diff.tv_usec;
-
-    if (frame_count > 10) {
+    float seconds = diff.tv_sec + 1.0E-6*diff.tv_usec;
+    if (seconds > 0.5f) {
 	char title[256];
-	sprintf(title, "Marching Cube, fps: %2.2f", 10.0f/seconds);
+	sprintf(title, "Marching Cube, fps: %2.2f", float(frame_count)/seconds);
 	glutSetWindowTitle(title);
 	seconds = 0.0f;
 	frame_count = 0;
     }
-
 }
 
 void idle()
@@ -366,20 +367,17 @@ void initGL(int argc, char **argv)
 
 int main(int argc, char *argv[])
 {
-
-    cudaGLSetGLDevice(0);
     initGL(argc, argv);
+    cudaGLSetGLDevice(0);
 
     vtkXMLImageDataReader *reader = vtkXMLImageDataReader::New();
-    char filename[1024];
-    sprintf(filename, "%s/rti256.vti", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
-    reader->SetFileName(filename);
+    reader->SetFileName(argv[1]);
     reader->Update();
 
     vtkImageData *vtk_image = reader->GetOutput();
 
     vtk_image3d<int, float, SPACE> image(vtk_image);
-    marching_cube<vtk_image3d<int, float, SPACE>, vtk_image3d<int, float, SPACE> > isosurface(image, image, 40);
+    marching_cube<vtk_image3d<int, float, SPACE>, vtk_image3d<int, float, SPACE> > isosurface(image, image, 40.0f);
 
     isosurface();
     isosurface_p = &isosurface;
