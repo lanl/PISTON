@@ -1,47 +1,108 @@
 PISTON: A Portable Cross-Platform Data-Parallel Visualization and Analysis Library
-Li-Ta Lo, Chris Sewell, and Jim Ahrens, Copyright 2011
+Authors: Li-Ta Lo, Chris Sewell, and Jim Ahrens
+
+
+Copyright Notice:
+
+Copyright (c) 2011, Los Alamos National Security, LLC
+All rights reserved.
+Copyright 2011. Los Alamos National Security, LLC. This software was produced under U.S. Government contract DE-AC52-06NA25396 
+for Los Alamos National Laboratory (LANL), which is operated by Los Alamos National Security, LLC for the U.S. Department of 
+Energy. The U.S. Government has rights to use, reproduce, and distribute this software.
+
+NEITHER THE GOVERNMENT NOR LOS ALAMOS NATIONAL SECURITY, LLC MAKES ANY WARRANTY, EXPRESS OR IMPLIED, OR ASSUMES ANY LIABILITY 
+FOR THE USE OF THIS SOFTWARE.
+
+If software is modified to produce derivative works, such modified software should be clearly marked, so as not to confuse it 
+with the version available from LANL.
+
+Additionally, redistribution and use in source and binary forms, with or without modification, are permitted provided that the 
+following conditions are met:
+·  Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+·  Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following 
+   disclaimer in the documentation and/or other materials provided with the distribution.
+·  Neither the name of Los Alamos National Security, LLC, Los Alamos National Laboratory, LANL, the U.S. Government, nor the 
+   names of its contributors may be used to endorse or promote products derived from this software without specific prior 
+   written permission.
+
+THIS SOFTWARE IS PROVIDED BY LOS ALAMOS NATIONAL SECURITY, LLC AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
+INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. 
+IN NO EVENT SHALL LOS ALAMOS NATIONAL SECURITY, LLC OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, 
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, 
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY 
+OF SUCH DAMAGE.
+
+
+
+Instructions for Use:
 
 This project uses CMake.  Create a build directory, pointing to this directory as the root of the source directory.
 Installations of NVIDIA's CUDA toolkit (including the thrust include files), NVIDIA's GPU Computing SDK, and VTK are
-required, and locations for these installations may be provided in the CMake configuration.  Some of the demos also
-require QT4.  
+required, and locations for these installations may be provided in the CMake configuration.  Other dependencies include
+QT4 development, GLUT development, and Xmu development.
 
-Data files for the PISTON examples are distributed in a separate gzip, and the location of these extracted files may
-also be configured with CMake.
+Note that this project uses NVIDIA's nvcc compiler, which is not compatible with gcc 4.5 and higher.  If your gcc version
+is 4.5 or newer, you will also need to install an older version of gcc and point to this version, either by changing
+environment variable paths or editing the compiler-bindir in the nvcc.profile file. 
+
+A directory for data files may also be specified in CMake.  Some sample data files are available in a separate gzip, or
+you may use your own files in vti format.  Only structured grids (vtkImageData) are currently supported.
 
 Filters for the currently implemented PISTON operators (isosurface and cut surfaces using marching_cube.h and thresholding
 using threshold_geometry.h) are located in the piston subdirectory, along with data structures for input data and other
 utilities.
 
-This distribution includes example and demo applications that run using the CUDA and OpenMP backends provided by the thrust 
+This distribution includes example applications that run using the CUDA and OpenMP backends provided by the thrust 
 library.  We have also developed a prototype OpenCL backend for the isosurface and cut surface operators, but that is not
-included in this distribution as it is still in development.
+included in this distribution as it is still in development.  Thus, the GPU applications will only run on NVIDIA graphics cards.
 
-The examples subdirectory includes several simple applications illustrating PISTON operators.  The marching_cube example 
-generates an isosurface on a Rayleigh-Taylor instability data set.  The tangle example generates an isosurface on an
-implicitly-defined field, mimicking the marching cubes example that is part of NVIDIA's GPU Computing SDK.  The threshold
-example applies the thresholding operator to an implicitly-defined sphere field, while the eddy example applies this
-operator to an ocean eddy data set.  Most of the examples only generate geometry, not normals or colors, and run with the
-CUDA backend.  They use the CUDA interop extension to render the computation results directly on the graphics card.
+The OpenMP backend provided in NVIDIA's thrust library includes only a serial rather than a parallel implementation of the 
+scan algorithm, which is used by PISTON's operators.  Thus, in order to improve PISTON's OpenMP performance, replace the scan.inl
+file in {CUDA_BASE}/include/thrust/detail/device/omp with the scan.inl file provided in this directory. 
 
-The demos subdirectory includes some more polished applications illustrating PISTON operators, some of which were shown
-in the Los Alamos National Lab booth at the 2011 Supercomputing Conference.  They do compute normals and colors.  The swdemoGPU, 
-swdemoOMP, and bigdemoGPU applications have a QT user interface to allow the user to scroll through isovalues, cut surface 
-positions, and/or threshold ranges.  The swdemoGPU and swdemoOMP applications compile from the same exact code, the only difference 
-being a compiler switch indicating whether thrust will compile to the CUDA or OpenMP backend.  The user can switch between four 
-data sets: Rayleigh-Taylor instability, ocean temperature, ocean eddies, and wind turbine, which together exercise all the 
-currently implemented PISTON operators.  The number of processors used by OpenMP in swdemoOMP can be controlled by setting the
-OMP_NUM_THREADS environment variable.  The bigdemoGPU application allows the user to interactively vary the isovalue for 
-contouring a single large ocean temperature data set (1800x1200x42).  The contourGPU and contourOMP applications use a glut 
-interface instead of QT.  The first command-line parameter for these applications indicates the data set to use, and the 
-second parameter indicates the number of isosurfaces to compute in a timed loop without rendering.  If this second parameter 
-is zero or not given, a single isosurface will be computed and rendered to the screen (rather than performing the timed 
-computation loop).  The data set index refers to the datasetX.txt metafiles in the data directory that specify data file 
-names and parameters, with X being the given data set index.  The contourVTK and contourPAR applications behave the same way 
-as the contourGPU and contourOMP applications, but use serial VTK and parallel VTK, respectively, instead of PISTON.  The 
-contourPAR application may be run using mpirun: mpirun -np {x} ./contourPAR {dataSetIndex}, where x is the number of 
-processors to use.  The PISTON applications using the CUDA backend (swdemoGPU, bigdemoGPU, and contourGPU) use the interop 
-extension by default, but can be run without this by removing the USE_INTEROP flag from the command-line parameters in the 
-CMakeLists.txt file.       
+The examples subdirectory includes several simple applications illustrating PISTON operators.  The tangle example generates 
+an isosurface on an implicitly-defined field, mimicking the marching cubes example that is part of NVIDIA's GPU Computing SDK.  
+The threshold example applies the thresholding operator to an implicitly-defined sphere field.  The tangle and threshold 
+examples only generate geometry, not normals or colors, and run with the CUDA backend.  They use the CUDA interop extension 
+to render the computation results directly on the graphics card.  On some machines, closing these two applications using the
+close box has been observed to cause freezing, so, to be safe, it is recommended to close these applications using Ctrl-C at
+the command line.
+
+The demoGPU and demoOMP applications allow the user to specify an input file at the command-line, apply either the 
+isosurface, cut surface, or threshold operator to it, rotate and zoom the view, and scroll through the isovalues, cut surface 
+positions, or threshold ranges using a QT user interface.  The demoGPU and demoOMP applications compile from the same exact code, 
+the only difference being a compiler switch indicating whether thrust will compile to the CUDA or OpenMP backend.  When these
+applications are run, the first command-line parameter is the file name (within the data directory specified in CMake, or an
+absolute path) for the data set to use.  The second command-line parameter specifies which operator to use: 1=isosurface, 2=cut 
+plane, 3=threshold.  If omitted, the default is isosurface (1).  Optional third and fourth command-line parameters allows the user 
+to specify the range for the isovalues or thresholds.  If these parameters are omitted, it defaults to using the minimum and maximum 
+values in the file.  Thresholds are generated in the range [minValue, curValue], where curValue is determined by the position of the
+slider in the GUI and ranges between minValue and maxValue.   The number of processors used by OpenMP in demoOMP can be 
+controlled by setting the OMP_NUM_THREADS environment variable.  The demoGPU application uses the interop extension by default, 
+but can be run without this by removing the USE_INTEROP flag from the command-line parameters in the CMakeLists.txt file.  When using
+interop, if you need to change the vertex buffer object size, either because your data set is too large, or your graphics card does
+not have enough memory, you can increase or decrease the BUFFER_SIZE variable in CMake. 
+
+You may either use your own data sets, or download sample data sets available as a separate tar.gz on the PISTON web page.  Note that
+some of these data sets may require more memory than is available on some graphics cards, so, if you get a std::bad_alloc error when
+running demoGPU, try using one of the smaller data sets.
+
+Here are some sample execution commands using the provided data sets:
+
+% Apply the isosurface operator to the HighResOceanTemp.vti file within the isovalue range 0.0 to 32.0, running with CUDA, using low-res data set
+./demoGPU LowResOceanTemp.vti 1 0.0 32.0
+
+% Apply the isosurface operator to the HighResOceanTemp.vti file within the isovalue range 0.0 to 32.0, running with CUDA, using high-res data set
+./demoGPU HighResOceanTemp.vti 1 0.0 32.0
+
+% Apply the cut plane operator to the OceanTemp.vti file within the isovalue range 0.0 to 32.0, running with OpenMP
+./demoOMP OceanTemp.vti 2 0.0 32.0
+
+% Apply the threshold operator to the NorthPacificEddies.vti file within the threshold range -0.25 up to -0.25 to -0.04, running with CUDA
+./demoGPU NorthPacificEddies.vti 3 -0.25 -0.04
+
+
+      
 
 

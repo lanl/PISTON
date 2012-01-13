@@ -50,12 +50,20 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 using namespace piston;
 #define SPACE thrust::detail::default_device_space_tag
 
+#define BIG_CONTOUR_BUFFER_SIZE 25000000
+#define BIG_PLANE_BUFFER_SIZE 13000000
+
+#define CONTOUR_BUFFER_SIZE 12000000
+#define PLANE_BUFFER_SIZE 2100000
+#define CONSTANT_BUFFER_SIZE 5000000
+
 typedef enum {
 	DEFAULT_MODE = 0,
 	ISOSURFACE_MODE,
 	CUT_SURFACE_MODE,
 	THRESHOLD_MODE
 } UserModes;
+
 
 #include <piston/image3d.h>
 #include <piston/vtk_image3d.h>
@@ -77,6 +85,7 @@ public:
   void timeContours();
   void cleanup();
   void screenShot(std::string fileName, unsigned int width, unsigned int height, bool includeAlpha = false );
+  void createBuffers();
   void createOperators();
   int read(char* aFileName, int aMode);
   int read(int aDataSetIndex, int aNumIters=0, int aSaveFrames=0, char* aFrameDirectory=0);
@@ -86,6 +95,7 @@ public:
   char userFileName[2048];
   bool userRange;
   float userMin, userMax;
+  int userBufferSize;
 
   static const int numDataSets = 9;
   int xMin, yMin, zMin, xMax, yMax, zMax;
@@ -126,6 +136,7 @@ public:
   int discardMinVals;
   int bigDemo;
   int viewportWidth, viewportHeight;
+  float planeMax;
 
   float zoomLevelPct, zoomLevelPctDefault;
   float planeLevelPct;

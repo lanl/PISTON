@@ -38,13 +38,6 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #define STRINGIZE(x) #x
 #define STRINGIZE_VALUE_OF(x) STRINGIZE(x)
 
-#define BIG_CONTOUR_BUFFER_SIZE 25000000
-#define BIG_PLANE_BUFFER_SIZE 13000000
-
-#define CONTOUR_BUFFER_SIZE 12000000
-#define PLANE_BUFFER_SIZE 2100000
-#define CONSTANT_BUFFER_SIZE 5000000
-
 
 struct Rect
 {
@@ -82,7 +75,7 @@ struct TGAHeader
 
 IsoRender::IsoRender()
 {
-	userMode = DEFAULT_MODE;
+    userMode = DEFAULT_MODE;
     animate = false;
     mouse_buttons = 0;
     translate = make_float3(0.0, 0.0, 0.0);
@@ -123,13 +116,15 @@ void IsoRender::setIsovaluePct(float pct)
 
     thresholdPct = pct;
     threshold = minThreshold + pct*(maxThreshold-minThreshold);
+
+    if (userMode == CUT_SURFACE_MODE) setPlaneLevelPct(pct);
 }
 
 
 void IsoRender::setPlaneLevelPct(float pct)
 {
     planeLevelPct = pct;
-    planeLevel = -0.95 + (1.0-pct)*1.9;
+    planeLevel = (-0.95 + (1.0-pct)*1.9)*(planeMax/2.0);
 }
 
 
@@ -196,7 +191,7 @@ void IsoRender::display()
         for (int i=0; i<3; i++) planeContours[dataSetIndex]->vboResources[i] = planeResources[i];
         planeContours[dataSetIndex]->minIso = minIso;  planeContours[dataSetIndex]->maxIso = maxIso;  planeContours[dataSetIndex]->colorFlip = useThreshold;
       }
-      planeContours[dataSetIndex]->set_isovalue(0.0+planeLevel);
+      planeContours[dataSetIndex]->set_isovalue(planeLevel);
       (*(planeContours[dataSetIndex]))();
       lastPlaneLevel = planeLevel;
       if (!useInterop)
@@ -578,9 +573,9 @@ void IsoRender::cleanup()
 
 void IsoRender::initGL(bool aAllowInterop, bool aBigDemo, bool aShowLabels, int aDataSet)
 {
-	showLabels = aShowLabels;
-	if (showLabels)
-	{
+    showLabels = aShowLabels;
+    if (showLabels)
+    {
       int argc = 0; char **argv = 0; glutInit(&argc, argv);
     }
 
@@ -627,43 +622,7 @@ void IsoRender::initGL(bool aAllowInterop, bool aBigDemo, bool aShowLabels, int 
       glewInit();
       cudaGLSetGLDevice(0);
 
-      int contourBufferSize = bigDemo ? BIG_CONTOUR_BUFFER_SIZE : CONTOUR_BUFFER_SIZE;
-      int planeBufferSize = bigDemo ? 1 : PLANE_BUFFER_SIZE;
-      int constantBufferSize = bigDemo ? 1 : CONSTANT_BUFFER_SIZE;
-
-      // initialize contour buffer objects
-      glGenBuffers(3, vboBuffers);
-      for (int i=0; i<3; i++)
-      {
-        unsigned int buffer_size = (i == 2) ? contourBufferSize*sizeof(float3) : contourBufferSize*sizeof(float4);
-        glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[i]);
-        glBufferData(GL_ARRAY_BUFFER, buffer_size, 0, GL_DYNAMIC_DRAW);
-      }
-      glBindBuffer(GL_ARRAY_BUFFER, 0);
-      for (int i=0; i<3; i++) cudaGraphicsGLRegisterBuffer(&(vboResources[i]), vboBuffers[i], cudaGraphicsMapFlagsWriteDiscard);
-
-      // initialize plane buffer objects
-      glGenBuffers(3, planeBuffers);
-      for (int i=0; i<3; i++)
-      {
-        unsigned int buffer_size = (i == 2) ? planeBufferSize*sizeof(float3) : planeBufferSize*sizeof(float4);
-        glBindBuffer(GL_ARRAY_BUFFER, planeBuffers[i]);
-        glBufferData(GL_ARRAY_BUFFER, buffer_size, 0, GL_DYNAMIC_DRAW);
-      }
-      glBindBuffer(GL_ARRAY_BUFFER, 0);
-      for (int i=0; i<3; i++) cudaGraphicsGLRegisterBuffer(&(planeResources[i]), planeBuffers[i], cudaGraphicsMapFlagsWriteDiscard);
-
-      // initialize constant contour buffer objects
-      glGenBuffers(3, constantBuffers);
-      for (int i=0; i<3; i++)
-      {
-        if (i == 1) continue;
-        unsigned int buffer_size = (i == 2) ? constantBufferSize*sizeof(float3) : constantBufferSize*sizeof(float4);
-        glBindBuffer(GL_ARRAY_BUFFER, constantBuffers[i]);
-        glBufferData(GL_ARRAY_BUFFER, buffer_size, 0, GL_DYNAMIC_DRAW);
-      }
-      glBindBuffer(GL_ARRAY_BUFFER, 0);
-      for (int i=0; i<3; i++) if (i != 1) cudaGraphicsGLRegisterBuffer(&(constantResources[i]), constantBuffers[i], cudaGraphicsMapFlagsWriteDiscard);
+      createBuffers();
     }
 
     //printf("Error code: %s\n", cudaGetErrorString(errorCode));
@@ -674,20 +633,20 @@ void IsoRender::initGL(bool aAllowInterop, bool aBigDemo, bool aShowLabels, int 
 
 void IsoRender::timeContours()
 {
-	contours[dataSetIndex]->useInterop = false;
-	struct timeval begin, end, diff;
-	gettimeofday(&begin, 0);
-	for (int i=0; i<numIters; i++)
-	{
-	  isovalue = minIso; // + ((1.0*i)/(1.0*numIters))*(maxIso - minIso);
-	  //std::cout << "Generating isovalue " << isovalue << std::endl;
-	  contours[dataSetIndex]->set_isovalue(isovalue);
-	  (*(contours[dataSetIndex]))();
-	}
-	gettimeofday(&end, 0);
-	timersub(&end, &begin, &diff);
-	float seconds = diff.tv_sec + 1.0E-6*diff.tv_usec;
-	std::cout << "contour fps: " << numIters/seconds << std::endl;
+    contours[dataSetIndex]->useInterop = false;
+    struct timeval begin, end, diff;
+    gettimeofday(&begin, 0);
+    for (int i=0; i<numIters; i++)
+    {
+      isovalue = minIso; // + ((1.0*i)/(1.0*numIters))*(maxIso - minIso);
+      //std::cout << "Generating isovalue " << isovalue << std::endl;
+      contours[dataSetIndex]->set_isovalue(isovalue);
+      (*(contours[dataSetIndex]))();
+    }
+    gettimeofday(&end, 0);
+    timersub(&end, &begin, &diff);
+    float seconds = diff.tv_sec + 1.0E-6*diff.tv_usec;
+    std::cout << "contour fps: " << numIters/seconds << std::endl;
 }
 
 
@@ -728,123 +687,171 @@ void IsoRender::screenShot(std::string fileName, unsigned int width, unsigned in
 }
 
 
+void IsoRender::createBuffers()
+{
+	int contourBufferSize = bigDemo ? BIG_CONTOUR_BUFFER_SIZE : CONTOUR_BUFFER_SIZE;
+	int planeBufferSize = bigDemo ? 1 : PLANE_BUFFER_SIZE;
+	int constantBufferSize = bigDemo ? 1 : CONSTANT_BUFFER_SIZE;
+
+	if (userMode == ISOSURFACE_MODE) { contourBufferSize = BUFFER_SIZE; planeBufferSize = 0; constantBufferSize = 0; }
+    if (userMode == CUT_SURFACE_MODE) { contourBufferSize = 0; planeBufferSize = BUFFER_SIZE; constantBufferSize = 0; }
+	if (userMode == THRESHOLD_MODE) { contourBufferSize = BUFFER_SIZE; planeBufferSize = 0; constantBufferSize = 0; }
+
+	// initialize contour buffer objects
+	glGenBuffers(3, vboBuffers);
+	for (int i=0; i<3; i++)
+	{
+	  unsigned int buffer_size = (i == 2) ? contourBufferSize*sizeof(float3) : contourBufferSize*sizeof(float4);
+	  glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[i]);
+	  glBufferData(GL_ARRAY_BUFFER, buffer_size, 0, GL_DYNAMIC_DRAW);
+	}
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	for (int i=0; i<3; i++) cudaGraphicsGLRegisterBuffer(&(vboResources[i]), vboBuffers[i], cudaGraphicsMapFlagsWriteDiscard);
+
+	// initialize plane buffer objects
+	glGenBuffers(3, planeBuffers);
+	for (int i=0; i<3; i++)
+	{
+	  unsigned int buffer_size = (i == 2) ? planeBufferSize*sizeof(float3) : planeBufferSize*sizeof(float4);
+	  glBindBuffer(GL_ARRAY_BUFFER, planeBuffers[i]);
+	  glBufferData(GL_ARRAY_BUFFER, buffer_size, 0, GL_DYNAMIC_DRAW);
+	}
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	for (int i=0; i<3; i++) cudaGraphicsGLRegisterBuffer(&(planeResources[i]), planeBuffers[i], cudaGraphicsMapFlagsWriteDiscard);
+
+	// initialize constant contour buffer objects
+	glGenBuffers(3, constantBuffers);
+	for (int i=0; i<3; i++)
+	{
+	  if (i == 1) continue;
+	  unsigned int buffer_size = (i == 2) ? constantBufferSize*sizeof(float3) : constantBufferSize*sizeof(float4);
+	  glBindBuffer(GL_ARRAY_BUFFER, constantBuffers[i]);
+	  glBufferData(GL_ARRAY_BUFFER, buffer_size, 0, GL_DYNAMIC_DRAW);
+	}
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	for (int i=0; i<3; i++) if (i != 1) cudaGraphicsGLRegisterBuffer(&(constantResources[i]), constantBuffers[i], cudaGraphicsMapFlagsWriteDiscard);
+}
+
+
 void IsoRender::createOperators()
 {
-	if ((contours[dataSetIndex] == 0) && (thresholds[dataSetIndex] == 0))
-	{
-	  readers[dataSetIndex]->Update();
-	  output = readers[dataSetIndex]->GetOutput();
-	  images[dataSetIndex] = new vtk_image3d<int, float, SPACE>(output);
-	}
+    if ((contours[dataSetIndex] == 0) && (thresholds[dataSetIndex] == 0))
+    {
+      readers[dataSetIndex]->Update();
+      output = readers[dataSetIndex]->GetOutput();
+      images[dataSetIndex] = new vtk_image3d<int, float, SPACE>(output);
+    }
 
-	if ((includeContours) && (contours[dataSetIndex] == 0))
-	{
-	  contours[dataSetIndex] = new marching_cube<vtk_image3d<int, float, SPACE>, vtk_image3d<int, float, SPACE> >(*(images[dataSetIndex]), *(images[dataSetIndex]), isovalue);
-	  contours[dataSetIndex]->useInterop = useInterop;
-	  contours[dataSetIndex]->discardMinVals = discardMinVals;
-	}
+    if ((includeContours) && (contours[dataSetIndex] == 0))
+    {
+      contours[dataSetIndex] = new marching_cube<vtk_image3d<int, float, SPACE>, vtk_image3d<int, float, SPACE> >(*(images[dataSetIndex]), *(images[dataSetIndex]), isovalue);
+      contours[dataSetIndex]->useInterop = useInterop;
+      contours[dataSetIndex]->discardMinVals = discardMinVals;
+    }
 
-	if ((includePlane) && (planeContours[dataSetIndex] == 0))
-	{
-	  planeFields[dataSetIndex] = new plane_field<int, float, SPACE>(make_float3(0, 0, 0), plane_normal, xMax-xMin+1, yMax-yMin+1, zMax-zMin+1);
-	  planeContours[dataSetIndex] = new marching_cube<plane_field<int, float, SPACE>, vtk_image3d<int, float, SPACE> >(*(planeFields[dataSetIndex]), *(images[dataSetIndex]), isovalue);
-	  planeContours[dataSetIndex]->useInterop = useInterop;
-	}
+    if ((includePlane) && (planeContours[dataSetIndex] == 0))
+    {
+      planeFields[dataSetIndex] = new plane_field<int, float, SPACE>(make_float3((xMax-xMin+1)/2.0, (yMax-yMin+1)/2.0, (zMax-zMin+1))/2.0, plane_normal, xMax-xMin+1, yMax-yMin+1, zMax-zMin+1);
+      planeContours[dataSetIndex] = new marching_cube<plane_field<int, float, SPACE>, vtk_image3d<int, float, SPACE> >(*(planeFields[dataSetIndex]), *(images[dataSetIndex]), isovalue);
+      planeContours[dataSetIndex]->useInterop = useInterop;
+    }
 
-	if (includeThreshold && (thresholds[dataSetIndex] == 0))
-	{
-	  thresholds[dataSetIndex] = new threshold_geometry<vtk_image3d<int, float, SPACE> >(*(images[dataSetIndex]), thresholdFloor, threshold);
-	  thresholds[dataSetIndex]->useInterop = useInterop;
-	}
+    if (includeThreshold && (thresholds[dataSetIndex] == 0))
+    {
+      thresholds[dataSetIndex] = new threshold_geometry<vtk_image3d<int, float, SPACE> >(*(images[dataSetIndex]), thresholdFloor, threshold);
+      thresholds[dataSetIndex]->useInterop = useInterop;
+    }
 
-	if ((includeConstantContours) && (constantContours[dataSetIndex] == 0))
-	{
-	  if (useContours) constantContours[dataSetIndex] = contours[dataSetIndex];
-	  else constantContours[dataSetIndex] = new marching_cube<vtk_image3d<int, float, SPACE>, vtk_image3d<int, float, SPACE> >(*(images[dataSetIndex]), *(images[dataSetIndex]), isovalue);
-	}
-	if (includeConstantContours)
-	{
-	  if (useInterop)
-	  {
-	    for (int i=0; i<3; i++) if (i != 1) constantContours[dataSetIndex]->vboResources[i] = constantResources[i];
+    if ((includeConstantContours) && (constantContours[dataSetIndex] == 0))
+    {
+      if (useContours) constantContours[dataSetIndex] = contours[dataSetIndex];
+      else constantContours[dataSetIndex] = new marching_cube<vtk_image3d<int, float, SPACE>, vtk_image3d<int, float, SPACE> >(*(images[dataSetIndex]), *(images[dataSetIndex]), isovalue);
+    }
+    if (includeConstantContours)
+    {
+      if (useInterop)
+      {
+        for (int i=0; i<3; i++) if (i != 1) constantContours[dataSetIndex]->vboResources[i] = constantResources[i];
 	    constantContours[dataSetIndex]->vboResources[1] = 0;
 	    constantContours[dataSetIndex]->useInterop = useInterop;
-	  }
-	  constantContours[dataSetIndex]->discardMinVals = false;
-	  constantContours[dataSetIndex]->set_isovalue(-99999.9);
-	  constantContours[dataSetIndex]->discardMinVals = false;
-	  (*(constantContours[dataSetIndex]))();
-	  if (!useInterop)
-	  {
-	    constantVertices.assign(constantContours[dataSetIndex]->vertices_begin(), constantContours[dataSetIndex]->vertices_end());
+      }
+      constantContours[dataSetIndex]->discardMinVals = false;
+      constantContours[dataSetIndex]->set_isovalue(-99999.9);
+      constantContours[dataSetIndex]->discardMinVals = false;
+      (*(constantContours[dataSetIndex]))();
+      if (!useInterop)
+      {
+        constantVertices.assign(constantContours[dataSetIndex]->vertices_begin(), constantContours[dataSetIndex]->vertices_end());
 	    constantNormals.assign(constantContours[dataSetIndex]->normals_begin(), constantContours[dataSetIndex]->normals_end());
-	  }
-	  numConstantVertices = constantContours[dataSetIndex]->numTotalVertices;
-	  if (!useContours) constantContours[dataSetIndex]->freeMemory(false);
-	  constantContours[dataSetIndex]->discardMinVals = true;
-	}
+      }
+      numConstantVertices = constantContours[dataSetIndex]->numTotalVertices;
+      if (!useContours) constantContours[dataSetIndex]->freeMemory(false);
+      constantContours[dataSetIndex]->discardMinVals = true;
+    }
 }
 
 
 int IsoRender::read(char* aFileName, int aMode)
 {
-	dataSetIndex = 1;  numIters = 0;  saveFrames = 0;
+    dataSetIndex = 1;  numIters = 0;  saveFrames = 0;
 
-	char filename[1024];
-	sprintf(filename, "%s/%s", STRINGIZE_VALUE_OF(DATA_DIRECTORY), userFileName);
-	readers[dataSetIndex]->SetFileName(filename);
+    char filename[1024];
+    sprintf(filename, "%s/%s", STRINGIZE_VALUE_OF(DATA_DIRECTORY), userFileName);
 
-	readers[dataSetIndex]->Update();
-	output = readers[dataSetIndex]->GetOutput();
+    int fileFound = readers[dataSetIndex]->CanReadFile(filename);
+    if (fileFound == 0) sprintf(filename, userFileName);
+    readers[dataSetIndex]->SetFileName(filename);
 
-	int dims[3];  output->GetDimensions(dims);
-	xMin = yMin = zMin = 0;  xMax = dims[0]-1;  yMax = dims[1]-1;  zMax = dims[2]-1;
-	for (int i=0; i<3; i++) std::cout << dims[i] << " ";
-	std::cout << std::endl;
+    readers[dataSetIndex]->Update();
+    output = readers[dataSetIndex]->GetOutput();
 
-	NPoints = (xMax - xMin + 1) * (yMax - yMin + 1) * (zMax - zMin + 1);
-	center_pos = make_float3((xMax - xMin + 1)/2.0, (yMax - yMin + 1)/2.0, (zMax - zMin + 1)/2.0);
+    int dims[3];  output->GetDimensions(dims);
+    xMin = yMin = zMin = 0;  xMax = dims[0]-1;  yMax = dims[1]-1;  zMax = dims[2]-1;
 
-	if (userRange)
-	{
-	  minIso = userMin;  maxIso = userMax;  minThreshold = thresholdFloor = userMin;  maxThreshold = userMax;
-	}
-   	else
-	{
-	  float* rawData = (float*)(output->GetScalarPointer());
-	  float minVal = FLT_MAX;  float maxVal = FLT_MIN;
-	  for (int i=0; i<NPoints; i++)
-	  {
-	    if (rawData[i] < minVal) minVal = rawData[i];
-	    if (rawData[i] > maxVal) maxVal = rawData[i];
-	  }
-	  minIso = minVal + (0.01*(maxVal - minVal));  maxIso = maxVal - (0.01*(maxVal - minVal));
-	  minThreshold = thresholdFloor = minIso;  maxThreshold = maxIso;
-	}
-	isovaluePct = 0.5;
+    NPoints = (xMax - xMin + 1) * (yMax - yMin + 1) * (zMax - zMin + 1);
+    center_pos = make_float3((xMax - xMin + 1)/2.0, (yMax - yMin + 1)/2.0, (zMax - zMin + 1)/2.0);
+
+    if (userRange)
+    {
+      minIso = userMin;  maxIso = userMax;  minThreshold = thresholdFloor = userMin;  maxThreshold = userMax;
+    }
+    else
+    {
+      float* rawData = (float*)(output->GetScalarPointer());
+      float minVal = FLT_MAX;  float maxVal = FLT_MIN;
+      for (int i=0; i<NPoints; i++)
+      {
+        if (rawData[i] < minVal) minVal = rawData[i];
+	if (rawData[i] > maxVal) maxVal = rawData[i];
+      }
+      minIso = minVal + (0.01*(maxVal - minVal));  maxIso = maxVal - (0.01*(maxVal - minVal));
+      minThreshold = thresholdFloor = minIso;  maxThreshold = maxIso;
+    }
+    isovaluePct = 0.5;
 
     discardMinVals = true;
-	plane_normal.x = 0.0;  plane_normal.y = 0.0;  plane_normal.z = 1.0;  planeLevelPct = 0.5;
-	zoomLevelPctDefault = 0.5;  cameraFOV = 36.0;  cameraZ = 3.0*max(max(xMax, yMax), zMax);
-	zFar = 4000.0;  zNear = 200.0;
+    plane_normal.x = 0.0;  plane_normal.y = 0.0;  plane_normal.z = 1.0;  planeLevelPct = 0.5;
+    zoomLevelPctDefault = 0.5;  cameraFOV = 36.0;  cameraZ = 3.0*max(max(xMax, yMax), zMax);
+    zFar = 2.0*cameraZ;  zNear = zFar/10.0;
+    planeMax = (xMax-xMin)*plane_normal.x + (yMax-yMin)*plane_normal.y + (zMax-zMin)*plane_normal.z;
 
-	zoomLevelBase = cameraFOV;
-	qDefault.set(0, 0, 0, 1);  qrot.set(qDefault.x, qDefault.y, qDefault.z, qDefault.w);
-	zoomLevelPct = zoomLevelPctDefault;
+    zoomLevelBase = cameraFOV;
+    qDefault.set(0, 0, 0, 1);  qrot.set(qDefault.x, qDefault.y, qDefault.z, qDefault.w);
+    zoomLevelPct = zoomLevelPctDefault;
     isovalue = minIso;  threshold = minThreshold;
 
-	cameraFOV = zoomLevelBase*zoomLevelPct;  camera_up = make_float3(0,1,0);
+    cameraFOV = zoomLevelBase*zoomLevelPct;  camera_up = make_float3(0,1,0);
 
-	includeContours = (userMode == ISOSURFACE_MODE);  includeThreshold = (userMode == THRESHOLD_MODE);  includePlane = (userMode == CUT_SURFACE_MODE);
-	includeConstantContours = false;  includePolygons = false;
+    includeContours = (userMode == ISOSURFACE_MODE);  includeThreshold = (userMode == THRESHOLD_MODE);  includePlane = (userMode == CUT_SURFACE_MODE);
+    includeConstantContours = false;  includePolygons = false;
     useContours = includeContours; useThreshold = includeThreshold; useConstantContours = includeConstantContours;
 
     createOperators();
 
     lastIsovalue = -9999.9;
-	lastPlaneLevel = -9999.9;
-	lastThreshold = -9999.9;
-	std::cout << "Read user file " << dataSetIndex << std::endl;
+    lastPlaneLevel = -9999.9;
+    lastThreshold = -9999.9;
+    std::cout << "Read user file " << filename << std::endl;
 
     return 0;
 }
@@ -891,6 +898,7 @@ int IsoRender::read(int aDataSetIndex, int aNumIters, int aSaveFrames, char* aFr
     readers[dataSetIndex]->SetFileName(filename);
     NPoints = (xMax - xMin + 1) * (yMax - yMin + 1) * (zMax - zMin + 1);
     center_pos = make_float3((xMax - xMin + 1)/2.0, (yMax - yMin + 1)/2.0, (zMax - zMin + 1)/2.0);
+    planeMax = (xMax-xMin)*plane_normal.x + (yMax-yMin)*plane_normal.y + (zMax-zMin)*plane_normal.z;
 
     zoomLevelBase = cameraFOV;  zNear = 200.0;  zFar = 4000.0;
     qDefault.set(qx, qy, qz, qw);  qrot.set(qDefault.x, qDefault.y, qDefault.z, qDefault.w);

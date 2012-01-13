@@ -12,12 +12,12 @@ include_directories(${CMAKE_SOURCE_DIR}/demos)
 include_directories(${CUDA_SDK_ROOT_DIR}/C/common/inc/)
 
 set (DATA_DIR "" CACHE PATH "Data directory")
+set (BUFFER_SIZE 25000000 CACHE INT "VBO Size")
 
-
-cuda_add_executable(contourGPU contour.cu isorender.cu quaternion.cpp OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}" -DUSE_INTEROP)
+cuda_add_executable(contourGPU contour.cu isorender.cu quaternion.cpp OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}" "-DBUFFER_SIZE=${BUFFER_SIZE}" -DUSE_INTEROP)
 target_link_libraries(contourGPU pthread vtkIO GLEW ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
 
-cuda_add_executable(contourOMP contour.cu isorender.cu quaternion.cpp OPTIONS -Xcompiler -fopenmp OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}" -DTHRUST_DEVICE_BACKEND=THRUST_DEVICE_BACKEND_OMP)
+cuda_add_executable(contourOMP contour.cu isorender.cu quaternion.cpp OPTIONS -Xcompiler -fopenmp OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}" "-DBUFFER_SIZE=${BUFFER_SIZE}" -DTHRUST_DEVICE_BACKEND=THRUST_DEVICE_BACKEND_OMP)
 target_link_libraries(contourOMP pthread vtkIO GLEW gomp ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
 
 
@@ -27,11 +27,11 @@ set(swdemo_FORMS swdemo.ui)
 QT4_WRAP_CPP(swdemo_HEADERS_MOC ${swdemo_HEADERS})
 QT4_WRAP_UI(swdemo_FORMS_HEADERS ${swdemo_FORMS})
 
-cuda_add_executable(swdemoGPU ${swdemo_SOURCES} ${swdemo_HEADERS_MOC} ${swdemo_FORMS_HEADERS} OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}" -DUSE_INTEROP)
+cuda_add_executable(swdemoGPU ${swdemo_SOURCES} ${swdemo_HEADERS_MOC} ${swdemo_FORMS_HEADERS} OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}" "-DBUFFER_SIZE=${BUFFER_SIZE}" -DUSE_INTEROP)
 target_link_libraries(swdemoGPU GLEW pthread vtkIO ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES} ${QT_LIBRARIES})
 
 cuda_add_executable(swdemoOMP ${swdemo_SOURCES} ${swdemo_HEADERS_MOC} ${swdemo_FORMS_HEADERS} 
-	OPTIONS -Xcompiler -fopenmp OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}" -DTHRUST_DEVICE_BACKEND=THRUST_DEVICE_BACKEND_OMP)
+	OPTIONS -Xcompiler -fopenmp OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}" "-DBUFFER_SIZE=${BUFFER_SIZE}" -DTHRUST_DEVICE_BACKEND=THRUST_DEVICE_BACKEND_OMP)
 target_link_libraries(swdemoOMP GLEW pthread vtkIO gomp ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES} ${QT_LIBRARIES})
 
 
@@ -41,11 +41,11 @@ set(demo_FORMS demo.ui)
 QT4_WRAP_CPP(demo_HEADERS_MOC ${demo_HEADERS})
 QT4_WRAP_UI(demo_FORMS_HEADERS ${demo_FORMS})
 
-cuda_add_executable(demoGPU ${demo_SOURCES} ${demo_HEADERS_MOC} ${demo_FORMS_HEADERS} OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}" -DUSE_INTEROP)
+cuda_add_executable(demoGPU ${demo_SOURCES} ${demo_HEADERS_MOC} ${demo_FORMS_HEADERS} OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}" "-DBUFFER_SIZE=${BUFFER_SIZE}" -DUSE_INTEROP)
 target_link_libraries(demoGPU GLEW pthread vtkIO ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES} ${QT_LIBRARIES})
 
 cuda_add_executable(demoOMP ${demo_SOURCES} ${demo_HEADERS_MOC} ${demo_FORMS_HEADERS} 
-	OPTIONS -Xcompiler -fopenmp OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}" -DTHRUST_DEVICE_BACKEND=THRUST_DEVICE_BACKEND_OMP)
+	OPTIONS -Xcompiler -fopenmp OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}" "-DBUFFER_SIZE=${BUFFER_SIZE}" -DTHRUST_DEVICE_BACKEND=THRUST_DEVICE_BACKEND_OMP)
 target_link_libraries(demoOMP GLEW pthread vtkIO gomp ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES} ${QT_LIBRARIES})
 
 
@@ -55,7 +55,7 @@ set(bigdemo_FORMS bigdemo.ui)
 QT4_WRAP_CPP(bigdemo_HEADERS_MOC ${bigdemo_HEADERS})
 QT4_WRAP_UI(bigdemo_FORMS_HEADERS ${bigdemo_FORMS})
 
-cuda_add_executable(bigdemoGPU ${bigdemo_SOURCES} ${bigdemo_HEADERS_MOC} ${bigdemo_FORMS_HEADERS} OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}" -DUSE_INTEROP)
+cuda_add_executable(bigdemoGPU ${bigdemo_SOURCES} ${bigdemo_HEADERS_MOC} ${bigdemo_FORMS_HEADERS} OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}" "-DBUFFER_SIZE=${BUFFER_SIZE}" -DUSE_INTEROP)
 target_link_libraries(bigdemoGPU GLEW pthread vtkIO ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES} ${QT_LIBRARIES})
 
 
@@ -71,3 +71,4 @@ target_link_libraries(contourPAR vtkRendering vtkFiltering vtkIO vtkCommon vtkGr
 
 cuda_add_executable(glyphGPU glyph.cu glyphrender.cu quaternion.cpp OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}" -DUSE_INTEROP)
 target_link_libraries(glyphGPU pthread vtkIO vtkRendering vtkFiltering vtkCommon vtkGraphics GLEW ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
+
