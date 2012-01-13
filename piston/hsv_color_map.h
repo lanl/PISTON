@@ -38,7 +38,7 @@ struct color_map : thrust::unary_function<ValueType, float4>
     const bool reversed;
 
     __host__ __device__
-    color_map(ValueType min, ValueType max, bool reversed=false, ValueType blackMin=-1000.0, ValueType whiteMax=1000.0) :
+    color_map(ValueType min, ValueType max, bool reversed=false, ValueType blackMin=-1000000.0, ValueType whiteMax=1000000.0) :
 	min(min), max(max), reversed(reversed), blackMin(blackMin), whiteMax(whiteMax) {}
 
     __host__ __device__
