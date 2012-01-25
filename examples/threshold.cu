@@ -25,9 +25,15 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #include <sys/time.h>
 #include <stdio.h>
 
-#include <GL/glew.h>
-#include <GL/gl.h>
-#include <GL/glut.h>
+#ifdef __APPLE__
+    #include <GL/glew.h>
+    #include <OpenGL/OpenGL.h>
+    #include <GLUT/glut.h>
+#else
+    #include <GL/glew.h>
+    #include <GL/glut.h>
+    #include <GL/gl.h>
+#endif
 
 #include <cuda_gl_interop.h>
 

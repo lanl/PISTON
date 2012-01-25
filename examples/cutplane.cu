@@ -4,10 +4,15 @@
  *  Created on: Oct 25, 2011
  *      Author: ollie
  */
-
-#include <GL/glew.h>
-#include <GL/gl.h>
-#include <GL/glut.h>
+#ifdef __APPLE__
+    #include <GL/glew.h>
+    #include <OpenGL/OpenGL.h>
+    #include <GLUT/glut.h>
+#else
+    #include <GL/glew.h>
+    #include <GL/glut.h>
+    #include <GL/gl.h>
+#endif
 
 #include <cuda_gl_interop.h>
 

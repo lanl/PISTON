@@ -22,9 +22,15 @@ OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABIL
 ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include <GL/glew.h>
-#include <GL/gl.h>
-#include <GL/glut.h>
+#ifdef __APPLE__
+    #include <GL/glew.h>
+    #include <OpenGL/OpenGL.h>
+    #include <GLUT/glut.h>
+#else
+    #include <GL/glew.h>
+    #include <GL/glut.h>
+    #include <GL/gl.h>
+#endif
 
 #include <cuda_gl_interop.h>
 
@@ -33,7 +39,6 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 
 #define SPACE thrust::detail::default_device_space_tag
 using namespace piston;
-
 
 #include <piston/implicit_function.h>
 #include <piston/image3d.h>
@@ -47,10 +52,6 @@ template <typename IndexType, typename ValueType, typename Space>
 struct tangle_field : public piston::image3d<IndexType, ValueType, Space>
 {
     typedef piston::image3d<IndexType, ValueType, Space> Parent;
-
-//    typedef typename detail::choose_container<typename Parent::CountingIterator, thrust::tuple<IndexType, IndexType, IndexType> >::type GridCoordinatesContainer;
-//    GridCoordinatesContainer grid_coordinates_vector;
-//    typedef typename GridCoordinatesContainer::iterator GridCoordinatesIterator;
 
     typedef typename detail::choose_container<typename Parent::CountingIterator, ValueType>::type PointDataContainer;
     PointDataContainer point_data_vector;
@@ -85,27 +86,17 @@ struct tangle_field : public piston::image3d<IndexType, ValueType, Space>
 
     tangle_field(int xdim, int ydim, int zdim) :
 	Parent(xdim, ydim, zdim),
-//	grid_coordinates_vector(Parent::grid_coordinates_begin(), Parent::grid_coordinates_end()),
-//	point_data_vector(thrust::make_transform_iterator(grid_coordinates_vector.begin(), tangle_functor(xdim, ydim, zdim)),
-//	                  thrust::make_transform_iterator(grid_coordinates_vector.end(),   tangle_functor(xdim, ydim, zdim)))
-//	grid_coordinates_vector(Parent::grid_coordinates_begin(), Parent::grid_coordinates_end()),
 	point_data_vector(thrust::make_transform_iterator(Parent::grid_coordinates_begin(), tangle_functor(xdim, ydim, zdim)),
 	                  thrust::make_transform_iterator(Parent::grid_coordinates_end(),   tangle_functor(xdim, ydim, zdim)))
 	                  {}
 
     void resize(int xdim, int ydim, int zdim) {
 	Parent::resize(xdim, ydim, zdim);
-	point_data_vector.resize(this->NPoints);
-//	point_data_vector.assign(thrust::make_transform_iterator(grid_coordinates_vector.begin(), tangle_functor(xdim, ydim, zdim)),
-//	                         thrust::make_transform_iterator(grid_coordinates_vector.end(),   tangle_functor(zdim, ydim, zdim)));
-    }
 
-//    GridCoordinatesIterator grid_coordinates_begin() {
-//	return grid_coordinates_vector.begin();
-//    }
-//    GridCoordinatesIterator grid_coordinates_end() {
-//	return grid_coordinates_vector.end();
-//    }
+	point_data_vector.resize(this->NPoints);
+	point_data_vector.assign(thrust::make_transform_iterator(Parent::grid_coordinates.begin(), tangle_functor(xdim, ydim, zdim)),
+	                         thrust::make_transform_iterator(Parent::grid_coordinates.end(),   tangle_functor(zdim, ydim, zdim)));
+    }
 
     PointDataIterator point_data_begin() {
 	return point_data_vector.begin();

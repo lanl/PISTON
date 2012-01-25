@@ -25,11 +25,17 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #ifndef ISORENDER_H
 #define ISORENDER_H
 
-#include <GL/glew.h>
-#include <GL/gl.h>
-#include <cuda_gl_interop.h>
+#ifdef __APPLE__
+    #include <GL/glew.h>
+    #include <OpenGL/OpenGL.h>
+    #include <GLUT/glut.h>
+#else
+    #include <GL/glew.h>
+    #include <GL/glut.h>
+    #include <GL/gl.h>
+#endif
 
-#include <GL/glut.h>
+#include <cuda_gl_interop.h>
 #include <thrust/host_vector.h>
 #include <thrust/functional.h>
 #include <thrust/iterator/transform_iterator.h>

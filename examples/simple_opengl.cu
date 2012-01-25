@@ -4,11 +4,17 @@
  *  Created on: Oct 7, 2011
  *      Author: ollie
  */
+#ifdef __APPLE__
+    #include <GL/glew.h>
+    #include <OpenGL/OpenGL.h>
+    #include <GLUT/glut.h>
+#else
+    #include <GL/glew.h>
+    #include <GL/glut.h>
+    #include <GL/gl.h>
+#endif
 
-#include <GL/glew.h>
-#include <GL/gl.h>
 #include <cuda_gl_interop.h>
-#include <GL/glut.h>
 
 #include <thrust/device_vector.h>
 #include <thrust/distance.h>

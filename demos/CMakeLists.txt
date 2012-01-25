@@ -1,15 +1,19 @@
 find_package(OpenGL)
 find_package(GLUT)
+
 find_package(VTK)
 include(${VTK_USE_FILE})
+
 find_package(Qt4)
 set(QT_USE_QTOPENGL TRUE)
 include(${QT_USE_FILE})
 add_definitions(${QT_DEFINITIONS})
 
+include_directories(${OPENGL_INCLUDE_DIR})
+include_directories(${GLUT_INCLUDE_DIR})
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${CMAKE_SOURCE_DIR}/demos)
-include_directories(${CUDA_SDK_ROOT_DIR}/C/common/inc/)
+include_directories(${CUDA_SDK_ROOT_DIR}/common/inc/)
 
 set (DATA_DIR "" CACHE PATH "Data directory")
 set (BUFFER_SIZE 25000000 CACHE INT "VBO Size")
