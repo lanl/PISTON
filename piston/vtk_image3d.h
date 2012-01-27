@@ -30,7 +30,7 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 namespace piston {
 
 template <typename IndexType, typename ValueType, typename Space>
-struct vtk_image3d : public piston::image3d<int, ValueType, Space>
+struct vtk_image3d : public piston::image3d<IndexType, ValueType, Space>
 {
     typedef piston::image3d<IndexType, ValueType, Space> Parent;
 

@@ -195,35 +195,36 @@ public:
 	scalars.resize(numTotalVertices);
 
 	// do edge interpolation for each valid cell
-	if (useInterop)
-	{
+	if (useInterop) {
 	    thrust::for_each(thrust::make_zip_iterator(thrust::make_tuple(validCellIndices.begin(), numVerticesEnum.begin(),
 	                                                                  thrust::make_permutation_iterator(cubeIndex.begin(), validCellIndices.begin()),
 	                                                                  thrust::make_permutation_iterator(numVertices.begin(), validCellIndices.begin()))),
-	                                                                  thrust::make_zip_iterator(thrust::make_tuple(validCellIndices.end(), numVerticesEnum.end(),
-	                                                                                                               thrust::make_permutation_iterator(cubeIndex.begin(), validCellIndices.begin()) + numValidCells,
-	                                                                                                               thrust::make_permutation_iterator(numVertices.begin(), validCellIndices.begin()) + numValidCells)),
-	                                                                                                               isosurface_functor(input, source, isovalue, thrust::raw_pointer_cast(&*triTable.begin()),
-	                                                                                                                                  vertexBufferData, normalBufferData, thrust::raw_pointer_cast(&*scalars.begin())));
+	                     thrust::make_zip_iterator(thrust::make_tuple(validCellIndices.end(), numVerticesEnum.end(),
+	                                                                  thrust::make_permutation_iterator(cubeIndex.begin(), validCellIndices.begin()) + numValidCells,
+	                                                                  thrust::make_permutation_iterator(numVertices.begin(), validCellIndices.begin()) + numValidCells)),
+	                     isosurface_functor(input, source, isovalue,
+	                                        thrust::raw_pointer_cast(&*triTable.begin()),
+	                                        vertexBufferData,
+	                                        normalBufferData,
+	                                        thrust::raw_pointer_cast(&*scalars.begin())));
 	    if (vboResources[1])
 		thrust::transform(scalars.begin(), scalars.end(),
 		                  thrust::device_ptr<float4>(colorBufferData),
 		                  color_map<float>(minIso, maxIso, colorFlip));
-	    for (int i=0; i<3; i++) cudaGraphicsUnmapResources(1, &vboResources[i], 0);
-	}
-	else
-	{
+	    for (int i = 0; i < 3; i++)
+		cudaGraphicsUnmapResources(1, &vboResources[i], 0);
+	} else {
 	    thrust::for_each(thrust::make_zip_iterator(thrust::make_tuple(validCellIndices.begin(), numVerticesEnum.begin(),
 	                                                                  thrust::make_permutation_iterator(cubeIndex.begin(),   validCellIndices.begin()),
 	                                                                  thrust::make_permutation_iterator(numVertices.begin(), validCellIndices.begin()))),
-	                                                                  thrust::make_zip_iterator(thrust::make_tuple(validCellIndices.end(),   numVerticesEnum.end(),
-	                                                                                                               thrust::make_permutation_iterator(cubeIndex.begin(),   validCellIndices.begin()) + numValidCells,
-	                                                                                                               thrust::make_permutation_iterator(numVertices.begin(), validCellIndices.begin()) + numValidCells)),
-	                                                                                                               isosurface_functor(input, source,isovalue,
-	                                                                                                                                  thrust::raw_pointer_cast(&*triTable.begin()),
-	                                                                                                                                  thrust::raw_pointer_cast(&*vertices.begin()),
-	                                                                                                                                  thrust::raw_pointer_cast(&*normals.begin()),
-	                                                                                                                                  thrust::raw_pointer_cast(&*scalars.begin())));
+	                     thrust::make_zip_iterator(thrust::make_tuple(validCellIndices.end(),   numVerticesEnum.end(),
+	                                                                  thrust::make_permutation_iterator(cubeIndex.begin(),   validCellIndices.begin()) + numValidCells,
+	                                                                  thrust::make_permutation_iterator(numVertices.begin(), validCellIndices.begin()) + numValidCells)),
+	                     isosurface_functor(input, source,isovalue,
+	                                        thrust::raw_pointer_cast(&*triTable.begin()),
+	                                        thrust::raw_pointer_cast(&*vertices.begin()),
+	                                        thrust::raw_pointer_cast(&*normals.begin()),
+	                                        thrust::raw_pointer_cast(&*scalars.begin())));
 	}
     }
 
@@ -231,6 +232,7 @@ public:
     {
 	// FixME: constant iterator and/or iterator to const problem.
 	InputPointDataIterator point_data;
+
 	const float isovalue;
 	const int *triTable;
 	const int *numVertsTable;
@@ -309,6 +311,7 @@ public:
     {
 	// FixME: constant iterator and/or iterator to const problem.
 	InputPointDataIterator point_data;
+	InputGridCoordinatesIterator grid_coord;
 	ScalarSourceIterator   scalar_source;
 
 	const float isovalue;
@@ -331,6 +334,7 @@ public:
 	                   float3 *normals,
 	                   float  *scalars)
 	    : point_data(input.point_data_begin()),
+	      grid_coord(input.grid_coordinates_begin()),
 	      scalar_source(source.point_data_begin()),
 	      isovalue(isovalue),
 	      triangle_table(table),
@@ -345,6 +349,12 @@ public:
 	__host__ __device__
 	float scalar_interp(float s0, float s1, float t) const {
 	    return lerp(s0, s1, t);
+	}
+	__host__ __device__
+	float3 tuple2float3(thrust::tuple<int, int, int> xyz) {
+	    return make_float3((float) thrust::get<0>(xyz),
+	                       (float) thrust::get<1>(xyz),
+	                       (float) thrust::get<2>(xyz));
 	}
 
 	__host__ __device__
@@ -384,15 +394,26 @@ public:
 	    f[6] = *(point_data + i[6]);
 	    f[7] = *(point_data + i[7]);
 
+	    // TODO: Reconsider what GridCoordinates should be (tuple or float3)
 	    float3 p[8];
-	    p[0] = make_float3(x, y, z);
-	    p[1] = p[0] + make_float3(1.0f, 0.0f, 0.0f);
-	    p[2] = p[0] + make_float3(1.0f, 1.0f, 0.0f);
-	    p[3] = p[0] + make_float3(0.0f, 1.0f, 0.0f);
-	    p[4] = p[0] + make_float3(0.0f, 0.0f, 1.0f);
-	    p[5] = p[0] + make_float3(1.0f, 0.0f, 1.0f);
-	    p[6] = p[0] + make_float3(1.0f, 1.0f, 1.0f);
-	    p[7] = p[0] + make_float3(0.0f, 1.0f, 1.0f);
+	    p[0] = tuple2float3(*(grid_coord + i[0]));
+	    p[1] = tuple2float3(*(grid_coord + i[1]));
+	    p[2] = tuple2float3(*(grid_coord + i[2]));
+	    p[3] = tuple2float3(*(grid_coord + i[3]));
+	    p[4] = tuple2float3(*(grid_coord + i[4]));
+	    p[5] = tuple2float3(*(grid_coord + i[5]));
+	    p[6] = tuple2float3(*(grid_coord + i[6]));
+	    p[7] = tuple2float3(*(grid_coord + i[7]));
+
+//	    float3 p[8];
+//	    p[0] = make_float3(x, y, z);
+//	    p[1] = p[0] + make_float3(1.0f, 0.0f, 0.0f);
+//	    p[2] = p[0] + make_float3(1.0f, 1.0f, 0.0f);
+//	    p[3] = p[0] + make_float3(0.0f, 1.0f, 0.0f);
+//	    p[4] = p[0] + make_float3(0.0f, 0.0f, 1.0f);
+//	    p[5] = p[0] + make_float3(1.0f, 0.0f, 1.0f);
+//	    p[6] = p[0] + make_float3(1.0f, 1.0f, 1.0f);
+//	    p[7] = p[0] + make_float3(0.0f, 1.0f, 1.0f);
 
 	    float s[8];
 	    s[0] = *(scalar_source + i[0]);

@@ -50,71 +50,13 @@ using namespace piston;
 #include <piston/image3d.h>
 #include <piston/vtk_image3d.h>
 #include <piston/marching_cube.h>
+#include <piston/util/tangle_field.h>
 
 #include <sys/time.h>
 #include <stdio.h>
 #include <math.h>
 
 #include "glwindow.h"
-
-
-template <typename IndexType, typename ValueType, typename Space>
-struct tangle_field : public piston::image3d<IndexType, ValueType, Space>
-{
-    typedef piston::image3d<IndexType, ValueType, Space> Parent;
-
-    typedef typename detail::choose_container<typename Parent::CountingIterator, ValueType>::type PointDataContainer;
-    PointDataContainer point_data_vector;
-    typedef typename PointDataContainer::iterator PointDataIterator;
-
-    struct tangle_functor : public piston::implicit_function3d<IndexType, ValueType>
-    {
-	typedef piston::implicit_function3d<IndexType, ValueType> Parent;
-	typedef typename Parent::InputType InputType;
-
-        const float xscale;
-        const float yscale;
-        const float zscale;
-
-        tangle_functor(IndexType xdim, IndexType ydim, IndexType zdim) :
-            xscale(2.0f/(xdim - 1.0f)),
-            yscale(2.0f/(ydim - 1.0f)),
-            zscale(2.0f/(zdim - 1.0f)) {}
-
-        __host__ __device__
-        float operator()(InputType pos) const {
-            // scale and shift such that x, y, z <- [-1,1]
-            const float x = 3.0f*(thrust::get<0>(pos)*xscale - 1.0f);
-            const float y = 3.0f*(thrust::get<1>(pos)*yscale - 1.0f);
-            const float z = 3.0f*(thrust::get<2>(pos)*zscale - 1.0f);
-
-            const float v = (x*x*x*x - 5.0f*x*x +y*y*y*y - 5.0f*y*y +z*z*z*z - 5.0f*z*z + 11.8f) * 0.2f + 0.5f;
-
-            return v;
-        }
-    };
-
-    tangle_field(int xdim, int ydim, int zdim) :
-	Parent(xdim, ydim, zdim),
-	point_data_vector(thrust::make_transform_iterator(Parent::grid_coordinates_begin(), tangle_functor(xdim, ydim, zdim)),
-	                  thrust::make_transform_iterator(Parent::grid_coordinates_end(),   tangle_functor(xdim, ydim, zdim)))
-	                  {}
-
-    void resize(int xdim, int ydim, int zdim) {
-	Parent::resize(xdim, ydim, zdim);
-
-	point_data_vector.resize(this->NPoints);
-	point_data_vector.assign(thrust::make_transform_iterator(Parent::grid_coordinates.begin(), tangle_functor(xdim, ydim, zdim)),
-	                         thrust::make_transform_iterator(Parent::grid_coordinates.end(),   tangle_functor(zdim, ydim, zdim)));
-    }
-
-    PointDataIterator point_data_begin() {
-	return point_data_vector.begin();
-    }
-    PointDataIterator point_data_end() {
-	return point_data_vector.end();
-    }
-};
 
 
 struct timeval begin, end, diff;

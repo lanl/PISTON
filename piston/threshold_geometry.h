@@ -170,7 +170,7 @@ struct threshold_geometry
 
 	// total number of exterior cells
 	int num_exterior_cells = exterior_cell_enum.back();
-    //std::cout << "number of exterior cells: " << num_exterior_cells << std::endl;
+	//std::cout << "number of exterior cells: " << num_exterior_cells << std::endl;
 
 	// search for indices to exterior cells among all valid cells
 	exterior_cell_indices.resize(num_exterior_cells);
@@ -181,21 +181,23 @@ struct threshold_geometry
 	numTotalVertices = num_exterior_cells*24;
 	//std::cout << "number of vertices: " << numTotalVertices << std::endl;
 
-if (useInterop)
-{
-        size_t num_bytes;
-        cudaGraphicsMapResources(1, &vboResources[0], 0);
-        cudaGraphicsResourceGetMappedPointer((void **)&vertexBufferData, &num_bytes, vboResources[0]);
+	if (useInterop) {
+	    size_t num_bytes;
+	    cudaGraphicsMapResources(1, &vboResources[0], 0);
+	    cudaGraphicsResourceGetMappedPointer((void **) &vertexBufferData,
+						 &num_bytes, vboResources[0]);
 
-        if (vboResources[1])
-        {
-          cudaGraphicsMapResources(1, &vboResources[1], 0);
-          cudaGraphicsResourceGetMappedPointer((void **)&colorBufferData, &num_bytes, vboResources[1]);
-        }
+	    if (vboResources[1]) {
+		cudaGraphicsMapResources(1, &vboResources[1], 0);
+		cudaGraphicsResourceGetMappedPointer((void **) &colorBufferData,
+						     &num_bytes,
+						     vboResources[1]);
+	    }
 
-        cudaGraphicsMapResources(1, &vboResources[2], 0);
-        cudaGraphicsResourceGetMappedPointer((void **)&normalBufferData, &num_bytes, vboResources[2]);
-}
+	    cudaGraphicsMapResources(1, &vboResources[2], 0);
+	    cudaGraphicsResourceGetMappedPointer((void **) &normalBufferData,
+						 &num_bytes, vboResources[2]);
+	}
 
 	// generate 6 quards for each exterior cell
 	vertices_indices.resize(num_exterior_cells*24);
@@ -206,18 +208,21 @@ if (useInterop)
 	                                                              thrust::make_permutation_iterator(valid_cell_indices.begin(), exterior_cell_indices.begin()))),
 	                 generate_quads(input, thrust::raw_pointer_cast(&*vertices_indices.begin()), thrust::raw_pointer_cast(&*normals_indices.begin())));
 
-if (useInterop)
-{
-	thrust::copy(thrust::make_transform_iterator(vertices_begin(), tuple2float4()),
-	             thrust::make_transform_iterator(vertices_end(),   tuple2float4()),
-	             thrust::device_ptr<float4>(vertexBufferData));
-	thrust::copy(normals_begin(), normals_end(), thrust::device_ptr<float3>(normalBufferData));
-	thrust::transform(scalars_begin(), scalars_end(),
-		              thrust::device_ptr<float4>(colorBufferData),
-		              color_map<float>(minThresholdRange, maxThresholdRange, true) );
+	if (useInterop) {
+	    thrust::copy(thrust::make_transform_iterator(vertices_begin(),
+	                                                 tuple2float4()),
+	                 thrust::make_transform_iterator(vertices_end(),
+	                                                 tuple2float4()),
+	                 thrust::device_ptr<float4>(vertexBufferData));
+	    thrust::copy(normals_begin(), normals_end(),
+			 thrust::device_ptr<float3>(normalBufferData));
+	    thrust::transform(scalars_begin(), scalars_end(),
+		    thrust::device_ptr<float4>(colorBufferData),
+		    color_map<float>(minThresholdRange, maxThresholdRange, true));
 
-	for (int i=0; i<3; i++) cudaGraphicsUnmapResources(1, &vboResources[i], 0);
-}
+	    for (int i = 0; i < 3; i++)
+		cudaGraphicsUnmapResources(1, &vboResources[i], 0);
+	}
     }
 
     // FixME: the input data type should really be cells rather than cell_ids
@@ -375,25 +380,25 @@ if (useInterop)
 		 4, 5, 6, 7  // face 5
 	    };
 
-	    const int x = global_cell_id % (xdim - 1);
-	    const int y = (global_cell_id / (xdim - 1)) % (ydim -1);
-	    const int z = global_cell_id / cells_per_layer;
+	    const int i = global_cell_id % (xdim - 1);
+	    const int j = (global_cell_id / (xdim - 1)) % (ydim -1);
+	    const int k = global_cell_id / cells_per_layer;
 
 	    // indices to the eight vertices of the voxel
-	    int i[8];
-	    i[0] = x      + y*xdim + z * xdim * ydim;
-	    i[1] = i[0]   + 1;
-	    i[2] = i[0]   + 1	+ xdim;
-	    i[3] = i[0]   + xdim;
+	    int indices[8];
+	    indices[0] = i            + j*xdim  + k * xdim * ydim;
+	    indices[1] = indices[0]   + 1;
+	    indices[2] = indices[0]   + 1	+ xdim;
+	    indices[3] = indices[0]   + xdim;
 
-	    i[4] = i[0]   + xdim * ydim;
-	    i[5] = i[1]   + xdim * ydim;
-	    i[6] = i[2]   + xdim * ydim;
-	    i[7] = i[3]   + xdim * ydim;
+	    indices[4] = indices[0]   + xdim * ydim;
+	    indices[5] = indices[1]   + xdim * ydim;
+	    indices[6] = indices[2]   + xdim * ydim;
+	    indices[7] = indices[3]   + xdim * ydim;
 
 	    for (int v = 0; v < 24; v++) {
-		*(vertices_indices + exterior_cell_id*24 + v) = i[vertices_for_faces[v]];
-		*(normals_indices + exterior_cell_id*24 + v) = v/4;
+		*(vertices_indices + exterior_cell_id*24 + v) = indices[vertices_for_faces[v]];
+		*(normals_indices + exterior_cell_id*24 + v)  = v/4;
 	    }
 	}
     };

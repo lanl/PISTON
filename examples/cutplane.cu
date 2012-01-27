@@ -46,8 +46,8 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #define SPACE thrust::detail::default_device_space_tag
 using namespace piston;
 
+#include <piston/util/tangle_field.h>
 #include <piston/util/plane_field.h>
-#include <piston/vtk_image3d.h>
 #include <piston/marching_cube.h>
 
 #include <sys/time.h>
@@ -65,9 +65,9 @@ int grid_size = 256;
 float cameraFOV = 60.0;
 bool wireframe = false;
 
-vtk_image3d<int, float, SPACE>* image;
+tangle_field<int, float, SPACE>* tangle;
 plane_field<int, float, SPACE>* plane;
-marching_cube<plane_field<int, float, SPACE>, vtk_image3d<int, float, SPACE> > *isosurface;
+marching_cube<plane_field<int, float, SPACE>, tangle_field<int, float, SPACE> > *isosurface;
 
 GLuint quads_vbo[3];
 struct cudaGraphicsResource *quads_pos_res, *quads_normal_res, *quads_color_res;
@@ -144,8 +144,8 @@ QSize GLWindow::sizeHint() const
 
 bool GLWindow::initialize(int argc, char *argv[])
 {
-    if (argc < 2) return false;
-    sprintf(fileName, argv[1]);
+//    if (argc < 2) return false;
+//    sprintf(fileName, argv[1]);
     return true;
 }
 
@@ -155,31 +155,17 @@ void GLWindow::initializeGL()
     glewInit();
     cudaGLSetGLDevice(0);
 
-    vtkXMLImageDataReader *reader = vtkXMLImageDataReader::New();
-    char fname[1024];
-    sprintf(fname, "%s/%s", STRINGIZE_VALUE_OF(DATA_DIRECTORY), fileName);
-    int fileFound = reader->CanReadFile(fname);
-    if (fileFound == 0) sprintf(fname, fileName);
-    reader->SetFileName(fname);
-    reader->Update();
-
-    vtkImageData *vtk_image = reader->GetOutput();
-
-    std::cout << "Size: " << vtk_image->GetDimensions()[0] << " " << vtk_image->GetDimensions()[1] << " " << vtk_image->GetDimensions()[2] << std::endl;
-    image = new vtk_image3d<int, float, SPACE>(vtk_image);
-    plane = new plane_field<int, float, SPACE>(make_float3(0.0f, 0.0f, 0.0f),
+    tangle = new tangle_field<int, float, SPACE>(grid_size, grid_size, grid_size);
+    plane = new plane_field<int, float, SPACE>(make_float3(0.0f, 0.0f, grid_size/2),
                                                make_float3(0.0f, 0.0f, 1.0f),
-                                               vtk_image->GetDimensions()[0],
-                                               vtk_image->GetDimensions()[1],
-                                               vtk_image->GetDimensions()[2]);
-    isosurface = new marching_cube<plane_field<int, float, SPACE>, vtk_image3d<int, float, SPACE> >(*plane, *image, 0.0f);
+                                               grid_size, grid_size, grid_size);
+    isosurface = new marching_cube<plane_field<int, float, SPACE>, tangle_field<int, float, SPACE> >(*plane, *tangle, 0.2f);
 
     (*isosurface)();
 
     create_vbo();
 
     qrot.set(0,0,0,1);
-    grid_size = vtk_image->GetDimensions()[1];
 
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
     glEnable(GL_DEPTH_TEST);
@@ -280,7 +266,7 @@ void GLWindow::paintGL()
     cudaGraphicsResourceGetMappedPointer((void**)&raw_ptr, &num_bytes, quads_color_res);
     thrust::transform(isosurface->scalars_begin(), isosurface->scalars_end(),
                       thrust::device_ptr<float4>(raw_ptr),
-                      color_map<float>(31.0f, 500.0f));
+                      color_map<float>(0.0f, 1.0f));
     cudaGraphicsUnmapResources(1, &quads_color_res, 0);
     glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[2]);
     glColorPointer(4, GL_FLOAT, 0, 0);
