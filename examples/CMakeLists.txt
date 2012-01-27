@@ -17,21 +17,29 @@ include_directories(${CUDA_SDK_ROOT_DIR}/common/inc/)
 
 set (DATA_DIR "" CACHE PATH "Data directory")
 
-cuda_add_executable(marching_cube marching_cube.cu OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}")
-target_link_libraries(marching_cube vtkIO pthread GLEW ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
 
-cuda_add_executable(tangle tangle.cu)
-target_link_libraries(tangle pthread GLEW ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
+set(ex_HEADERS glwindow.h)
+set(ex_FORMS example.ui)
+QT4_WRAP_CPP(ex_HEADERS_MOC ${ex_HEADERS})
+QT4_WRAP_UI(ex_FORMS_HEADERS ${ex_FORMS})
 
-cuda_add_executable(tangle_omp tangle.cu
-                OPTIONS -Xcompiler -fopenmp OPTIONS -DTHRUST_DEVICE_BACKEND=THRUST_DEVICE_BACKEND_OMP)
-target_link_libraries(tangle_omp pthread gomp GLEW ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
+set(mc_SOURCES example.cpp marching_cube.cu quaternion.cpp)
+cuda_add_executable(marching_cube ${mc_SOURCES} ${ex_HEADERS_MOC} ${ex_FORMS_HEADERS} OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}")
+target_link_libraries(marching_cube GLEW pthread vtkIO ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES} ${QT_LIBRARIES})
 
-cuda_add_executable(cutplane cutplane.cu)
-target_link_libraries(cutplane vtkIO pthread GLEW ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
+set(tangle_SOURCES example.cpp tangle.cu quaternion.cpp)
+cuda_add_executable(tangle ${tangle_SOURCES} ${ex_HEADERS_MOC} ${ex_FORMS_HEADERS})
+target_link_libraries(tangle GLEW pthread vtkIO ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES} ${QT_LIBRARIES})
 
-cuda_add_executable(threshold threshold.cu)
-target_link_libraries(threshold pthread GLEW ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
+set(cp_SOURCES example.cpp cutplane.cu quaternion.cpp)
+cuda_add_executable(cutplane ${cp_SOURCES} ${ex_HEADERS_MOC} ${ex_FORMS_HEADERS} OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}")
+target_link_libraries(cutplane GLEW pthread vtkIO ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES} ${QT_LIBRARIES})
 
-cuda_add_executable(eddy eddy.cu OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}")
-target_link_libraries(eddy vtkIO GLEW ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
+set(threshold_SOURCES example.cpp threshold.cu quaternion.cpp)
+cuda_add_executable(threshold ${threshold_SOURCES} ${ex_HEADERS_MOC} ${ex_FORMS_HEADERS})
+target_link_libraries(threshold GLEW pthread vtkIO ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES} ${QT_LIBRARIES})
+
+set(eddy_SOURCES example.cpp eddy.cu quaternion.cpp)
+cuda_add_executable(eddy ${eddy_SOURCES} ${ex_HEADERS_MOC} ${ex_FORMS_HEADERS} OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}")
+target_link_libraries(eddy GLEW pthread vtkIO ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES} ${QT_LIBRARIES})
+

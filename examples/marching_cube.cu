@@ -21,6 +21,7 @@ DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCL
 OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
+
 #ifdef __APPLE__
     #include <GL/glew.h>
     #include <OpenGL/OpenGL.h>
@@ -30,6 +31,10 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
     #include <GL/glut.h>
     #include <GL/gl.h>
 #endif
+
+#include <QtGui>
+#include <QtOpenGL>
+#include <QObject>
 
 #include <cuda_gl_interop.h>
 
@@ -41,96 +46,39 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #define SPACE thrust::detail::default_device_space_tag
 using namespace piston;
 
-
-#include <piston/util/sphere_field.h>
+#include <piston/image3d.h>
 #include <piston/vtk_image3d.h>
 #include <piston/marching_cube.h>
 
 #include <sys/time.h>
 #include <stdio.h>
+#include <math.h>
+
+#include "glwindow.h"
 
 #define STRINGIZE(x) #x
 #define STRINGIZE_VALUE_OF(x) STRINGIZE(x)
 
-static const int GRID_SIZE = 256;
-
-int mouse_old_x, mouse_old_y;
-int mouse_buttons = 0;
-float3 rotate = make_float3(0, 0, 0.0);
-float3 translate = make_float3(0.0, 0.0, 0.0);
-
-void mouse(int button, int state, int x, int y)
-{
-    if (state == GLUT_DOWN) {
-	mouse_buttons |= 1<<button;
-    } else if (state == GLUT_UP) {
-	mouse_buttons = 0;
-    }
-
-    mouse_old_x = x;
-    mouse_old_y = y;
-    glutPostRedisplay();
-}
-
-void motion(int x, int y)
-{
-    float dx = x - mouse_old_x;
-    float dy = y - mouse_old_y;
-
-    if (mouse_buttons==1) {
-	rotate.x += dy * 0.2;
-	rotate.y += dx * 0.2;
-    } else if (mouse_buttons==2) {
-	translate.x += dx * 0.01;
-	translate.y -= dy * 0.01;
-    } else if (mouse_buttons==4) {
-	translate.z += dy * 0.1;
-    }
-
-    mouse_old_x = x;
-    mouse_old_y = y;
-    glutPostRedisplay();
-}
-
+struct timeval begin, end, diff;
+int frame_count = 0;
+int grid_size = 256;
+float cameraFOV = 60.0;
 bool wireframe = false;
-bool animate = true;
-void keyboard( unsigned char key, int x, int y )
-{
-    switch (key) {
-    case 'w':
-	wireframe = !wireframe;
-	break;
-    case 'a':
-	animate = !animate;
-	break;
-    }
-}
-
-struct tuple2float4 : thrust::unary_function<thrust::tuple<int, int, int>, float4>
-{
-	__host__ __device__
-	float4 operator()(thrust::tuple<int, int, int> xyz) {
-	    return make_float4((float) thrust::get<0>(xyz),
-	                       (float) thrust::get<1>(xyz),
-	                       (float) thrust::get<2>(xyz),
-	                       1.0f);
-	}
-};
-
-
-marching_cube<vtk_image3d<int, float, SPACE>, vtk_image3d<int, float, SPACE> > *isosurface_p;
+vtk_image3d<int, float, SPACE>* image;
+marching_cube<vtk_image3d<int, float, SPACE>, vtk_image3d<int, float, SPACE> >* isosurface;
 
 GLuint quads_vbo[3];
 struct cudaGraphicsResource *quads_pos_res, *quads_normal_res, *quads_color_res;
 unsigned int buffer_size;
+
 
 void create_vbo()
 {
     glGenBuffers(3, quads_vbo);
     int error;
 
-    std::cout << "number of vertices: " << thrust::distance(isosurface_p->vertices_begin(), isosurface_p->vertices_end()) << std::endl;
-    buffer_size = thrust::distance(isosurface_p->vertices_begin(), isosurface_p->vertices_end())* sizeof(float4);
+    //std::cout << "number of vertices: " << thrust::distance(isosurface_p->vertices_begin(), isosurface_p->vertices_end()) << std::endl;
+    buffer_size = thrust::distance(isosurface->vertices_begin(), isosurface->vertices_end())* sizeof(float4);
 
     // initialize vertex buffer object
     glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[0]);
@@ -163,111 +111,68 @@ void create_vbo()
     }
 }
 
-struct timeval begin, end, diff;
-int frame_count = 0;
 
-void display()
+GLWindow::GLWindow(QWidget *parent)
+    : QGLWidget(QGLFormat(QGL::SampleBuffers), parent)
 {
-    if (frame_count == 0) {
-	gettimeofday(&begin, 0);
-    }
-
-    (*isosurface_p)();
-
-#if 1
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    if (wireframe) {
-	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-    } else {
-//	glPolygonMode(GL_BACK, GL_LINE);
-//	glPolygonMode(GL_FRONT, GL_FILL);
-	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-    }
-
-    // set view matrix for 3D scene
-    glMatrixMode(GL_MODELVIEW);
-    glPopMatrix();
-    glPushMatrix();
-
-    glRotatef(rotate.x, 1.0, 0.0, 0.0);
-    glRotatef(rotate.y, 0.0, 1.0, 0.0);
-    glTranslatef(-(GRID_SIZE-1)/2, -(GRID_SIZE-1)/2, -(GRID_SIZE-1)/2);
-    glTranslatef(translate.x, translate.y, translate.z);
-
-    float4 *raw_ptr;
-    size_t num_bytes;
-
-    cudaGraphicsMapResources(1, &quads_pos_res, 0);
-    cudaGraphicsResourceGetMappedPointer((void**)&raw_ptr, &num_bytes, quads_pos_res);
-//    thrust::copy(thrust::make_transform_iterator(isosurface_p->vertices_begin(), tuple2float4()),
-//                 thrust::make_transform_iterator(isosurface_p->vertices_end(),   tuple2float4()),
-//                 thrust::device_ptr<float4>(raw_ptr));
-    thrust::copy(isosurface_p->vertices_begin(),
-                 isosurface_p->vertices_end(),
-                 thrust::device_ptr<float4>(raw_ptr));
-    cudaGraphicsUnmapResources(1, &quads_pos_res, 0);
-    glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[0]);
-    glVertexPointer(4, GL_FLOAT, 0, 0);
-
-    float3 *normal;
-    cudaGraphicsMapResources(1, &quads_normal_res, 0);
-    cudaGraphicsResourceGetMappedPointer((void**)&normal, &num_bytes, quads_normal_res);
-    thrust::copy(isosurface_p->normals_begin(),
-                 isosurface_p->normals_end(),
-                 thrust::device_ptr<float3>(normal));
-    cudaGraphicsUnmapResources(1, &quads_normal_res, 0);
-    glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[1]);
-    glNormalPointer(GL_FLOAT, 0, 0);
-
-    cudaGraphicsMapResources(1, &quads_color_res, 0);
-    cudaGraphicsResourceGetMappedPointer((void**)&raw_ptr, &num_bytes, quads_color_res);
-    thrust::transform(isosurface_p->scalars_begin(), isosurface_p->scalars_end(),
-                      thrust::device_ptr<float4>(raw_ptr),
-                      color_map<float>(31.0f, 500.0f));
-    cudaGraphicsUnmapResources(1, &quads_color_res, 0);
-    glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[2]);
-    glColorPointer(4, GL_FLOAT, 0, 0);
-
-    glDrawArrays(GL_TRIANGLES, 0, buffer_size/sizeof(float4));
-
-    glutSwapBuffers();
-#endif
-
-    gettimeofday(&end, 0);
-    timersub(&end, &begin, &diff);
-    frame_count++;
-    float seconds = diff.tv_sec + 1.0E-6*diff.tv_usec;
-    if (seconds > 0.5f) {
-	char title[256];
-	sprintf(title, "Marching Cube, fps: %2.2f", float(frame_count)/seconds);
-	glutSetWindowTitle(title);
-	seconds = 0.0f;
-	frame_count = 0;
-    }
+    setFocusPolicy(Qt::StrongFocus);
+    timer = new QTimer(this);
+    connect(timer, SIGNAL(timeout()), this, SLOT(updateGL()));
+    timer->start(1);
 }
 
-void idle()
+
+GLWindow::~GLWindow()
 {
-    if (animate) {
-//	isovalue += delta;
-//	if (isovalue > maxiso)
-//	    delta = -0.05;
-//	if (isovalue < miniso)
-//	    delta = 0.05;
-//	glutPostRedisplay();
-    }
-    glutPostRedisplay();
+
 }
 
-void initGL(int argc, char **argv)
-{
-    glutInit(&argc, argv);
-    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
-    glutInitWindowSize(800, 800);
-    glutCreateWindow("Threshold");
 
+QSize GLWindow::minimumSizeHint() const
+{
+    return QSize(100, 50);
+}
+
+
+QSize GLWindow::sizeHint() const
+{
+    return QSize(2048, 1024);
+}
+
+
+bool GLWindow::initialize(int argc, char *argv[])
+{
+    if (argc < 2) return false;
+    sprintf(fileName, argv[1]);
+    return true;
+}
+
+
+void GLWindow::initializeGL()
+{
     glewInit();
+    cudaGLSetGLDevice(0);
+
+    vtkXMLImageDataReader *reader = vtkXMLImageDataReader::New();
+    char fname[1024];
+    sprintf(fname, "%s/%s", STRINGIZE_VALUE_OF(DATA_DIRECTORY), fileName);
+    int fileFound = reader->CanReadFile(fname);
+    if (fileFound == 0) sprintf(fname, fileName);
+    reader->SetFileName(fname);
+    reader->Update();
+
+    vtkImageData *vtk_image = reader->GetOutput();
+
+    std::cout << "Size: " << vtk_image->GetDimensions()[0] << " " << vtk_image->GetDimensions()[1] << " " << vtk_image->GetDimensions()[2] << std::endl;
+    image = new vtk_image3d<int, float, SPACE>(vtk_image);
+    isosurface = new marching_cube<vtk_image3d<int, float, SPACE>, vtk_image3d<int, float, SPACE> >(*image, *image, 40.0f);
+
+    (*isosurface)();
+
+    create_vbo();
+
+    qrot.set(0,0,0,1);
+    grid_size = vtk_image->GetDimensions()[1];
 
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
     glEnable(GL_DEPTH_TEST);
@@ -285,25 +190,21 @@ void initGL(int argc, char **argv)
     glLightfv(GL_LIGHT0, GL_SPECULAR, white);
     glLightfv(GL_LIGHT0, GL_POSITION, lightPos);
 
-//    glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER, 1);
     glLightModeli(GL_LIGHT_MODEL_TWO_SIDE, 1);
 
     glEnable(GL_LIGHTING);
     glEnable(GL_LIGHT0);
     glEnable(GL_COLOR_MATERIAL);
 
-    /* Setup the view of the cube. */
+    // Setup the view of the cube.
     glMatrixMode(GL_PROJECTION);
-    gluPerspective( /* field of view in degree */ 60.0,
-                    /* aspect ratio */ 1.0,
-                    /* Z near */ 1.0, /* Z far */ GRID_SIZE*4.0);
+    gluPerspective( cameraFOV, 1.0, 1.0, grid_size*4.0);
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    gluLookAt(0.0, 0.0, GRID_SIZE*1.5,  /* eye is at (0,0, 1.5*GRID_SIZE) */
-              0.0, 0.0, 0.0,		/* center is at (0,0,0) */
-              0.0, 1.0, 0.0);		/* up is in positive Y direction */
-    glPushMatrix();
+    gluLookAt(0.0, 0.0, grid_size*1.5,
+              0.0, 0.0, 0.0,
+              0.0, 1.0, 0.0);
 
     // enable vertex and normal arrays
     glEnableClientState(GL_VERTEX_ARRAY);
@@ -311,31 +212,126 @@ void initGL(int argc, char **argv)
     glEnableClientState(GL_COLOR_ARRAY);
 }
 
-int main(int argc, char *argv[])
+
+void GLWindow::paintGL()
 {
-    initGL(argc, argv);
-    cudaGLSetGLDevice(0);
+    timer->stop();
 
-    vtkXMLImageDataReader *reader = vtkXMLImageDataReader::New();
-    reader->SetFileName(argv[1]);
-    reader->Update();
+    if (frame_count == 0) gettimeofday(&begin, 0);
 
-    vtkImageData *vtk_image = reader->GetOutput();
+    (*isosurface)();
 
-    vtk_image3d<int, float, SPACE> image(vtk_image);
-    marching_cube<vtk_image3d<int, float, SPACE>, vtk_image3d<int, float, SPACE> > isosurface(image, image, 40.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    isosurface();
-    isosurface_p = &isosurface;
+    if (wireframe) glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    else glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-    create_vbo();
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    gluPerspective( cameraFOV, 1.0, 1.0, grid_size*4.0);
 
-    glutDisplayFunc(display);
-    glutKeyboardFunc(keyboard);
-    glutMouseFunc(mouse);
-    glutMotionFunc(motion);
-    glutIdleFunc(idle);
-    glutMainLoop();
+    // set view matrix for 3D scene
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
 
-    return 0;
+    qrot.getRotMat(rotationMatrix);
+    glMultMatrixf(rotationMatrix);
+
+    glTranslatef(-(grid_size-1)/2, -(grid_size-1)/2, -(grid_size-1)/2);
+
+    float4 *raw_ptr;
+    size_t num_bytes;
+
+    cudaGraphicsMapResources(1, &quads_pos_res, 0);
+    cudaGraphicsResourceGetMappedPointer((void**)&raw_ptr, &num_bytes, quads_pos_res);
+
+    thrust::copy(isosurface->vertices_begin(),
+                 isosurface->vertices_end(),
+                 thrust::device_ptr<float4>(raw_ptr));
+
+    cudaGraphicsUnmapResources(1, &quads_pos_res, 0);
+    glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[0]);
+    glVertexPointer(4, GL_FLOAT, 0, 0);
+
+    float3 *normal;
+    cudaGraphicsMapResources(1, &quads_normal_res, 0);
+    cudaGraphicsResourceGetMappedPointer((void**)&normal, &num_bytes, quads_normal_res);
+    thrust::copy(isosurface->normals_begin(),
+                 isosurface->normals_end(),
+                 thrust::device_ptr<float3>(normal));
+    cudaGraphicsUnmapResources(1, &quads_normal_res, 0);
+    glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[1]);
+    glNormalPointer(GL_FLOAT, 0, 0);
+
+    cudaGraphicsMapResources(1, &quads_color_res, 0);
+    cudaGraphicsResourceGetMappedPointer((void**)&raw_ptr, &num_bytes, quads_color_res);
+    thrust::transform(isosurface->scalars_begin(), isosurface->scalars_end(),
+                      thrust::device_ptr<float4>(raw_ptr),
+                      color_map<float>(31.0f, 500.0f));
+    cudaGraphicsUnmapResources(1, &quads_color_res, 0);
+    glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[2]);
+    glColorPointer(4, GL_FLOAT, 0, 0);
+
+    glDrawArrays(GL_TRIANGLES, 0, buffer_size/sizeof(float4));
+
+    glPopMatrix();
+
+    gettimeofday(&end, 0);
+    timersub(&end, &begin, &diff);
+    frame_count++;
+    float seconds = diff.tv_sec + 1.0E-6*diff.tv_usec;
+    if (seconds > 0.5f)
+    {
+      char title[256];
+      sprintf(title, "Marching Cube, fps: %2.2f", float(frame_count)/seconds);
+      std::cout << title << std::endl;
+      seconds = 0.0f;
+      frame_count = 0;
+    }
+
+    timer->start(1);
 }
+
+
+void GLWindow::resizeGL(int width, int height)
+{
+    glViewport(0, 0, width, height);
+}
+
+
+void GLWindow::mousePressEvent(QMouseEvent *event)
+{
+    lastPos = event->pos();
+}
+
+
+void GLWindow::mouseMoveEvent(QMouseEvent *event)
+{
+    int dx = event->x() - lastPos.x();
+    int dy = event->y() - lastPos.y();
+
+    if (event->buttons() & Qt::LeftButton)
+    {
+      Quaternion newRotX;
+      newRotX.setEulerAngles(-0.2*dx*3.14159/180.0, 0.0, 0.0);
+      qrot.mul(newRotX);
+
+      Quaternion newRotY;
+      newRotY.setEulerAngles(0.0, 0.0, -0.2*dy*3.14159/180.0);
+      qrot.mul(newRotY);
+    }
+    else if (event->buttons() & Qt::RightButton)
+    {
+      cameraFOV += dy/20.0;
+    }
+    lastPos = event->pos();
+}
+
+
+void GLWindow::keyPressEvent(QKeyEvent *event)
+{
+   if ((event->key() == 'w') || (event->key() == 'W'))
+       wireframe = !wireframe;
+}
+
+

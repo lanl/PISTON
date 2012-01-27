@@ -21,6 +21,7 @@ DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCL
 OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
+
 #ifdef __APPLE__
     #include <GL/glew.h>
     #include <OpenGL/OpenGL.h>
@@ -31,99 +32,64 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
     #include <GL/gl.h>
 #endif
 
+#include <QtGui>
+#include <QtOpenGL>
+#include <QObject>
+
 #include <cuda_gl_interop.h>
-#include <sys/time.h>
 
 #include <vtkXMLImageDataReader.h>
 
-#include <piston/threshold_geometry.h>
-#include <piston/vtk_image3d.h>
-
-using namespace piston;
+#include <cutil_math.h>
+#include <piston/choose_container.h>
 
 #define SPACE thrust::detail::default_device_space_tag
-//#define SPACE thrust::host_space
+using namespace piston;
+
+#include <piston/image3d.h>
+#include <piston/vtk_image3d.h>
+#include <piston/threshold_geometry.h>
+
+#include <sys/time.h>
+#include <stdio.h>
+#include <math.h>
+
+#include "glwindow.h"
 
 #define STRINGIZE(x) #x
 #define STRINGIZE_VALUE_OF(x) STRINGIZE(x)
 
-static const int GRID_SIZE = 256;
-
-
-int mouse_old_x, mouse_old_y;
-int mouse_buttons = 0;
-float3 rotate = make_float3(0, 0, 0.0);
-float3 translate = make_float3(0.0, 0.0, 0.0);
-
-void mouse(int button, int state, int x, int y)
-{
-    if (state == GLUT_DOWN) {
-	mouse_buttons |= 1<<button;
-    } else if (state == GLUT_UP) {
-	mouse_buttons = 0;
-    }
-
-    mouse_old_x = x;
-    mouse_old_y = y;
-    glutPostRedisplay();
-}
-
-void motion(int x, int y)
-{
-    float dx = x - mouse_old_x;
-    float dy = y - mouse_old_y;
-
-    if (mouse_buttons==1) {
-	rotate.x += dy * 0.2;
-	rotate.y += dx * 0.2;
-    } else if (mouse_buttons==2) {
-	translate.x += dx * 0.01;
-	translate.y -= dy * 0.01;
-    } else if (mouse_buttons==4) {
-	translate.z += dy * 0.1;
-    }
-
-    mouse_old_x = x;
-    mouse_old_y = y;
-    glutPostRedisplay();
-}
-
+struct timeval begin, end, diff;
+int frame_count = 0;
+int grid_size = 256;
+float cameraFOV = 60.0;
 bool wireframe = false;
-bool animate = true;
-void keyboard( unsigned char key, int x, int y )
-{
-    switch (key) {
-    case 'w':
-	wireframe = !wireframe;
-	break;
-    case 'a':
-	animate = !animate;
-	break;
-    }
-}
 
+vtk_image3d<int, float, SPACE>* image;
+threshold_geometry<vtk_image3d<int, float, SPACE> >* threshold;
 
-threshold_geometry<vtk_image3d<int, float, SPACE> > *threshold_p;
 GLuint quads_vbo[2];
-struct cudaGraphicsResource *quads_pos_res, *quads_color_res;
+struct cudaGraphicsResource *quads_pos_res, *quads_normal_res, *quads_color_res;
 unsigned int buffer_size;
+
 
 void create_vbo()
 {
     glGenBuffers(2, quads_vbo);
-
     int error;
-    std::cout << "number of vertices: " << thrust::distance(threshold_p->vertices_begin(), threshold_p->vertices_end()) << std::endl;
-    buffer_size = thrust::distance(threshold_p->vertices_begin(), threshold_p->vertices_end())* sizeof(float4);
+
+    std::cout << "number of vertices: " << thrust::distance(threshold->vertices_begin(), threshold->vertices_end()) << std::endl;
+    buffer_size = thrust::distance(threshold->vertices_begin(), threshold->vertices_end())* sizeof(float4);
 
     // initialize vertex buffer object
     glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[0]);
     glBufferData(GL_ARRAY_BUFFER, buffer_size, 0, GL_DYNAMIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
+
     // register this buffer object with CUDA
     if ((error = cudaGraphicsGLRegisterBuffer(&quads_pos_res, quads_vbo[0],
                                               cudaGraphicsMapFlagsWriteDiscard)) != cudaSuccess) {
-	std::cout << "register pos buffer cuda error: " << error << "\n";
+      std::cout << "register pos buffer cuda error: " << error << "\n";
     }
 
     // initialize color buffer object
@@ -133,100 +99,70 @@ void create_vbo()
     // register this buffer object with CUDA
     if (cudaGraphicsGLRegisterBuffer(&quads_color_res, quads_vbo[1],
                                      cudaGraphicsMapFlagsWriteDiscard) != cudaSuccess) {
-	std::cout << "register color buffer cuda error: " << error << "\n";
+      std::cout << "register color buffer cuda error: " << error << "\n";
     }
 }
 
-struct timeval begin, end, diff;
-int frame_count = 0;
 
-void display()
+GLWindow::GLWindow(QWidget *parent)
+    : QGLWidget(QGLFormat(QGL::SampleBuffers), parent)
 {
-    if (frame_count == 0) {
-	gettimeofday(&begin, 0);
-    }
-
-//    (*threshold_p)();
-
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    if (wireframe) {
-	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-    } else {
-	glPolygonMode(GL_BACK, GL_FILL);
-	glPolygonMode(GL_FRONT, GL_FILL);
-    }
-
-    // set view matrix for 3D scene
-    glMatrixMode(GL_MODELVIEW);
-    glPopMatrix();
-    glPushMatrix();
-
-    glRotatef(rotate.x, 1.0, 0.0, 0.0);
-    glRotatef(rotate.y, 0.0, 1.0, 0.0);
-    glTranslatef(-(GRID_SIZE-1)/2, -(GRID_SIZE-1)/2, -(GRID_SIZE-1)/2);
-    glTranslatef(translate.x, translate.y, translate.z);
-
-    float4 *raw_ptr;
-    size_t num_bytes;
-
-    cudaGraphicsMapResources(1, &quads_pos_res, 0);
-    cudaGraphicsResourceGetMappedPointer((void**)&raw_ptr, &num_bytes, quads_pos_res);
-    thrust::copy(thrust::make_transform_iterator(threshold_p->vertices_begin(), tuple2float4()),
-                 thrust::make_transform_iterator(threshold_p->vertices_end(),   tuple2float4()),
-                 thrust::device_ptr<float4>(raw_ptr));
-    cudaGraphicsUnmapResources(1, &quads_pos_res, 0);
-    glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[0]);
-    glVertexPointer(4, GL_FLOAT, 0, 0);
-
-    cudaGraphicsMapResources(1, &quads_color_res, 0);
-    cudaGraphicsResourceGetMappedPointer((void**)&raw_ptr, &num_bytes, quads_color_res);
-    thrust::transform(threshold_p->scalars_begin(), threshold_p->scalars_end(),
-                      thrust::device_ptr<float4>(raw_ptr),
-                      color_map<float>(-500.0f, -0.1f));
-    cudaGraphicsUnmapResources(1, &quads_color_res, 0);
-    glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[1]);
-    glColorPointer(4, GL_FLOAT, 0, 0);
-
-
-    glDrawArrays(GL_QUADS, 0, buffer_size/sizeof(float4));
-
-    glutSwapBuffers();
-
-    gettimeofday(&end, 0);
-    timersub(&end, &begin, &diff);
-    frame_count++;
-    float seconds = diff.tv_sec + 1.0E-6*diff.tv_usec;
-    if (seconds > 0.1f) {
-	char title[256];
-	sprintf(title, "Eddy, fps: %2.2f", float(frame_count)/seconds);
-	glutSetWindowTitle(title);
-	seconds = 0.0f;
-	frame_count = 0;
-    }
+    setFocusPolicy(Qt::StrongFocus);
+    timer = new QTimer(this);
+    connect(timer, SIGNAL(timeout()), this, SLOT(updateGL()));
+    timer->start(1);
 }
 
-void idle()
+
+GLWindow::~GLWindow()
 {
-    if (animate) {
-//	isovalue += delta;
-//	if (isovalue > maxiso)
-//	    delta = -0.05;
-//	if (isovalue < miniso)
-//	    delta = 0.05;
-//	glutPostRedisplay();
-    }
-    glutPostRedisplay();
+
 }
 
-void initGL(int argc, char **argv)
-{
-    glutInit(&argc, argv);
-    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
-    glutInitWindowSize(800, 800);
-    glutCreateWindow("Ocean Eddy");
 
+QSize GLWindow::minimumSizeHint() const
+{
+    return QSize(100, 50);
+}
+
+
+QSize GLWindow::sizeHint() const
+{
+    return QSize(2048, 1024);
+}
+
+
+bool GLWindow::initialize(int argc, char *argv[])
+{
+    if (argc < 2) return false;
+    sprintf(fileName, argv[1]);
+    return true;
+}
+
+
+void GLWindow::initializeGL()
+{
     glewInit();
+    cudaGLSetGLDevice(0);
+
+    vtkXMLImageDataReader *reader = vtkXMLImageDataReader::New();
+    char fname[1024];
+    sprintf(fname, "%s/%s", STRINGIZE_VALUE_OF(DATA_DIRECTORY), fileName);
+    int fileFound = reader->CanReadFile(fname);
+    if (fileFound == 0) sprintf(fname, fileName);
+    reader->SetFileName(fname);
+    reader->Update();
+
+    vtkImageData *vtk_image = reader->GetOutput();
+
+    image = new vtk_image3d<int, float, SPACE>(vtk_image);
+    threshold = new threshold_geometry<vtk_image3d<int, float, SPACE> >(*image, -500.0f, -0.01f);
+    (*threshold)();
+
+    create_vbo();
+
+    qrot.set(0,0,0,1);
+    grid_size = vtk_image->GetDimensions()[1];
 
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
     glEnable(GL_DEPTH_TEST);
@@ -244,58 +180,143 @@ void initGL(int argc, char **argv)
     glLightfv(GL_LIGHT0, GL_SPECULAR, white);
     glLightfv(GL_LIGHT0, GL_POSITION, lightPos);
 
-    glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER, 1);
-//    glLightModeli(GL_LIGHT_MODEL_TWO_SIDE, 1);
+    glLightModeli(GL_LIGHT_MODEL_TWO_SIDE, 1);
 
     glEnable(GL_LIGHTING);
     glEnable(GL_LIGHT0);
     glEnable(GL_COLOR_MATERIAL);
 
-    /* Setup the view of the cube. */
+    // Setup the view of the cube.
     glMatrixMode(GL_PROJECTION);
-    gluPerspective( /* field of view in degree */ 60.0,
-                    /* aspect ratio */ 1.0,
-                    /* Z near */ 1.0, /* Z far */ GRID_SIZE*4.0);
+    gluPerspective( cameraFOV, 1.0, 1.0, grid_size*4.0);
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    gluLookAt(0.0, 0.0, GRID_SIZE*1.5,  /* eye is at (0,0, 1.5*GRID_SIZE) */
-              0.0, 0.0, 0.0,		/* center is at (0,0,0) */
-              0.0, 1.0, 0.0);		/* up is in positive Y direction */
+    gluLookAt((grid_size-1)/2, (grid_size-1)/2, grid_size*1.5,
+              (grid_size-1)/2, (grid_size-1)/2, 0.0,
+              0.0, 1.0, 0.0);
+}
+
+
+void GLWindow::paintGL()
+{
+    timer->stop();
+
+    if (frame_count == 0) gettimeofday(&begin, 0);
+
+    (*threshold)();
+
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    if (wireframe) glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    else glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    gluPerspective( cameraFOV, 1.0, 1.0, grid_size*4.0);
+
+    // set view matrix for 3D scene
+    glMatrixMode(GL_MODELVIEW);
     glPushMatrix();
 
-    // enable vertex and normal arrays
+    qrot.getRotMat(rotationMatrix);
+    glMultMatrixf(rotationMatrix);
+
+    float3 center = make_float3((grid_size-1)/2, (grid_size-1)/2, 0.0);
+    GLfloat matrix[16];
+    glGetFloatv(GL_MODELVIEW_MATRIX, matrix);
+    float3 offset = make_float3(matrix[0]*center.x + matrix[1]*center.y + matrix[2]*center.z, matrix[4]*center.x + matrix[5]*center.y + matrix[6]*center.z,
+                                matrix[8]*center.x + matrix[9]*center.y + matrix[10]*center.z);
+    offset.x = center.x - offset.x; offset.y = center.y - offset.y; offset.z = center.z - offset.z;
+    glTranslatef(-offset.x, -offset.y, -offset.z);
+
+    float4 *raw_ptr;
+    size_t num_bytes;
+
+    cudaGraphicsMapResources(1, &quads_pos_res, 0);
+    cudaGraphicsResourceGetMappedPointer((void**)&raw_ptr, &num_bytes, quads_pos_res);
+    thrust::copy(thrust::make_transform_iterator(threshold->vertices_begin(), tuple2float4()),
+                 thrust::make_transform_iterator(threshold->vertices_end(),   tuple2float4()),
+                 thrust::device_ptr<float4>(raw_ptr));
+    cudaGraphicsUnmapResources(1, &quads_pos_res, 0);
+    glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[0]);
+    glVertexPointer(4, GL_FLOAT, 0, 0);
     glEnableClientState(GL_VERTEX_ARRAY);
-//    glEnableClientState(GL_NORMAL_ARRAY);
+
+    cudaGraphicsMapResources(1, &quads_color_res, 0);
+    cudaGraphicsResourceGetMappedPointer((void**)&raw_ptr, &num_bytes, quads_color_res);
+    thrust::transform(threshold->scalars_begin(), threshold->scalars_end(),
+                      thrust::device_ptr<float4>(raw_ptr),
+                      color_map<float>(4.0f, 1600.0f));
+    cudaGraphicsUnmapResources(1, &quads_color_res, 0);
+    glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[1]);
+    glColorPointer(4, GL_FLOAT, 0, 0);
     glEnableClientState(GL_COLOR_ARRAY);
+
+    glDrawArrays(GL_QUADS, 0, buffer_size/sizeof(float4));
+
+    glDisableClientState(GL_VERTEX_ARRAY);
+    glDisableClientState(GL_COLOR_ARRAY);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    glPopMatrix();
+
+    gettimeofday(&end, 0);
+    timersub(&end, &begin, &diff);
+    frame_count++;
+    float seconds = diff.tv_sec + 1.0E-6*diff.tv_usec;
+    if (seconds > 0.5f)
+    {
+      char title[256];
+      sprintf(title, "Marching Cube, fps: %2.2f", float(frame_count)/seconds);
+      std::cout << title << std::endl;
+      seconds = 0.0f;
+      frame_count = 0;
+    }
+
+    timer->start(1);
 }
 
-int main(int argc, char **argv)
+
+void GLWindow::resizeGL(int width, int height)
 {
-    initGL(argc, argv);
-    cudaGLSetGLDevice(0);
-
-    vtkXMLImageDataReader *reader = vtkXMLImageDataReader::New();
-    char filename[1024];
-    sprintf(filename, "%s/NorthPacificEddies.vti", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
-    reader->SetFileName(filename);
-    reader->Update();
-
-    vtkImageData *vtk_image = reader->GetOutput();
-
-
-    vtk_image3d<int, float, SPACE> image(vtk_image);
-    threshold_geometry<vtk_image3d<int, float, SPACE> > threshold(image, -500.0f, -0.01f);
-    threshold();
-    threshold_p = &threshold;
-    create_vbo();
-
-    glutDisplayFunc(display);
-    glutKeyboardFunc(keyboard);
-    glutMouseFunc(mouse);
-    glutMotionFunc(motion);
-    glutIdleFunc(idle);
-    glutMainLoop();
-
-    return 0;
+    glViewport(0, 0, width, height);
 }
+
+
+void GLWindow::mousePressEvent(QMouseEvent *event)
+{
+    lastPos = event->pos();
+}
+
+
+void GLWindow::mouseMoveEvent(QMouseEvent *event)
+{
+    int dx = event->x() - lastPos.x();
+    int dy = event->y() - lastPos.y();
+
+    if (event->buttons() & Qt::LeftButton)
+    {
+      Quaternion newRotX;
+      newRotX.setEulerAngles(-0.2*dx*3.14159/180.0, 0.0, 0.0);
+      qrot.mul(newRotX);
+
+      Quaternion newRotY;
+      newRotY.setEulerAngles(0.0, 0.0, -0.2*dy*3.14159/180.0);
+      qrot.mul(newRotY);
+    }
+    else if (event->buttons() & Qt::RightButton)
+    {
+      cameraFOV += dy/20.0;
+    }
+    lastPos = event->pos();
+}
+
+
+void GLWindow::keyPressEvent(QKeyEvent *event)
+{
+   if ((event->key() == 'w') || (event->key() == 'W'))
+       wireframe = !wireframe;
+}
+
+
