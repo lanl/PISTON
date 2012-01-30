@@ -46,9 +46,14 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #define SPACE thrust::detail::default_device_space_tag
 using namespace piston;
 
+#include <piston/implicit_function.h>
+#include <piston/image3d.h>
+#include <piston/vtk_image3d.h>
+#include <piston/marching_cube.h>
 #include <piston/util/tangle_field.h>
 #include <piston/util/plane_field.h>
-#include <piston/marching_cube.h>
+#include <piston/util/sphere_field.h>
+#include <piston/threshold_geometry.h>
 
 #include <sys/time.h>
 #include <stdio.h>
@@ -56,8 +61,6 @@ using namespace piston;
 
 #include "glwindow.h"
 
-#define STRINGIZE(x) #x
-#define STRINGIZE_VALUE_OF(x) STRINGIZE(x)
 
 struct timeval begin, end, diff;
 int frame_count = 0;
@@ -66,21 +69,28 @@ float cameraFOV = 60.0;
 bool wireframe = false;
 
 tangle_field<int, float, SPACE>* tangle;
+marching_cube<tangle_field<int, float, SPACE>, tangle_field<int, float, SPACE> > *isosurface;
+
 plane_field<int, float, SPACE>* plane;
-marching_cube<plane_field<int, float, SPACE>, tangle_field<int, float, SPACE> > *isosurface;
+marching_cube<plane_field<int, float, SPACE>, tangle_field<int, float, SPACE> > *cutplane;
+
+sphere_field<int, float, SPACE>* scalar_field;
+threshold_geometry<sphere_field<int, float, SPACE> >* threshold;
 
 GLuint quads_vbo[3];
 struct cudaGraphicsResource *quads_pos_res, *quads_normal_res, *quads_color_res;
 unsigned int buffer_size;
 
 
+thrust::host_vector<float4> vertices;
+thrust::host_vector<float3> normals;
+thrust::host_vector<float4> colors;
+
+
 void create_vbo()
 {
     glGenBuffers(3, quads_vbo);
     int error;
-
-    //std::cout << "number of vertices: " << thrust::distance(isosurface_p->vertices_begin(), isosurface_p->vertices_end()) << std::endl;
-    buffer_size = thrust::distance(isosurface->vertices_begin(), isosurface->vertices_end())* sizeof(float4);
 
     // initialize vertex buffer object
     glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[0]);
@@ -132,39 +142,24 @@ GLWindow::~GLWindow()
 
 QSize GLWindow::minimumSizeHint() const
 {
-    return QSize(100, 50);
+    return QSize(100, 100);
 }
 
 
 QSize GLWindow::sizeHint() const
 {
-    return QSize(2048, 1024);
+    return QSize(1024, 1024);
 }
 
 
 bool GLWindow::initialize(int argc, char *argv[])
 {
-//    if (argc < 2) return false;
-//    sprintf(fileName, argv[1]);
     return true;
 }
 
 
 void GLWindow::initializeGL()
 {
-    glewInit();
-    cudaGLSetGLDevice(0);
-
-    tangle = new tangle_field<int, float, SPACE>(grid_size, grid_size, grid_size);
-    plane = new plane_field<int, float, SPACE>(make_float3(0.0f, 0.0f, grid_size/2),
-                                               make_float3(0.0f, 0.0f, 1.0f),
-                                               grid_size, grid_size, grid_size);
-    isosurface = new marching_cube<plane_field<int, float, SPACE>, tangle_field<int, float, SPACE> >(*plane, *tangle, 0.2f);
-
-    (*isosurface)();
-
-    create_vbo();
-
     qrot.set(0,0,0,1);
 
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
@@ -173,20 +168,20 @@ void GLWindow::initializeGL()
 
     // good old-fashioned fixed function lighting
     float white[] = { 0.8, 0.8, 0.8, 1.0 };
-    float lightPos[] = { 100.0, 100.0, -100.0, 1.0 };
-
-    glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, white);
-    glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 100);
+    float black[] = { 0.0, 0.0, 0.0, 1.0 };
+    float lightPos[] = { 0.0, 0.0, grid_size*1.5 };
 
     glLightfv(GL_LIGHT0, GL_AMBIENT, white);
     glLightfv(GL_LIGHT0, GL_DIFFUSE, white);
-    glLightfv(GL_LIGHT0, GL_SPECULAR, white);
+    glLightfv(GL_LIGHT0, GL_SPECULAR, black);
     glLightfv(GL_LIGHT0, GL_POSITION, lightPos);
 
     glLightModeli(GL_LIGHT_MODEL_TWO_SIDE, 1);
 
     glEnable(GL_LIGHTING);
     glEnable(GL_LIGHT0);
+    glEnable(GL_NORMALIZE);
+    glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
     glEnable(GL_COLOR_MATERIAL);
 
     // Setup the view of the cube.
@@ -195,11 +190,48 @@ void GLWindow::initializeGL()
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    gluLookAt((grid_size-1)/2, (grid_size-1)/2, grid_size*1.5,
-              (grid_size-1)/2, (grid_size-1)/2, 0.0,
+    gluLookAt(0.0, 0.0, grid_size*1.5,
+              0.0, 0.0, 0.0,
               0.0, 1.0, 0.0);
 
-    // enable vertex and normal arrays
+#ifdef USE_INTEROP
+    glewInit();
+    cudaGLSetGLDevice(0);
+#endif
+
+#ifdef TANGLE
+    tangle = new tangle_field<int, float, SPACE>(grid_size, grid_size, grid_size);
+    isosurface = new marching_cube<tangle_field<int, float, SPACE>,  tangle_field<int, float, SPACE> >(*tangle, *tangle, 0.2f);
+    (*isosurface)();
+    buffer_size = thrust::distance(isosurface->vertices_begin(), isosurface->vertices_end())* sizeof(float4);
+#endif
+
+#ifdef CUTPLANE
+    tangle = new tangle_field<int, float, SPACE>(grid_size, grid_size, grid_size);
+    plane = new plane_field<int, float, SPACE>(make_float3(0.0f, 0.0f, grid_size/2), make_float3(0.0f, 0.0f, 1.0f), grid_size, grid_size, grid_size);
+    cutplane = new marching_cube<plane_field<int, float, SPACE>, tangle_field<int, float, SPACE> >(*plane, *tangle, 0.2f);
+    (*cutplane)();
+    buffer_size = thrust::distance(cutplane->vertices_begin(), cutplane->vertices_end())* sizeof(float4);
+#endif
+
+#ifdef THRESHOLD
+    scalar_field = new sphere_field<int, float, SPACE>(grid_size, grid_size, grid_size);
+    threshold = new threshold_geometry<sphere_field<int, float, SPACE> >(*scalar_field, 4, 1600);
+    (*threshold)();
+    buffer_size = thrust::distance(threshold->vertices_begin(), threshold->vertices_end())* sizeof(float4);
+#endif
+
+#ifdef USE_INTEROP
+    create_vbo();
+#endif
+
+#ifdef TANGLE
+    glLightfv(GL_LIGHT0, GL_AMBIENT, white);
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, white);
+    glLightfv(GL_LIGHT0, GL_SPECULAR, black);
+    glLightfv(GL_LIGHT0, GL_POSITION, lightPos);
+#endif
+
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_NORMAL_ARRAY);
     glEnableClientState(GL_COLOR_ARRAY);
@@ -211,8 +243,6 @@ void GLWindow::paintGL()
     timer->stop();
 
     if (frame_count == 0) gettimeofday(&begin, 0);
-
-    (*isosurface)();
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -230,48 +260,92 @@ void GLWindow::paintGL()
     qrot.getRotMat(rotationMatrix);
     glMultMatrixf(rotationMatrix);
 
-    float3 center = make_float3((grid_size-1)/2, (grid_size-1)/2, 0.0);
-    GLfloat matrix[16];
-    glGetFloatv(GL_MODELVIEW_MATRIX, matrix);
-    float3 offset = make_float3(matrix[0]*center.x + matrix[1]*center.y + matrix[2]*center.z, matrix[4]*center.x + matrix[5]*center.y + matrix[6]*center.z,
-                                matrix[8]*center.x + matrix[9]*center.y + matrix[10]*center.z);
-    offset.x = center.x - offset.x; offset.y = center.y - offset.y; offset.z = center.z - offset.z;
-    glTranslatef(-offset.x, -offset.y, -offset.z);
+    glTranslatef(-(grid_size-1)/2, -(grid_size-1)/2, -(grid_size-1)/2);
+    size_t num_bytes;  GLenum drawType = GL_TRIANGLES;
 
-    float4 *raw_ptr;
-    size_t num_bytes;
+#ifdef USE_INTEROP
+    float4 *vertex_ptr, *color_ptr;  float3 *normal_ptr;
 
     cudaGraphicsMapResources(1, &quads_pos_res, 0);
-    cudaGraphicsResourceGetMappedPointer((void**)&raw_ptr, &num_bytes, quads_pos_res);
+    cudaGraphicsResourceGetMappedPointer((void**)&vertex_ptr, &num_bytes, quads_pos_res);
 
-    thrust::copy(isosurface->vertices_begin(),
-                 isosurface->vertices_end(),
-                 thrust::device_ptr<float4>(raw_ptr));
+    cudaGraphicsMapResources(1, &quads_normal_res, 0);
+    cudaGraphicsResourceGetMappedPointer((void**)&normal_ptr, &num_bytes, quads_normal_res);
 
+    cudaGraphicsMapResources(1, &quads_color_res, 0);
+    cudaGraphicsResourceGetMappedPointer((void**)&color_ptr, &num_bytes, quads_color_res);
+#endif
+
+#ifdef TANGLE
+    (*isosurface)();
+    #ifdef USE_INTEROP
+        thrust::copy(isosurface->vertices_begin(), isosurface->vertices_end(), thrust::device_ptr<float4>(vertex_ptr));
+        thrust::copy(isosurface->normals_begin(), isosurface->normals_end(), thrust::device_ptr<float3>(normal_ptr));
+        thrust::transform(isosurface->scalars_begin(), isosurface->scalars_end(), thrust::device_ptr<float4>(color_ptr), color_map<float>(31.0f, 500.0f));
+     #else
+        vertices.assign(isosurface->vertices_begin(), isosurface->vertices_end());
+        normals.assign(isosurface->normals_begin(), isosurface->normals_end());
+        colors.assign(thrust::make_transform_iterator(isosurface->scalars_begin(), color_map<float>(31.0f, 500.0f)),
+                      thrust::make_transform_iterator(isosurface->scalars_end(), color_map<float>(31.0f, 500.0f)));
+     #endif
+#endif
+
+#ifdef CUTPLANE
+    (*cutplane)();
+    #ifdef USE_INTEROP
+        thrust::copy(cutplane->vertices_begin(), cutplane->vertices_end(), thrust::device_ptr<float4>(vertex_ptr));
+        thrust::copy(cutplane->normals_begin(), cutplane->normals_end(), thrust::device_ptr<float3>(normal_ptr));
+        thrust::transform(cutplane->scalars_begin(), cutplane->scalars_end(), thrust::device_ptr<float4>(color_ptr), color_map<float>(0.0f, 1.0f));
+    #else
+        vertices.assign(cutplane->vertices_begin(), cutplane->vertices_end());
+        normals.assign(cutplane->normals_begin(), cutplane->normals_end());
+        colors.assign(thrust::make_transform_iterator(cutplane->scalars_begin(), color_map<float>(0.0f, 1.0f)),
+                      thrust::make_transform_iterator(cutplane->scalars_end(), color_map<float>(0.0f, 1.0f)));
+    #endif
+#endif
+
+#ifdef THRESHOLD
+    (*threshold)();
+    #ifdef USE_INTEROP
+        thrust::copy(thrust::make_transform_iterator(threshold->vertices_begin(), tuple2float4()),
+                     thrust::make_transform_iterator(threshold->vertices_end(),   tuple2float4()),
+                     thrust::device_ptr<float4>(vertex_ptr));
+        thrust::copy(threshold->normals_begin(), threshold->normals_end(), thrust::device_ptr<float3>(normal_ptr));
+        thrust::transform(threshold->scalars_begin(), threshold->scalars_end(), thrust::device_ptr<float4>(color_ptr), color_map<float>(4.0f, 1600.0f));
+    #else
+        vertices.resize(threshold->vertices_end() - threshold->vertices_begin());
+        normals.resize(threshold->normals_end() - threshold->normals_begin());
+        thrust::copy(thrust::make_transform_iterator(threshold->vertices_begin(), tuple2float4()),
+                     thrust::make_transform_iterator(threshold->vertices_end(), tuple2float4()), vertices.begin());
+        thrust::copy(threshold->normals_begin(), threshold->normals_end(), normals.begin());
+        thrust::device_vector<float4> device_colors(vertices.size());
+        device_colors.resize(vertices.size());
+        thrust::transform(threshold->scalars_begin(), threshold->scalars_end(), device_colors.begin(), color_map<float>(4.0f, 1600.0f));
+        colors = device_colors;
+    #endif
+    drawType = GL_QUADS;
+#endif
+
+#ifdef USE_INTEROP
     cudaGraphicsUnmapResources(1, &quads_pos_res, 0);
     glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[0]);
     glVertexPointer(4, GL_FLOAT, 0, 0);
 
-    float3 *normal;
-    cudaGraphicsMapResources(1, &quads_normal_res, 0);
-    cudaGraphicsResourceGetMappedPointer((void**)&normal, &num_bytes, quads_normal_res);
-    thrust::copy(isosurface->normals_begin(),
-                 isosurface->normals_end(),
-                 thrust::device_ptr<float3>(normal));
     cudaGraphicsUnmapResources(1, &quads_normal_res, 0);
     glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[1]);
     glNormalPointer(GL_FLOAT, 0, 0);
 
-    cudaGraphicsMapResources(1, &quads_color_res, 0);
-    cudaGraphicsResourceGetMappedPointer((void**)&raw_ptr, &num_bytes, quads_color_res);
-    thrust::transform(isosurface->scalars_begin(), isosurface->scalars_end(),
-                      thrust::device_ptr<float4>(raw_ptr),
-                      color_map<float>(0.0f, 1.0f));
     cudaGraphicsUnmapResources(1, &quads_color_res, 0);
     glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[2]);
     glColorPointer(4, GL_FLOAT, 0, 0);
 
-    glDrawArrays(GL_TRIANGLES, 0, buffer_size/sizeof(float4));
+    glDrawArrays(drawType, 0, buffer_size/sizeof(float4));
+#else
+    glColorPointer(4, GL_FLOAT, 0, &colors[0]);
+    glNormalPointer(GL_FLOAT, 0, &normals[0]);
+    glVertexPointer(4, GL_FLOAT, 0, &vertices[0]);
+    glDrawArrays(drawType, 0, vertices.size());
+#endif
 
     glPopMatrix();
 
