@@ -256,26 +256,13 @@ void GLWindow::paintGL()
     glTranslatef(-(grid_size-1)/2, -(grid_size-1)/2, -(grid_size-1)/2);
     size_t num_bytes;  GLenum drawType = GL_TRIANGLES;
 
-#ifdef USE_INTEROP
-    float4 *vertex_ptr, *color_ptr;  float3 *normal_ptr;
-
-    cudaGraphicsMapResources(1, &quads_pos_res, 0);
-    cudaGraphicsResourceGetMappedPointer((void**)&vertex_ptr, &num_bytes, quads_pos_res);
-
-    cudaGraphicsMapResources(1, &quads_normal_res, 0);
-    cudaGraphicsResourceGetMappedPointer((void**)&normal_ptr, &num_bytes, quads_normal_res);
-
-    cudaGraphicsMapResources(1, &quads_color_res, 0);
-    cudaGraphicsResourceGetMappedPointer((void**)&color_ptr, &num_bytes, quads_color_res);
-#endif
-
 #ifdef TANGLE
-    (*isosurface)();
     #ifdef USE_INTEROP
-        thrust::copy(isosurface->vertices_begin(), isosurface->vertices_end(), thrust::device_ptr<float4>(vertex_ptr));
-        thrust::copy(isosurface->normals_begin(), isosurface->normals_end(), thrust::device_ptr<float3>(normal_ptr));
-        thrust::transform(isosurface->scalars_begin(), isosurface->scalars_end(), thrust::device_ptr<float4>(color_ptr), color_map<float>(31.0f, 500.0f));
-     #else
+        isosurface->vboResources[0] = quads_pos_res;  isosurface->vboResources[1] = quads_color_res;  isosurface->vboResources[2] = quads_normal_res;
+        isosurface->minIso = 31.0f;  isosurface->maxIso = 500.0f;  isosurface->useInterop = true;
+    #endif
+        (*isosurface)();
+    #ifndef USE_INTEROP
         vertices.assign(isosurface->vertices_begin(), isosurface->vertices_end());
         normals.assign(isosurface->normals_begin(), isosurface->normals_end());
         colors.assign(thrust::make_transform_iterator(isosurface->scalars_begin(), color_map<float>(31.0f, 500.0f)),
@@ -284,12 +271,12 @@ void GLWindow::paintGL()
 #endif
 
 #ifdef CUTPLANE
-    (*cutplane)();
     #ifdef USE_INTEROP
-        thrust::copy(cutplane->vertices_begin(), cutplane->vertices_end(), thrust::device_ptr<float4>(vertex_ptr));
-        thrust::copy(cutplane->normals_begin(), cutplane->normals_end(), thrust::device_ptr<float3>(normal_ptr));
-        thrust::transform(cutplane->scalars_begin(), cutplane->scalars_end(), thrust::device_ptr<float4>(color_ptr), color_map<float>(0.0f, 1.0f));
-    #else
+        cutplane->vboResources[0] = quads_pos_res;  cutplane->vboResources[1] = quads_color_res;  cutplane->vboResources[2] = quads_normal_res;
+        cutplane->minIso = 0.0f;  cutplane->maxIso = 1.0f;  cutplane->useInterop = true;
+    #endif
+    (*cutplane)();
+    #ifndef USE_INTEROP
         vertices.assign(cutplane->vertices_begin(), cutplane->vertices_end());
         normals.assign(cutplane->normals_begin(), cutplane->normals_end());
         colors.assign(thrust::make_transform_iterator(cutplane->scalars_begin(), color_map<float>(0.0f, 1.0f)),
@@ -298,21 +285,18 @@ void GLWindow::paintGL()
 #endif
 
 #ifdef THRESHOLD
-    (*threshold)();
     #ifdef USE_INTEROP
-        thrust::copy(thrust::make_transform_iterator(threshold->vertices_begin(), tuple2float4()),
-                     thrust::make_transform_iterator(threshold->vertices_end(),   tuple2float4()),
-                     thrust::device_ptr<float4>(vertex_ptr));
-        thrust::copy(threshold->normals_begin(), threshold->normals_end(), thrust::device_ptr<float3>(normal_ptr));
-        thrust::transform(threshold->scalars_begin(), threshold->scalars_end(), thrust::device_ptr<float4>(color_ptr), color_map<float>(4.0f, 1600.0f));
-    #else
+        threshold->vboResources[0] = quads_pos_res;  threshold->vboResources[1] = quads_color_res;  threshold->vboResources[2] = quads_normal_res;
+        threshold->minIso = 4.0f;  threshold->maxIso = 1600.0f;  threshold->useInterop = true;
+    #endif
+    (*threshold)();
+    #ifndef USE_INTEROP
         vertices.resize(threshold->vertices_end() - threshold->vertices_begin());
         normals.resize(threshold->normals_end() - threshold->normals_begin());
+        thrust::device_vector<float4> device_colors(vertices.size());
         thrust::copy(thrust::make_transform_iterator(threshold->vertices_begin(), tuple2float4()),
                      thrust::make_transform_iterator(threshold->vertices_end(), tuple2float4()), vertices.begin());
         thrust::copy(threshold->normals_begin(), threshold->normals_end(), normals.begin());
-        thrust::device_vector<float4> device_colors(vertices.size());
-        device_colors.resize(vertices.size());
         thrust::transform(threshold->scalars_begin(), threshold->scalars_end(), device_colors.begin(), color_map<float>(4.0f, 1600.0f));
         colors = device_colors;
     #endif
@@ -320,15 +304,12 @@ void GLWindow::paintGL()
 #endif
 
 #ifdef USE_INTEROP
-    cudaGraphicsUnmapResources(1, &quads_pos_res, 0);
     glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[0]);
     glVertexPointer(4, GL_FLOAT, 0, 0);
 
-    cudaGraphicsUnmapResources(1, &quads_normal_res, 0);
     glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[1]);
     glNormalPointer(GL_FLOAT, 0, 0);
 
-    cudaGraphicsUnmapResources(1, &quads_color_res, 0);
     glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[2]);
     glColorPointer(4, GL_FLOAT, 0, 0);
 
