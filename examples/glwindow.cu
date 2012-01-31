@@ -169,7 +169,7 @@ void GLWindow::initializeGL()
     // good old-fashioned fixed function lighting
     float white[] = { 0.8, 0.8, 0.8, 1.0 };
     float black[] = { 0.0, 0.0, 0.0, 1.0 };
-    float lightPos[] = { 0.0, 0.0, grid_size*1.5 };
+    float lightPos[] = { 0.0, 0.0, grid_size*1.5, 1.0 };
 
     glLightfv(GL_LIGHT0, GL_AMBIENT, white);
     glLightfv(GL_LIGHT0, GL_DIFFUSE, white);
@@ -223,13 +223,6 @@ void GLWindow::initializeGL()
 
 #ifdef USE_INTEROP
     create_vbo();
-#endif
-
-#ifdef TANGLE
-    glLightfv(GL_LIGHT0, GL_AMBIENT, white);
-    glLightfv(GL_LIGHT0, GL_DIFFUSE, white);
-    glLightfv(GL_LIGHT0, GL_SPECULAR, black);
-    glLightfv(GL_LIGHT0, GL_POSITION, lightPos);
 #endif
 
     glEnableClientState(GL_VERTEX_ARRAY);
