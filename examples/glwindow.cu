@@ -86,7 +86,7 @@ thrust::host_vector<float4> vertices;
 thrust::host_vector<float3> normals;
 thrust::host_vector<float4> colors;
 
-
+#if USE_INTEROP
 void create_vbo()
 {
     glGenBuffers(3, quads_vbo);
@@ -122,7 +122,7 @@ void create_vbo()
 	std::cout << "register color buffer cuda error: " << error << "\n";
     }
 }
-
+#endif
 
 GLWindow::GLWindow(QWidget *parent)
     : QGLWidget(QGLFormat(QGL::SampleBuffers), parent)

@@ -56,6 +56,7 @@ struct tangle_field : public piston::image3d<IndexType, ValueType, Space>
 
         __host__ __device__
         float operator()(InputType pos) const {
+            // TODO: move this into GridCoordinates
             // scale and shift such that x, y, z <- [-1,1]
             const float x = 3.0f*(thrust::get<0>(pos)*xscale - 1.0f);
             const float y = 3.0f*(thrust::get<1>(pos)*yscale - 1.0f);

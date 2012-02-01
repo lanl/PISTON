@@ -182,6 +182,7 @@ struct threshold_geometry
 	//std::cout << "number of vertices: " << numTotalVertices << std::endl;
 
 	if (useInterop) {
+#if USE_INTEROP
 	    size_t num_bytes;
 	    cudaGraphicsMapResources(1, &vboResources[0], 0);
 	    cudaGraphicsResourceGetMappedPointer((void **) &vertexBufferData,
@@ -197,6 +198,7 @@ struct threshold_geometry
 	    cudaGraphicsMapResources(1, &vboResources[2], 0);
 	    cudaGraphicsResourceGetMappedPointer((void **) &normalBufferData,
 						 &num_bytes, vboResources[2]);
+#endif
 	}
 
 	// generate 6 quards for each exterior cell
@@ -209,6 +211,7 @@ struct threshold_geometry
 	                 generate_quads(input, thrust::raw_pointer_cast(&*vertices_indices.begin()), thrust::raw_pointer_cast(&*normals_indices.begin())));
 
 	if (useInterop) {
+#if USE_INTEROP
 	    thrust::copy(thrust::make_transform_iterator(vertices_begin(),
 	                                                 tuple2float4()),
 	                 thrust::make_transform_iterator(vertices_end(),
@@ -222,6 +225,7 @@ struct threshold_geometry
 
 	    for (int i = 0; i < 3; i++)
 		cudaGraphicsUnmapResources(1, &vboResources[i], 0);
+#endif
 	}
     }
 

@@ -174,6 +174,7 @@ public:
 	//std::cout << "num total vertices: " << numTotalVertices << std::endl;
 
 	if (useInterop) {
+#if USE_INTEROP
 	    size_t num_bytes;
 	    cudaGraphicsMapResources(1, &vboResources[0], 0);
 	    cudaGraphicsResourceGetMappedPointer((void **) &vertexBufferData,
@@ -188,6 +189,7 @@ public:
 	    cudaGraphicsMapResources(1, &vboResources[2], 0);
 	    cudaGraphicsResourceGetMappedPointer((void **) &normalBufferData,
 						 &num_bytes, vboResources[2]);
+#endif
 	} else {
 	    vertices.resize(numTotalVertices);
 	    normals.resize(numTotalVertices);
@@ -196,6 +198,7 @@ public:
 
 	// do edge interpolation for each valid cell
 	if (useInterop) {
+#if USE_INTEROP
 	    thrust::for_each(thrust::make_zip_iterator(thrust::make_tuple(validCellIndices.begin(), numVerticesEnum.begin(),
 	                                                                  thrust::make_permutation_iterator(cubeIndex.begin(), validCellIndices.begin()),
 	                                                                  thrust::make_permutation_iterator(numVertices.begin(), validCellIndices.begin()))),
@@ -213,6 +216,7 @@ public:
 		                  color_map<float>(minIso, maxIso, colorFlip));
 	    for (int i = 0; i < 3; i++)
 		cudaGraphicsUnmapResources(1, &vboResources[i], 0);
+#endif
 	} else {
 	    thrust::for_each(thrust::make_zip_iterator(thrust::make_tuple(validCellIndices.begin(), numVerticesEnum.begin(),
 	                                                                  thrust::make_permutation_iterator(cubeIndex.begin(),   validCellIndices.begin()),
