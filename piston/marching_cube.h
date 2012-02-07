@@ -96,6 +96,7 @@ public:
     float3 *normalBufferData;
     float4 *colorBufferData;
     int vboSize;
+    GLuint vboBuffers[3];
     struct cudaGraphicsResource* vboResources[3]; // vertex buffers for interop
 
     VerticesContainer	vertices; 	// output vertices, only valid ones
@@ -176,7 +177,20 @@ public:
 
 	if (useInterop) {
 #if USE_INTEROP
-	    if (numTotalVertices > vboSize) { std::cout << "VBO buffer size too small" << std::endl; exit(-1); }
+	    if (numTotalVertices > vboSize)
+	    {
+              glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[0]);
+              glBufferData(GL_ARRAY_BUFFER, numTotalVertices*sizeof(float4), 0, GL_DYNAMIC_DRAW);
+              if (glGetError() == GL_OUT_OF_MEMORY) { std::cout << "Out of VBO memory" << std::endl; exit(-1); }
+              glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[1]);
+              glBufferData(GL_ARRAY_BUFFER, numTotalVertices*sizeof(float4), 0, GL_DYNAMIC_DRAW);
+              if (glGetError() == GL_OUT_OF_MEMORY) { std::cout << "Out of VBO memory" << std::endl; exit(-1); }
+              glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[2]);
+              glBufferData(GL_ARRAY_BUFFER, numTotalVertices*sizeof(float3), 0, GL_DYNAMIC_DRAW);
+              if (glGetError() == GL_OUT_OF_MEMORY) { std::cout << "Out of VBO memory" << std::endl; exit(-1); }
+              glBindBuffer(GL_ARRAY_BUFFER, 0);
+              vboSize = numTotalVertices;
+	    }
 	    size_t num_bytes;
 	    cudaGraphicsMapResources(1, &vboResources[0], 0);
 	    cudaGraphicsResourceGetMappedPointer((void **) &vertexBufferData,
