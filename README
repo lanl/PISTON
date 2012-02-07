@@ -44,7 +44,9 @@ QT4 development, GLUT development, and Xmu development.
 
 Note that this project uses NVIDIA's nvcc compiler, which is not compatible with gcc 4.5 and higher.  If your gcc version
 is 4.5 or newer, you will also need to install an older version of gcc and point to this version, either by changing
-environment variable paths or editing the compiler-bindir in the nvcc.profile file. 
+environment variable paths or editing the compiler-bindir in the nvcc.profile file.
+
+If you do not have the nvcc compiler or CUDA toolkit, you can still build the OMP examples.   
 
 A directory for data files may also be specified in CMake.  Some sample data files are available in a separate gzip, or
 you may use your own files in vti format.  Only structured grids (vtkImageData) are currently supported.
@@ -61,13 +63,11 @@ The OpenMP backend provided in NVIDIA's thrust library includes only a serial ra
 scan algorithm, which is used by PISTON's operators.  Thus, in order to improve PISTON's OpenMP performance, replace the scan.inl
 file in {CUDA_BASE}/include/thrust/detail/device/omp with the scan.inl file provided in this directory. 
 
-The examples subdirectory includes several simple applications illustrating PISTON operators.  The tangle example generates 
-an isosurface on an implicitly-defined field, mimicking the marching cubes example that is part of NVIDIA's GPU Computing SDK.  
-The threshold example applies the thresholding operator to an implicitly-defined sphere field.  The tangle and threshold 
-examples only generate geometry, not normals or colors, and run with the CUDA backend.  They use the CUDA interop extension 
-to render the computation results directly on the graphics card.  On some machines, closing these two applications using the
-close box has been observed to cause freezing, so, to be safe, it is recommended to close these applications using Ctrl-C at
-the command line.
+The examples subdirectory includes several simple applications illustrating PISTON operators.  The tangleGPU/tangleOMP example 
+generates  an isosurface on an implicitly-defined field, mimicking the marching cubes example that is part of NVIDIA's GPU Computing 
+SDK.  The cutplaneGPU/cutplaneOMP example generates a cut plane through this tangle field.  The thresholdGPU/thresholdOMP example 
+applies the thresholding operator to an implicitly-defined sphere field.  The tangleGPU, cutplaneGPU, and thresholdGPU examples use 
+the CUDA interop extension to render the computation results directly on the graphics card.  
 
 The demoGPU and demoOMP applications allow the user to specify an input file at the command-line, apply either the 
 isosurface, cut surface, or threshold operator to it, rotate and zoom the view, and scroll through the isovalues, cut surface 
@@ -80,9 +80,7 @@ to specify the range for the isovalues or thresholds.  If these parameters are o
 values in the file.  Thresholds are generated in the range [minValue, curValue], where curValue is determined by the position of the
 slider in the GUI and ranges between minValue and maxValue.   The number of processors used by OpenMP in demoOMP can be 
 controlled by setting the OMP_NUM_THREADS environment variable.  The demoGPU application uses the interop extension by default, 
-but can be run without this by removing the USE_INTEROP flag from the command-line parameters in the CMakeLists.txt file.  When using
-interop, if you need to change the vertex buffer object size, either because your data set is too large, or your graphics card does
-not have enough memory, you can increase or decrease the BUFFER_SIZE variable in CMake. 
+but can be run without this by removing the USE_INTEROP flag from the command-line parameters in the CMakeLists.txt file.   
 
 You may either use your own data sets, or download sample data sets available as a separate tar.gz on the PISTON web page.  Note that
 some of these data sets may require more memory than is available on some graphics cards, so, if you get a std::bad_alloc error when
