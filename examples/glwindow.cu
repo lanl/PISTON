@@ -95,6 +95,7 @@ void create_vbo()
     // initialize vertex buffer object
     glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[0]);
     glBufferData(GL_ARRAY_BUFFER, buffer_size, 0, GL_DYNAMIC_DRAW);
+    if (glGetError() == GL_OUT_OF_MEMORY) { std::cout << "Out of memory; buffer size too large." << std::endl; exit(-1); }
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     // register this buffer object with CUDA
     if ((error = cudaGraphicsGLRegisterBuffer(&quads_pos_res, quads_vbo[0],
@@ -105,6 +106,7 @@ void create_vbo()
     // initialize vertex buffer object
     glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[1]);
     glBufferData(GL_ARRAY_BUFFER, buffer_size, 0, GL_DYNAMIC_DRAW);
+    if (glGetError() == GL_OUT_OF_MEMORY) { std::cout << "Out of memory; buffer size too large." << std::endl; exit(-1); }
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     // register this buffer object with CUDA
     if ((error = cudaGraphicsGLRegisterBuffer(&quads_normal_res, quads_vbo[1],
@@ -115,6 +117,7 @@ void create_vbo()
     // initialize color buffer object
     glBindBuffer(GL_ARRAY_BUFFER, quads_vbo[2]);
     glBufferData(GL_ARRAY_BUFFER, buffer_size, 0, GL_DYNAMIC_DRAW);
+    if (glGetError() == GL_OUT_OF_MEMORY) { std::cout << "Out of memory; buffer size too large." << std::endl; exit(-1); }
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     // register this buffer object with CUDA
     if ((error = cudaGraphicsGLRegisterBuffer(&quads_color_res, quads_vbo[2],
@@ -260,6 +263,7 @@ void GLWindow::paintGL()
     #ifdef USE_INTEROP
         isosurface->vboResources[0] = quads_pos_res;  isosurface->vboResources[1] = quads_color_res;  isosurface->vboResources[2] = quads_normal_res;
         isosurface->minIso = 31.0f;  isosurface->maxIso = 500.0f;  isosurface->useInterop = true;
+        isosurface->vboSize = buffer_size;
     #endif
         (*isosurface)();
     #ifndef USE_INTEROP
@@ -274,6 +278,7 @@ void GLWindow::paintGL()
     #ifdef USE_INTEROP
         cutplane->vboResources[0] = quads_pos_res;  cutplane->vboResources[1] = quads_color_res;  cutplane->vboResources[2] = quads_normal_res;
         cutplane->minIso = 0.0f;  cutplane->maxIso = 1.0f;  cutplane->useInterop = true;
+        cutplane->vboSize = buffer_size;
     #endif
     (*cutplane)();
     #ifndef USE_INTEROP
@@ -288,6 +293,7 @@ void GLWindow::paintGL()
     #ifdef USE_INTEROP
         threshold->vboResources[0] = quads_pos_res;  threshold->vboResources[1] = quads_color_res;  threshold->vboResources[2] = quads_normal_res;
         threshold->minIso = 4.0f;  threshold->maxIso = 1600.0f;  threshold->useInterop = true;
+        threshold->vboSize = buffer_size;
     #endif
     (*threshold)();
     #ifndef USE_INTEROP

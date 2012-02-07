@@ -97,13 +97,14 @@ struct threshold_geometry
     float4 *vertexBufferData;
     float3 *normalBufferData;
     float4 *colorBufferData;
+    int vboSize;
     struct cudaGraphicsResource* vboResources[3];
     thrust::device_vector<float3> normals;
 
     float minThresholdRange, maxThresholdRange;
 
     threshold_geometry(InputDataSet &input, float min_value, float max_value ) :
-	input(input), min_value(min_value), max_value(max_value), useInterop(false)
+	input(input), min_value(min_value), max_value(max_value), useInterop(false), vboSize(0)
     {
     	normals.push_back(make_float3(0.0f, -1.0f,  0.0f));
     	normals.push_back(make_float3(1.0f,  0.0f,  0.0f));
@@ -183,6 +184,7 @@ struct threshold_geometry
 
 	if (useInterop) {
 #if USE_INTEROP
+	    if (numTotalVertices > vboSize) { std::cout << "VBO buffer size too small" << std::endl; exit(-1); }
 	    size_t num_bytes;
 	    cudaGraphicsMapResources(1, &vboResources[0], 0);
 	    cudaGraphicsResourceGetMappedPointer((void **) &vertexBufferData,

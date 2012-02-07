@@ -95,6 +95,7 @@ public:
     float4 *vertexBufferData;
     float3 *normalBufferData;
     float4 *colorBufferData;
+    int vboSize;
     struct cudaGraphicsResource* vboResources[3]; // vertex buffers for interop
 
     VerticesContainer	vertices; 	// output vertices, only valid ones
@@ -104,7 +105,7 @@ public:
     marching_cube(InputDataSet1 &input, InputDataSet2 &source, value_type isovalue = value_type()) :
 	input(input), source(source), isovalue(isovalue), discardMinVals(true), colorFlip(false),
 	triTable((int*) triTable_array, (int*) triTable_array+256*16), useInterop(false),
-	numVertsTable((int *) numVerticesTable_array, (int *) numVerticesTable_array+256)
+	numVertsTable((int *) numVerticesTable_array, (int *) numVerticesTable_array+256), vboSize(0)
 	{}
 
     void freeMemory(bool includeInput=true)
@@ -175,6 +176,7 @@ public:
 
 	if (useInterop) {
 #if USE_INTEROP
+	    if (numTotalVertices > vboSize) { std::cout << "VBO buffer size too small" << std::endl; exit(-1); }
 	    size_t num_bytes;
 	    cudaGraphicsMapResources(1, &vboResources[0], 0);
 	    cudaGraphicsResourceGetMappedPointer((void **) &vertexBufferData,

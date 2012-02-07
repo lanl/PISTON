@@ -168,6 +168,7 @@ void IsoRender::display()
       {
         for (int i=0; i<3; i++) contours[dataSetIndex]->vboResources[i] = vboResources[i];
         contours[dataSetIndex]->minIso = minIso;  contours[dataSetIndex]->maxIso = maxIso;
+        contours[dataSetIndex]->vboSize = BUFFER_SIZE;
       }
       float value = isovalue;
       if (animate) value += (rand() % 100)/100.0;
@@ -190,6 +191,7 @@ void IsoRender::display()
       {
         for (int i=0; i<3; i++) planeContours[dataSetIndex]->vboResources[i] = planeResources[i];
         planeContours[dataSetIndex]->minIso = minIso;  planeContours[dataSetIndex]->maxIso = maxIso;  planeContours[dataSetIndex]->colorFlip = useThreshold;
+        planeContours[dataSetIndex]->vboSize = BUFFER_SIZE;
       }
       planeContours[dataSetIndex]->set_isovalue(planeLevel);
       (*(planeContours[dataSetIndex]))();
@@ -210,6 +212,7 @@ void IsoRender::display()
       {
         for (int i=0; i<3; i++) thresholds[dataSetIndex]->vboResources[i] = vboResources[i];
         thresholds[dataSetIndex]->minThresholdRange = minThreshold;  thresholds[dataSetIndex]->maxThresholdRange = maxThreshold;
+        thresholds[dataSetIndex]->vboSize = BUFFER_SIZE;
       }
       thresholds[dataSetIndex]->set_threshold_range(thresholdFloor, threshold);
       (*(thresholds[dataSetIndex]))();
@@ -689,47 +692,50 @@ void IsoRender::screenShot(std::string fileName, unsigned int width, unsigned in
 
 void IsoRender::createBuffers()
 {
-	int contourBufferSize = bigDemo ? BIG_CONTOUR_BUFFER_SIZE : CONTOUR_BUFFER_SIZE;
-	int planeBufferSize = bigDemo ? 1 : PLANE_BUFFER_SIZE;
-	int constantBufferSize = bigDemo ? 1 : CONSTANT_BUFFER_SIZE;
+    int contourBufferSize = bigDemo ? BIG_CONTOUR_BUFFER_SIZE : CONTOUR_BUFFER_SIZE;
+    int planeBufferSize = bigDemo ? 1 : PLANE_BUFFER_SIZE;
+    int constantBufferSize = bigDemo ? 1 : CONSTANT_BUFFER_SIZE;
 
-	if (userMode == ISOSURFACE_MODE) { contourBufferSize = BUFFER_SIZE; planeBufferSize = 0; constantBufferSize = 0; }
+    if (userMode == ISOSURFACE_MODE) { contourBufferSize = BUFFER_SIZE; planeBufferSize = 0; constantBufferSize = 0; }
     if (userMode == CUT_SURFACE_MODE) { contourBufferSize = 0; planeBufferSize = BUFFER_SIZE; constantBufferSize = 0; }
-	if (userMode == THRESHOLD_MODE) { contourBufferSize = BUFFER_SIZE; planeBufferSize = 0; constantBufferSize = 0; }
+    if (userMode == THRESHOLD_MODE) { contourBufferSize = BUFFER_SIZE; planeBufferSize = 0; constantBufferSize = 0; }
 
-	// initialize contour buffer objects
-	glGenBuffers(3, vboBuffers);
-	for (int i=0; i<3; i++)
-	{
-	  unsigned int buffer_size = (i == 2) ? contourBufferSize*sizeof(float3) : contourBufferSize*sizeof(float4);
-	  glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[i]);
-	  glBufferData(GL_ARRAY_BUFFER, buffer_size, 0, GL_DYNAMIC_DRAW);
-	}
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	for (int i=0; i<3; i++) cudaGraphicsGLRegisterBuffer(&(vboResources[i]), vboBuffers[i], cudaGraphicsMapFlagsWriteDiscard);
+    // initialize contour buffer objects
+    glGenBuffers(3, vboBuffers);
+    for (int i=0; i<3; i++)
+    {
+      unsigned int buffer_size = (i == 2) ? contourBufferSize*sizeof(float3) : contourBufferSize*sizeof(float4);
+      glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[i]);
+      glBufferData(GL_ARRAY_BUFFER, buffer_size, 0, GL_DYNAMIC_DRAW);
+      if (glGetError() == GL_OUT_OF_MEMORY) { std::cout << "Out of memory; buffer size too large.  Try changing BUFFER_SIZE in cmake" << std::endl; exit(-1); }
+    }
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    for (int i=0; i<3; i++) cudaGraphicsGLRegisterBuffer(&(vboResources[i]), vboBuffers[i], cudaGraphicsMapFlagsWriteDiscard);
 
-	// initialize plane buffer objects
-	glGenBuffers(3, planeBuffers);
-	for (int i=0; i<3; i++)
-	{
-	  unsigned int buffer_size = (i == 2) ? planeBufferSize*sizeof(float3) : planeBufferSize*sizeof(float4);
-	  glBindBuffer(GL_ARRAY_BUFFER, planeBuffers[i]);
-	  glBufferData(GL_ARRAY_BUFFER, buffer_size, 0, GL_DYNAMIC_DRAW);
-	}
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	for (int i=0; i<3; i++) cudaGraphicsGLRegisterBuffer(&(planeResources[i]), planeBuffers[i], cudaGraphicsMapFlagsWriteDiscard);
+    // initialize plane buffer objects
+    glGenBuffers(3, planeBuffers);
+    for (int i=0; i<3; i++)
+    {
+      unsigned int buffer_size = (i == 2) ? planeBufferSize*sizeof(float3) : planeBufferSize*sizeof(float4);
+      glBindBuffer(GL_ARRAY_BUFFER, planeBuffers[i]);
+      glBufferData(GL_ARRAY_BUFFER, buffer_size, 0, GL_DYNAMIC_DRAW);
+      if (glGetError() == GL_OUT_OF_MEMORY) { std::cout << "Out of memory; buffer size too large.  Try changing BUFFER_SIZE in cmake" << std::endl; exit(-1); }
+    }
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    for (int i=0; i<3; i++) cudaGraphicsGLRegisterBuffer(&(planeResources[i]), planeBuffers[i], cudaGraphicsMapFlagsWriteDiscard);
 
-	// initialize constant contour buffer objects
-	glGenBuffers(3, constantBuffers);
-	for (int i=0; i<3; i++)
-	{
-	  if (i == 1) continue;
-	  unsigned int buffer_size = (i == 2) ? constantBufferSize*sizeof(float3) : constantBufferSize*sizeof(float4);
-	  glBindBuffer(GL_ARRAY_BUFFER, constantBuffers[i]);
-	  glBufferData(GL_ARRAY_BUFFER, buffer_size, 0, GL_DYNAMIC_DRAW);
-	}
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	for (int i=0; i<3; i++) if (i != 1) cudaGraphicsGLRegisterBuffer(&(constantResources[i]), constantBuffers[i], cudaGraphicsMapFlagsWriteDiscard);
+    // initialize constant contour buffer objects
+    glGenBuffers(3, constantBuffers);
+    for (int i=0; i<3; i++)
+    {
+      if (i == 1) continue;
+      unsigned int buffer_size = (i == 2) ? constantBufferSize*sizeof(float3) : constantBufferSize*sizeof(float4);
+      glBindBuffer(GL_ARRAY_BUFFER, constantBuffers[i]);
+      glBufferData(GL_ARRAY_BUFFER, buffer_size, 0, GL_DYNAMIC_DRAW);
+      if (glGetError() == GL_OUT_OF_MEMORY) { std::cout << "Out of memory; buffer size too large.  Try changing BUFFER_SIZE in cmake" << std::endl; exit(-1); }
+    }
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    for (int i=0; i<3; i++) if (i != 1) cudaGraphicsGLRegisterBuffer(&(constantResources[i]), constantBuffers[i], cudaGraphicsMapFlagsWriteDiscard);
 }
 
 
