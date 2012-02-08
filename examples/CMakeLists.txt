@@ -49,6 +49,8 @@ set_target_properties(thresholdOMP PROPERTIES COMPILE_FLAGS "-x c++ -fopenmp -DT
 target_link_libraries(thresholdOMP GLEW pthread vtkIO gomp ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES} ${QT_LIBRARIES})
 
 
+add_executable(mandelbrot mandelbrot.cpp)
+target_link_libraries(mandelbrot pthread)
 
 #set(mc_SOURCES example.cpp marching_cube.cu quaternion.cpp)
 #cuda_add_executable(marching_cube ${mc_SOURCES} ${ex_HEADERS_MOC} ${ex_FORMS_HEADERS} OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}")

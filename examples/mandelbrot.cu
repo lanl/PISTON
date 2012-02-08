@@ -21,74 +21,36 @@ DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCL
 OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
+/*
+ * mandelbrot.cu
+ *
+ *  Created on: Feb 7, 2012
+ *      Author: ollie
+ */
+#include <iostream>
+#include <piston/util/mandelbrot_field.h>
 
-#ifndef IMAGE2D_H_
-#define IMAGE2D_H_
+//#define SPACE thrust::detail::default_device_space_tag
+#define SPACE thrust::host_space_tag
 
-#include <thrust/functional.h>
-#include <thrust/tuple.h>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
-
-namespace piston
+int main(int argc, char *argv[])
 {
+    char pallette[] = " ,.\'\\\"~:;o-!|?/<>X+={^0#&@8*$";
 
-template <typename IndexType, typename ValueType, typename MemorySpace>
-class image2d
-{
-public:
-    int xdim;
-    int ydim;
-    int NPoints;
-    int NCells;
+    int ncols = 80;
+    int nrows = 40;
+    float xmin = -3.0f;
+    float ymin = -2.0f;
+    float xmax =  2.0f;
+    float ymax =  2.0f;
 
-    // Haskell type signature: grid_coordinates_functor :: grid1D IndexType -> grid2D IndexType IndexType
-    struct grid_coordinates_functor : public thrust::unary_function<IndexType, thrust::tuple<IndexType, IndexType> >
-    {
-	int xdim;
-	int ydim;
+    piston::mandelbrot_field<SPACE> mandelbrot(ncols, nrows, xmin, ymin, xmax, ymax);
+    piston::mandelbrot_field<SPACE>::PointDataIterator iter = mandelbrot.point_data_begin();
 
-	grid_coordinates_functor(int xdim, int ydim) :
-	    xdim(xdim), ydim(ydim) {}
-
-	__host__ __device__
-	thrust::tuple<IndexType, IndexType> operator()(IndexType PointId) const {
-	    const IndexType x = PointId % xdim;
-	    const IndexType y = PointId / xdim;
-
-	    return thrust::make_tuple(x, y);
+    for (int row = nrows-1; row >= 0; row--) {
+	for (int col = 0; col < ncols; col++) {
+	    std::cout << pallette[iter[row*ncols + col]];
 	}
-    };
-
-    typedef typename thrust::counting_iterator<IndexType, MemorySpace> CountingIterator;
-    typedef typename thrust::transform_iterator<grid_coordinates_functor, CountingIterator> GridCoordinatesIterator;
-
-    GridCoordinatesIterator grid_coordinates_iterator;
-
-    image2d(int xdim, int ydim) :
-	xdim(xdim), ydim(ydim),
-	NPoints(xdim*ydim),
-	NCells((xdim-1)*(ydim-1)),
-	grid_coordinates_iterator(CountingIterator(0), grid_coordinates_functor(xdim, ydim)) {}
-
-    void resize(int xdim, int ydim) {
-	this->xdim = xdim;
-	this->ydim = ydim;
-	this->NPoints = xdim*ydim;
-	this->NCells = (xdim-1)*(ydim-1);
-	grid_coordinates_iterator = thrust::make_transform_iterator(CountingIterator(0),
-	                                                            grid_coordinates_functor(xdim, ydim));
+	std::cout << std::endl;
     }
-
-    GridCoordinatesIterator grid_coordinates_begin() {
-	return grid_coordinates_iterator;
-    }
-    GridCoordinatesIterator grid_coordinates_end() {
-	return grid_coordinates_iterator+NPoints;
-    }
-};
-
-} // namepsace piston
-
-
-#endif /* IMAGE2D_H_ */
+}
