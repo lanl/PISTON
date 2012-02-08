@@ -24,6 +24,9 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 /*
  * mandelbrot.cu
  *
+ * Text based Mandelbrot Set visualizer inspired by the "Functional Pearl: Composing fractals, Mark P. Jones"
+ * The piston::mandelbrot_field is essentially a map between grid_point_id::[Int] to ASCII Image::[Char]
+ *
  *  Created on: Feb 7, 2012
  *      Author: ollie
  */
