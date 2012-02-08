@@ -31,14 +31,11 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 
 namespace piston {
 
+// TODO: should we parameterize the ValueType? only float makes sense.
 template <typename IndexType, typename ValueType, typename Space>
 struct tangle_field : public piston::image3d<IndexType, ValueType, Space>
 {
     typedef piston::image3d<IndexType, ValueType, Space> Parent;
-
-    typedef typename detail::choose_container<typename Parent::CountingIterator, ValueType>::type PointDataContainer;
-    PointDataContainer point_data_vector;
-    typedef typename PointDataContainer::iterator PointDataIterator;
 
     struct tangle_functor : public piston::implicit_function3d<IndexType, ValueType>
     {
@@ -55,7 +52,7 @@ struct tangle_field : public piston::image3d<IndexType, ValueType, Space>
             zscale(2.0f/(zdim - 1.0f)) {}
 
         __host__ __device__
-        float operator()(InputType pos) const {
+        ValueType operator()(InputType pos) const {
             // TODO: move this into GridCoordinates
             // scale and shift such that x, y, z <- [-1,1]
             const float x = 3.0f*(thrust::get<0>(pos)*xscale - 1.0f);
@@ -67,6 +64,10 @@ struct tangle_field : public piston::image3d<IndexType, ValueType, Space>
             return v;
         }
     };
+
+    typedef typename detail::choose_container<typename Parent::CountingIterator, ValueType>::type PointDataContainer;
+    PointDataContainer point_data_vector;
+    typedef typename PointDataContainer::iterator PointDataIterator;
 
     tangle_field(int xdim, int ydim, int zdim) :
 	Parent(xdim, ydim, zdim),

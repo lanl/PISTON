@@ -43,7 +43,7 @@ struct plane_functor : public piston::implicit_function3d<IndexType, ValueType>
 	origin(origin), normal(normal) {}
 
     __host__ __device__
-    float operator()(InputType pos) const {
+    ValueType operator()(InputType pos) const {
 	const IndexType x = thrust::get<0>(pos);
 	const IndexType y = thrust::get<1>(pos);
 	const IndexType z = thrust::get<2>(pos);
