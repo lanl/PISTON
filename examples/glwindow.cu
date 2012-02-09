@@ -292,7 +292,7 @@ void GLWindow::paintGL()
 #ifdef THRESHOLD
     #ifdef USE_INTEROP
         threshold->vboResources[0] = quads_pos_res;  threshold->vboResources[1] = quads_color_res;  threshold->vboResources[2] = quads_normal_res;
-        threshold->minIso = 4.0f;  threshold->maxIso = 1600.0f;  threshold->useInterop = true;
+        threshold->minThresholdRange = 4.0f;  threshold->maxThresholdRange = 1600.0f;  threshold->useInterop = true;
         threshold->vboSize = buffer_size;
     #endif
     (*threshold)();
