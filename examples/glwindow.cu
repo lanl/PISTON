@@ -303,7 +303,7 @@ void GLWindow::paintGL()
         thrust::copy(thrust::make_transform_iterator(threshold->vertices_begin(), tuple2float4()),
                      thrust::make_transform_iterator(threshold->vertices_end(), tuple2float4()), vertices.begin());
         thrust::copy(threshold->normals_begin(), threshold->normals_end(), normals.begin());
-        thrust::transform(threshold->scalars_begin(), threshold->scalars_end(), device_colors.begin(), color_map<float>(4.0f, 1600.0f, true));
+        thrust::transform(threshold->scalars_begin(), threshold->scalars_end(), device_colors.begin(), color_map<float>(4.0f, 1600.0f));
         colors = device_colors;
     #endif
     drawType = GL_QUADS;

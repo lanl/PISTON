@@ -81,6 +81,7 @@ struct threshold_geometry
     InputDataSet &input;
     float min_value;
     float max_value;
+    bool colorFlip;
 
     ValidFlagsContainer valid_cell_flags;
     IndicesContainer    valid_cell_enum;
@@ -105,7 +106,7 @@ struct threshold_geometry
     float minThresholdRange, maxThresholdRange;
 
     threshold_geometry(InputDataSet &input, float min_value, float max_value ) :
-	input(input), min_value(min_value), max_value(max_value), useInterop(false), vboSize(0)
+	input(input), min_value(min_value), max_value(max_value), colorFlip(false), useInterop(false), vboSize(0)
     {
     	normals.push_back(make_float3(0.0f, -1.0f,  0.0f));
     	normals.push_back(make_float3(1.0f,  0.0f,  0.0f));
@@ -237,7 +238,7 @@ struct threshold_geometry
 			 thrust::device_ptr<float3>(normalBufferData));
 	    thrust::transform(scalars_begin(), scalars_end(),
 		    thrust::device_ptr<float4>(colorBufferData),
-		    color_map<float>(minThresholdRange, maxThresholdRange, true));
+		    color_map<float>(minThresholdRange, maxThresholdRange, colorFlip));
 
 	    for (int i = 0; i < 3; i++)
 		cudaGraphicsUnmapResources(1, &vboResources[i], 0);

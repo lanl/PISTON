@@ -216,6 +216,7 @@ void IsoRender::display()
         thresholds[dataSetIndex]->minThresholdRange = minThreshold;  thresholds[dataSetIndex]->maxThresholdRange = maxThreshold;
       }
       thresholds[dataSetIndex]->set_threshold_range(thresholdFloor, threshold);
+      thresholds[dataSetIndex]->colorFlip = true;
       (*(thresholds[dataSetIndex]))();
       lastThreshold = threshold;
       if (!useInterop)
