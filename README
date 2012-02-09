@@ -38,18 +38,26 @@ OF SUCH DAMAGE.
 Instructions for Use:
 
 This project uses CMake.  Create a build directory, pointing to this directory as the root of the source directory.
-Installations of NVIDIA's CUDA toolkit (including the thrust include files), NVIDIA's GPU Computing SDK, and VTK are
-required, and locations for these installations may be provided in the CMake configuration.  Other dependencies include
-QT4 development, GLUT development, and Xmu development.
+Dependencies include QT4 development, GLUT development, and Xmu development.  To run the CUDA backend, installations of NVIDIA's 
+CUDA toolkit (including the thrust include files) and NVIDIA's GPU Computing SDK are required, and locations for these installations 
+may be provided in the CMake configuration.  To run the demos that load files, VTK must be installed.  
 
-Note that this project uses NVIDIA's nvcc compiler, which is not compatible with gcc 4.5 and higher.  If your gcc version
-is 4.5 or newer, you will also need to install an older version of gcc and point to this version, either by changing
-environment variable paths or editing the compiler-bindir in the nvcc.profile file.
+Note that the CUDA backend used by this project uses NVIDIA's nvcc compiler, which is not compatible with gcc 4.5 and higher.  If 
+your gcc version is 4.5 or newer, and you want to run the CUDA backend, you will also need to install an older version of gcc and 
+point to this version, either by changing environment variable paths or editing the compiler-bindir in the nvcc.profile file.
 
-If you do not have the nvcc compiler or CUDA toolkit, you can still build the OMP examples.   
+If you do not have the nvcc compiler or CUDA toolkit, you can still build the OpenMP examples.  Set the USE_CUDA CMake variable to OFF.
+You will then need to provide a directory for Thrust in the THRUST_DIR CMake variable, which you may download independently of CUDA
+at the Thrust website (http://code.google.com/p/thrust/).  You will also need to obtain the cutil_math.h file from NVIDIA's GPU
+Computing SDK (http://developer.nvidia.com/gpu-computing-sdk) and place it in the top-level PISTON directory.  However, you will
+not need to compile or install the NVIDIA GPU Computing SDK.
 
-A directory for data files may also be specified in CMake.  Some sample data files are available in a separate gzip, or
-you may use your own files in vti format.  Only structured grids (vtkImageData) are currently supported.
+If you do not have VTK, you can still build the examples in the examples directory (but not the file-loading demos in the demos 
+directory).  Set the BUILD_DEMO CMake variable to OFF.   
+
+A directory for data files may also be specified in CMake.  Some sample data files are available in a separate gzip available for
+download on the PISTON webpage, or you may use your own files in vti format.  Only structured grids (vtkImageData) are currently 
+supported.
 
 Filters for the currently implemented PISTON operators (isosurface and cut surfaces using marching_cube.h and thresholding
 using threshold_geometry.h) are located in the piston subdirectory, along with data structures for input data and other
@@ -61,13 +69,14 @@ included in this distribution as it is still in development.  Thus, the GPU appl
 
 The OpenMP backend provided in NVIDIA's thrust library includes only a serial rather than a parallel implementation of the 
 scan algorithm, which is used by PISTON's operators.  Thus, in order to improve PISTON's OpenMP performance, replace the scan.inl
-file in {CUDA_BASE}/include/thrust/detail/device/omp with the scan.inl file provided in this directory. 
+file in thrust/detail/device/omp with the scan.inl file provided in this directory. 
 
 The examples subdirectory includes several simple applications illustrating PISTON operators.  The tangleGPU/tangleOMP example 
 generates  an isosurface on an implicitly-defined field, mimicking the marching cubes example that is part of NVIDIA's GPU Computing 
 SDK.  The cutplaneGPU/cutplaneOMP example generates a cut plane through this tangle field.  The thresholdGPU/thresholdOMP example 
 applies the thresholding operator to an implicitly-defined sphere field.  The tangleGPU, cutplaneGPU, and thresholdGPU examples use 
-the CUDA interop extension to render the computation results directly on the graphics card.  
+the CUDA interop extension to render the computation results directly on the graphics card, but this may be disabled by setting the
+ENABLE_INTEROP CMake variable to OFF.  
 
 The demoGPU and demoOMP applications allow the user to specify an input file at the command-line, apply either the 
 isosurface, cut surface, or threshold operator to it, rotate and zoom the view, and scroll through the isovalues, cut surface 
@@ -80,7 +89,7 @@ to specify the range for the isovalues or thresholds.  If these parameters are o
 values in the file.  Thresholds are generated in the range [minValue, curValue], where curValue is determined by the position of the
 slider in the GUI and ranges between minValue and maxValue.   The number of processors used by OpenMP in demoOMP can be 
 controlled by setting the OMP_NUM_THREADS environment variable.  The demoGPU application uses the interop extension by default, 
-but can be run without this by removing the USE_INTEROP flag from the command-line parameters in the CMakeLists.txt file.   
+but can be run without this by setting ENABLE_INTEROP to false in CMake.   
 
 You may either use your own data sets, or download sample data sets available as a separate tar.gz on the PISTON web page.  Note that
 some of these data sets may require more memory than is available on some graphics cards, so, if you get a std::bad_alloc error when
@@ -99,8 +108,3 @@ Here are some sample execution commands using the provided data sets:
 
 % Apply the threshold operator to the NorthPacificEddies.vti file within the threshold range -0.25 up to -0.25 to -0.04, running with CUDA
 ./demoGPU NorthPacificEddies.vti 3 -0.25 -0.04
-
-
-      
-
-

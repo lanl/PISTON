@@ -30,6 +30,7 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <float.h>
 
 #include "isorender.h"
 
@@ -522,6 +523,7 @@ void IsoRender::display()
 
 void IsoRender::cleanup()
 {
+#ifdef USE_INTEROP
     if (useInterop)
     {
       printf("Deleting VBO\n");
@@ -558,6 +560,7 @@ void IsoRender::cleanup()
       }
     }
     else
+#endif
     {
       vertices.clear(); normals.clear(); colors.clear();
       planeVertices.clear(); planeNormals.clear(); planeColors.clear();
@@ -620,6 +623,7 @@ void IsoRender::initGL(bool aAllowInterop, bool aBigDemo, bool aShowLabels, int 
               center_pos.x, center_pos.y, center_pos.z,
               camera_up.x, camera_up.y, camera_up.z);
 
+#ifdef USE_INTEROP
     if (useInterop)
     {
       glewInit();
@@ -627,6 +631,7 @@ void IsoRender::initGL(bool aAllowInterop, bool aBigDemo, bool aShowLabels, int 
 
       createBuffers();
     }
+#endif
 
     //printf("Error code: %s\n", cudaGetErrorString(errorCode));
     if (userMode == DEFAULT_MODE) read(aDataSet);
@@ -692,12 +697,13 @@ void IsoRender::screenShot(std::string fileName, unsigned int width, unsigned in
 
 void IsoRender::createBuffers()
 {
+#ifdef USE_INTEROP
     // initialize contour buffer objects
     glGenBuffers(3, vboBuffers);
     for (int i=0; i<3; i++)
     {
       glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[i]);
-      glBufferData(GL_ARRAY_BUFFER, 1, 0, GL_DYNAMIC_DRAW);
+      glBufferData(GL_ARRAY_BUFFER, BUFFER_SIZE*sizeof(float4), 0, GL_DYNAMIC_DRAW);
     }
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     for (int i=0; i<3; i++) cudaGraphicsGLRegisterBuffer(&(vboResources[i]), vboBuffers[i], cudaGraphicsMapFlagsWriteDiscard);
@@ -707,7 +713,7 @@ void IsoRender::createBuffers()
     for (int i=0; i<3; i++)
     {
       glBindBuffer(GL_ARRAY_BUFFER, planeBuffers[i]);
-      glBufferData(GL_ARRAY_BUFFER, 1, 0, GL_DYNAMIC_DRAW);
+      glBufferData(GL_ARRAY_BUFFER, BUFFER_SIZE*sizeof(float4), 0, GL_DYNAMIC_DRAW);
     }
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     for (int i=0; i<3; i++) cudaGraphicsGLRegisterBuffer(&(planeResources[i]), planeBuffers[i], cudaGraphicsMapFlagsWriteDiscard);
@@ -718,10 +724,11 @@ void IsoRender::createBuffers()
     {
       if (i == 1) continue;
       glBindBuffer(GL_ARRAY_BUFFER, constantBuffers[i]);
-      glBufferData(GL_ARRAY_BUFFER, 1, 0, GL_DYNAMIC_DRAW);
+      glBufferData(GL_ARRAY_BUFFER, BUFFER_SIZE*sizeof(float3), 0, GL_DYNAMIC_DRAW);
     }
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     for (int i=0; i<3; i++) if (i != 1) cudaGraphicsGLRegisterBuffer(&(constantResources[i]), constantBuffers[i], cudaGraphicsMapFlagsWriteDiscard);
+#endif
 }
 
 
@@ -784,9 +791,11 @@ void IsoRender::createOperators()
       constantContours[dataSetIndex]->discardMinVals = true;
     }
 
-    if (includeContours) contours[dataSetIndex]->vboSize = 0;
-    if (includePlane) planeContours[dataSetIndex]->vboSize = 0;
-    if (includeThreshold) thresholds[dataSetIndex]->vboSize = 0;
+#ifdef USE_INTEROP
+    if (includeContours) contours[dataSetIndex]->vboSize = BUFFER_SIZE;
+    if (includePlane) planeContours[dataSetIndex]->vboSize = BUFFER_SIZE;
+    if (includeThreshold) thresholds[dataSetIndex]->vboSize = BUFFER_SIZE;
+#endif
 
 }
 
