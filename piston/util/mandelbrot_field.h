@@ -64,17 +64,15 @@ struct mandelbrot_field : public piston::image2d<int, int, Space>
 	}
     };
 
-    // It is VERY IMPORTANT to declare grid_coordinates_iterator before point_data_vector
-    // since C++ initialize data members in the order of their declaration and
-    // point_data_vector depends on grid_coordinates to be initialized first.
+    // It is VERY IMPORTANT to declare grid_coordinates_iterator before
+    // point_data_iterator since C++ initialize data members in the order
+    // of their declaration and point_data_iterator depends on grid_coordinates
+    // to be initialized first.
     typedef typename thrust::transform_iterator<grid_coordinates_functor,
 	    typename Parent::GridCoordinatesIterator> GridCoordinatesIterator;
     GridCoordinatesIterator grid_coordinates_iterator;
 
-    typedef typename detail::choose_container<typename Parent::CountingIterator, int>::type PointDataContainer;
-    PointDataContainer point_data_vector;
-    typedef typename PointDataContainer::iterator PointDataIterator;
-
+    // transform (x, y) grid position into number of iterations
     // Haskell type signature :: Grid float float -> Grid int
     struct mandelbrot_functor : public piston::implicit_function2d<float, int>
     {
@@ -93,26 +91,32 @@ struct mandelbrot_field : public piston::image2d<int, int, Space>
 	    float u = thrust::get<0>(pos);
 	    float v = thrust::get<1>(pos);
 	    // |z|^2
-	    float r2 = x*x + y*y;
+	    float xx = x*x;
+	    float yy = y*y;
+	    float r2 = xx + yy;
 
 	    // iterate z = z^2 + p, |z|^2 < MAX_R2
 	    while (r2 < MAX_R2 && iters++ < MAX_ITERS) {
-		float x1 = x;
-		x = x*x - y*y + u;
-		y = 2*y*x1 + v;
-		r2 = x*x + y*y;
+		y = 2*x*y   + v;
+		x = xx - yy + u;
+		xx = x*x;
+		yy = y*y;
+		r2 = xx+yy;
 	    }
 
 	    return iters;
 	}
     };
 
+    typedef typename thrust::transform_iterator<mandelbrot_functor,
+						GridCoordinatesIterator> PointDataIterator;
+    PointDataIterator point_data_iterator;
+
     mandelbrot_field(int dim0, int dim1, float xmin, float ymin, float xmax, float ymax) :
 	Parent(dim0, dim1),
 	grid_coordinates_iterator(Parent::grid_coordinates_iterator,
 	                          grid_coordinates_functor(xmin, ymin, (xmax-xmin)/dim0, (ymax-ymin)/dim1)),
-	point_data_vector(thrust::make_transform_iterator(grid_coordinates_begin(), mandelbrot_functor()),
-	                  thrust::make_transform_iterator(grid_coordinates_end(),   mandelbrot_functor()))
+	point_data_iterator(grid_coordinates_iterator, mandelbrot_functor())
     {}
 
     GridCoordinatesIterator grid_coordinates_begin() {
@@ -123,10 +127,10 @@ struct mandelbrot_field : public piston::image2d<int, int, Space>
     }
 
     PointDataIterator point_data_begin() {
-	return point_data_vector.begin();
+	return point_data_iterator;
     }
     PointDataIterator point_data_end() {
-	return point_data_vector.end();
+	return point_data_iterator+this->NPoints;
     }
 };
 
