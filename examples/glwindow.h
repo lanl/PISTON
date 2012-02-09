@@ -27,7 +27,7 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 
 #include <QGLWidget>
 
-#include "quaternion.h"
+#include "piston/util/quaternion.h"
 
 class GLWindow : public QGLWidget
 {

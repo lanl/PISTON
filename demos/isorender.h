@@ -48,7 +48,7 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #include "vtkPLYReader.h"
 #include "vtkCellArray.h"
 #include <sys/time.h>
-#include "quaternion.h"
+#include "piston/util/quaternion.h"
 
 #include <cutil_math.h>
 #include <piston/choose_container.h>

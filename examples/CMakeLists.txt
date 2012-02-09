@@ -18,7 +18,7 @@ endif ()
 
 set(ex_HEADERS glwindow.h)
 set(ex_FORMS example.ui)
-set(ex_SOURCES example.cpp quaternion.cpp)
+set(ex_SOURCES example.cpp ${CMAKE_SOURCE_DIR}/piston/util/quaternion.cpp)
 QT4_WRAP_CPP(ex_HEADERS_MOC ${ex_HEADERS})
 QT4_WRAP_UI(ex_FORMS_HEADERS ${ex_FORMS})
 
