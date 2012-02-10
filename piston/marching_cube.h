@@ -33,7 +33,7 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #include <thrust/iterator/zip_iterator.h>
 
 #include <piston/image3d.h>
-#include <cutil_math.h>
+#include <piston/piston_math.h>
 #include <piston/choose_container.h>
 #include <piston/hsv_color_map.h>
 
@@ -96,8 +96,10 @@ public:
     float3 *normalBufferData;
     float4 *colorBufferData;
     int vboSize;
+#ifdef USE_INTEROP
     GLuint vboBuffers[3];
     struct cudaGraphicsResource* vboResources[3]; // vertex buffers for interop
+#endif
 
     VerticesContainer	vertices; 	// output vertices, only valid ones
     NormalsContainer	normals;	// surface normal computed by cross product of triangle edges

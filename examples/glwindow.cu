@@ -36,11 +36,11 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #include <QtOpenGL>
 #include <QObject>
 
+#ifdef USE_INTEROP
 #include <cuda_gl_interop.h>
+#endif
 
-#include <vtkXMLImageDataReader.h>
-
-#include <cutil_math.h>
+#include <piston/piston_math.h>
 #include <piston/choose_container.h>
 
 #define SPACE thrust::detail::default_device_space_tag

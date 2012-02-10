@@ -1,7 +1,7 @@
 PISTON: A Portable Cross-Platform Data-Parallel Visualization and Analysis Library
 Authors: Li-Ta Lo, Chris Sewell, and Jim Ahrens
 
-Version 0.2
+Version 0.3
 
 Copyright Notice:
 
@@ -39,9 +39,9 @@ OF SUCH DAMAGE.
 Instructions for Use:
 
 This project uses CMake.  Create a build directory, pointing to this directory as the root of the source directory.
-Dependencies include QT4 development, GLUT development, and Xmu development.  To run the CUDA backend, installations of NVIDIA's 
-CUDA toolkit (including the thrust include files) and NVIDIA's GPU Computing SDK are required, and locations for these installations 
-may be provided in the CMake configuration.  To run the demos that load files, VTK must be installed.  
+Dependencies include QT4 development, GLUT development, and Xmu development.  To run the CUDA backend, an installation of NVIDIA's 
+CUDA toolkit (including the thrust include files) is required, and the location of this installation may be provided in the CMake 
+configuration.  To run the demos that load files, VTK must also be installed.  
 
 Note that the CUDA backend used by this project uses NVIDIA's nvcc compiler, which is not compatible with gcc 4.5 and higher.  If 
 your gcc version is 4.5 or newer, and you want to run the CUDA backend, you will also need to install an older version of gcc and 
@@ -49,9 +49,7 @@ point to this version, either by changing environment variable paths or editing 
 
 If you do not have the nvcc compiler or CUDA toolkit, you can still build the OpenMP examples.  Set the USE_CUDA CMake variable to OFF.
 You will then need to provide a directory for Thrust in the THRUST_DIR CMake variable, which you may download independently of CUDA
-at the Thrust website (http://code.google.com/p/thrust/).  You will also need to obtain the cutil_math.h file from NVIDIA's GPU
-Computing SDK (http://developer.nvidia.com/gpu-computing-sdk) and place it in the top-level PISTON directory.  However, you will
-not need to compile or install the NVIDIA GPU Computing SDK.
+at the Thrust website (http://code.google.com/p/thrust/).  
 
 If you do not have VTK, you can still build the examples in the examples directory (but not the file-loading demos in the demos 
 directory).  Set the BUILD_DEMO CMake variable to OFF.   
@@ -109,3 +107,7 @@ Here are some sample execution commands using the provided data sets:
 
 % Apply the threshold operator to the NorthPacificEddies.vti file within the threshold range -0.25 up to -0.25 to -0.04, running with CUDA
 ./demoGPU NorthPacificEddies.vti 3 -0.25 -0.04
+
+
+      
+

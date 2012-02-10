@@ -165,12 +165,14 @@ void IsoRender::display()
     if ((includeContours) && ((fabs(isovalue - lastIsovalue) > 0.01) || (animate)))
     {
       //std::cout << "Generating isovalue " << isovalue << std::endl;
+#ifdef USE_INTEROP
       if (useInterop)
       {
         for (int i=0; i<3; i++) contours[dataSetIndex]->vboResources[i] = vboResources[i];
         for (int i=0; i<3; i++) contours[dataSetIndex]->vboBuffers[i] = vboBuffers[i];
         contours[dataSetIndex]->minIso = minIso;  contours[dataSetIndex]->maxIso = maxIso;
       }
+#endif
       float value = isovalue;
       if (animate) value += (rand() % 100)/100.0;
       contours[dataSetIndex]->set_isovalue(value);
@@ -188,12 +190,14 @@ void IsoRender::display()
 
     if ((includePlane) && (fabs(planeLevel - lastPlaneLevel) > 0.01))
     {
+#ifdef USE_INTEROP
       if (useInterop)
       {
         for (int i=0; i<3; i++) planeContours[dataSetIndex]->vboResources[i] = planeResources[i];
         for (int i=0; i<3; i++) planeContours[dataSetIndex]->vboBuffers[i] = planeBuffers[i];
         planeContours[dataSetIndex]->minIso = minIso;  planeContours[dataSetIndex]->maxIso = maxIso;  planeContours[dataSetIndex]->colorFlip = useThreshold;
       }
+#endif
       planeContours[dataSetIndex]->set_isovalue(planeLevel);
       (*(planeContours[dataSetIndex]))();
       lastPlaneLevel = planeLevel;
@@ -209,12 +213,14 @@ void IsoRender::display()
     if ((includeThreshold) && (fabs(threshold - lastThreshold) > 0.01))
     {
       //std::cout << "Generating threshold " << thresholdFloor << " " << threshold << std::endl;
+#ifdef USE_INTEROP
       if (useInterop)
       {
         for (int i=0; i<3; i++) thresholds[dataSetIndex]->vboResources[i] = vboResources[i];
         for (int i=0; i<3; i++) thresholds[dataSetIndex]->vboBuffers[i] = vboBuffers[i];
         thresholds[dataSetIndex]->minThresholdRange = minThreshold;  thresholds[dataSetIndex]->maxThresholdRange = maxThreshold;
       }
+#endif
       thresholds[dataSetIndex]->set_threshold_range(thresholdFloor, threshold);
       thresholds[dataSetIndex]->colorFlip = true;
       (*(thresholds[dataSetIndex]))();
@@ -751,7 +757,7 @@ void IsoRender::createOperators()
 
     if ((includePlane) && (planeContours[dataSetIndex] == 0))
     {
-      planeFields[dataSetIndex] = new plane_field<int, float, SPACE>(make_float3((xMax-xMin+1)/2.0, (yMax-yMin+1)/2.0, (zMax-zMin+1))/2.0, plane_normal, xMax-xMin+1, yMax-yMin+1, zMax-zMin+1);
+      planeFields[dataSetIndex] = new plane_field<int, float, SPACE>(make_float3((xMax-xMin+1)/2.0, (yMax-yMin+1)/2.0, (zMax-zMin+1)/2.0), plane_normal, xMax-xMin+1, yMax-yMin+1, zMax-zMin+1);
       planeContours[dataSetIndex] = new marching_cube<plane_field<int, float, SPACE>, vtk_image3d<int, float, SPACE> >(*(planeFields[dataSetIndex]), *(images[dataSetIndex]), isovalue);
       planeContours[dataSetIndex]->useInterop = useInterop;
     }
@@ -770,6 +776,7 @@ void IsoRender::createOperators()
 
     if (includeConstantContours)
     {
+#ifdef USE_INTEROP
       if (useInterop)
       {
         for (int i=0; i<3; i++) if (i != 1) constantContours[dataSetIndex]->vboResources[i] = constantResources[i];
@@ -778,6 +785,7 @@ void IsoRender::createOperators()
 	constantContours[dataSetIndex]->vboSize = 0;
 	constantContours[dataSetIndex]->useInterop = useInterop;
       }
+#endif
       constantContours[dataSetIndex]->discardMinVals = false;
       constantContours[dataSetIndex]->set_isovalue(-99999.9);
       constantContours[dataSetIndex]->discardMinVals = false;
@@ -841,7 +849,7 @@ int IsoRender::read(char* aFileName, int aMode)
 
     discardMinVals = true;
     plane_normal.x = 0.0;  plane_normal.y = 0.0;  plane_normal.z = 1.0;  planeLevelPct = 0.5;
-    zoomLevelPctDefault = 0.5;  cameraFOV = 36.0;  cameraZ = 3.0*max(max(xMax, yMax), zMax);
+    zoomLevelPctDefault = 0.5;  cameraFOV = 36.0;  cameraZ = 3.0*std::max(std::max(xMax, yMax), zMax);
     zFar = 2.0*cameraZ;  zNear = zFar/10.0;
     planeMax = (xMax-xMin)*plane_normal.x + (yMax-yMin)*plane_normal.y + (zMax-zMin)*plane_normal.z;
 

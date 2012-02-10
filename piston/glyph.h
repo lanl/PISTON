@@ -33,7 +33,7 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #include <thrust/iterator/zip_iterator.h>
 
 #include <piston/image3d.h>
-#include <cutil_math.h>
+#include <piston/piston_math.h>
 #include <piston/choose_container.h>
 
 
@@ -76,7 +76,9 @@ public:
     float3 *normalBufferData;
     float4 *colorBufferData;
     uint3 *indexBufferData;
+#ifdef USE_INTEROP
     struct cudaGraphicsResource* vboResources[4];
+#endif
 
 	glyph(InputPoints inputPoints, InputVectors inputVectors, InputScalars inputScalars, GlyphVertices glyphVertices, GlyphNormals glyphNormals, GlyphIndices glyphIndices,
 		  int nPoints, int nVertices, int nIndices) : inputPoints(inputPoints), inputVectors(inputVectors), inputScalars(inputScalars), glyphVertices(glyphVertices), glyphNormals(glyphNormals),
@@ -91,6 +93,7 @@ public:
 	  scalars.resize(NCells*nVertices);
 	  numIndices = NCells*nIndices;
 
+#ifdef USE_INTEROP
 	  if (useInterop)
 	  {
 	    size_t num_bytes;
@@ -126,12 +129,14 @@ public:
         if (vboResources[1]) thrust::transform(scalars.begin(), scalars.end(), thrust::device_ptr<float4>(colorBufferData), color_map<float>(minValue, maxValue));
       }
       else
+#endif
       {
 	    thrust::for_each(CountingIterator(0), CountingIterator(0)+NCells, generate_glyphs(inputPoints, inputVectors, inputScalars, glyphVertices, glyphNormals, glyphIndices,
 			    thrust::raw_pointer_cast(&*vertices.begin()), thrust::raw_pointer_cast(&*normals.begin()), thrust::raw_pointer_cast(&*indices.begin()),
 			    thrust::raw_pointer_cast(&*scalars.begin()), nVertices, nIndices));
       }
 
+#ifdef USE_INTEROP
 	  if (useInterop)
 	  {
 	    /*thrust::copy(vertices.begin(), vertices_end(), thrust::device_ptr<float3>)
@@ -145,6 +150,7 @@ public:
 
 	  	for (int i=0; i<4; i++) cudaGraphicsUnmapResources(1, &vboResources[i], 0);
 	  }
+#endif
 	}
 
 	struct generate_glyphs : public thrust::unary_function<int, void>
@@ -218,7 +224,10 @@ public:
         //for (int i=id*(nVertices); i<(id+1)*(nVertices); i++) *(normals+i) = *(glyphNormals+(i%(nVertices)));
 
         uint3 offset; offset.x = offset.y = offset.z = id*nVertices;
-        for (int i=id*nIndices; i<(id+1)*nIndices; i++)  *(indices+i) = *(glyphIndices+(i%nIndices)) + offset;
+        for (int i=id*nIndices; i<(id+1)*nIndices; i++)  *(indices+i) = (uint3)(*(glyphIndices+(i%nIndices))) + offset;
+        //{
+            //indices[i].x = glyphIndices[i%nIndices].x + offset.x;
+        //}
 	  }
 	};
 

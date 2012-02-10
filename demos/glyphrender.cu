@@ -67,11 +67,13 @@ void GlyphRender::display()
 {
     if (true)
     {
+#ifdef USE_INTEROP
       if (useInterop)
       {
         for (int i=0; i<4; i++) glyphs->vboResources[i] = vboResources[i];
     	glyphs->minValue = minValue;  glyphs->maxValue = maxValue;
       }
+#endif
 
       (*(glyphs))();
 
@@ -225,6 +227,7 @@ void GlyphRender::initGL(bool aAllowInterop)
               center_pos.x, center_pos.y, center_pos.z,
               camera_up.x, camera_up.y, camera_up.z);
 
+#ifdef USE_INTEROP
     if (useInterop)
     {
       glewInit();
@@ -244,6 +247,7 @@ void GlyphRender::initGL(bool aAllowInterop)
       glBindBuffer(GL_ARRAY_BUFFER, 0);
       for (int i=0; i<4; i++) cudaGraphicsGLRegisterBuffer(&(vboResources[i]), vboBuffers[i], cudaGraphicsMapFlagsWriteDiscard);
     }
+#endif
 
     //printf("Error code: %s\n", cudaGetErrorString(errorCode));
     read();

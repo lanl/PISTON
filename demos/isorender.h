@@ -35,7 +35,10 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
     #include <GL/gl.h>
 #endif
 
+#ifdef USE_INTEROP
 #include <cuda_gl_interop.h>
+#endif
+
 #include <thrust/host_vector.h>
 #include <thrust/functional.h>
 #include <thrust/iterator/transform_iterator.h>
@@ -50,7 +53,7 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #include <sys/time.h>
 #include "piston/util/quaternion.h"
 
-#include <cutil_math.h>
+#include <piston/piston_math.h>
 #include <piston/choose_container.h>
 
 using namespace piston;
