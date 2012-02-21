@@ -48,7 +48,6 @@ using namespace piston;
 
 #include <piston/implicit_function.h>
 #include <piston/image3d.h>
-#include <piston/vtk_image3d.h>
 #include <piston/marching_cube.h>
 #include <piston/util/tangle_field.h>
 #include <piston/util/plane_field.h>
