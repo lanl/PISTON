@@ -22,80 +22,81 @@ OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABIL
 ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef HSV_COLOR_MAP_H_
-#define HSV_COLOR_MAP_H_
+#ifndef RendererRender_H
+#define RendererRender_H
 
-#include <math.h>
+#include <GL/glew.h>
+#include <GL/gl.h>
 
-namespace piston
+#include <GL/glut.h>
+#include <thrust/host_vector.h>
+#include <thrust/functional.h>
+#include <thrust/iterator/transform_iterator.h>
+#include <thrust/iterator/discard_iterator.h>
+#include <vtkSphereSource.h>
+#include <vtkArrowSource.h>
+#include <vtkPolyData.h>
+#include <vtkCellArray.h>
+
+#include <vtkCellData.h>
+#include <vtkDoubleArray.h>
+#include <vtkFloatArray.h>
+#include <vtkPoints.h>
+#include <vtkPolyData.h>
+#include <vtkPolyDataNormals.h>
+#include <vtkPointData.h>
+#include <vtkSmartPointer.h>
+#include <vtkXMLPolyDataReader.h>
+#include <vtkTriangleFilter.h>
+#include <vtkPolyDataNormals.h>
+
+#include <sys/time.h>
+#include "piston/util/quaternion.h"
+
+#include <piston/piston_math.h>
+#include <piston/choose_container.h>
+
+using namespace piston;
+#define SPACE thrust::detail::default_device_space_tag
+
+#include <piston/image3d.h>
+#include <piston/vtk_image3d.h>
+#include <piston/render.h>
+
+class RendererRender
 {
+public:
+  RendererRender();
+  void setZoomLevelPct(float pct);
+  void display();
+  void idle();
+  void initGL(bool aAllowInterop);
+  void cleanup();
+  int read();
+  void resetView();
+  void screenShot(std::string fileName, unsigned int width, unsigned int height, bool includeAlpha = true );
 
-template <typename ValueType>
-struct color_map : thrust::unary_function<ValueType, float4>
-{
-    const ValueType min;
-    const ValueType max;
-    const ValueType blackMin;
-    const ValueType whiteMax;
-    const bool reversed;
+  float3 center_pos;
+  float3 camera_up;
+  float cameraZ, cameraFOV, zoomLevelBase;
+  int mouse_old_x, mouse_old_y;
+  Quaternion qrot;
+  bool includeInput;
 
-    __host__ __device__
-    color_map(ValueType min, ValueType max, bool reversed=false, ValueType blackMin=-1000000.0, ValueType whiteMax=1000000.0) :
-	min(min), max(max), reversed(reversed), blackMin(blackMin), whiteMax(whiteMax) {}
+  int mouse_buttons;
+  float3 translate;
+  float rotationMatrix[16];
+  Quaternion qDefault;
+  int viewportWidth, viewportHeight;
 
-    __host__ __device__
-    float4 operator()(ValueType val) {
-	// HSV rainbow for height field, stolen form Manta
-    if (val < blackMin) return make_float4(0.0, 0.0, 0.0, 1.0);
-    if (val > whiteMax) return make_float4(1.0, 1.0, 1.0, 1.0);
-	const float V = 0.7f, S = 1.0f;
-	float H = (1.0f - static_cast<float> (val - min) / (max - min));
-	if (reversed) H = 1.0 - H;
+  float maxValue, minValue;
+  float zoomLevelPct, zoomLevelPctDefault;
 
-	if (H < 0.0f)
-	    H = 0.0f;
-	else if (H > 1.0f)
-	    H = 1.0f;
-	H *= 4.0f;
+  thrust::host_vector<float3>  inputVerticesHost;
+  thrust::device_vector<float3>  inputVertices;
 
-	float i = floor(H);
-	float f = H - i;
+  render<thrust::device_vector<float3>::iterator>* renders;
 
-	float p = V * (1.0 - S);
-	float q = V * (1.0 - S * f);
-	float t = V * (1.0 - S * (1 - f));
-
-	float R, G, B;
-	if (i == 0.0) {
-	    R = V;
-	    G = t;
-	    B = p;
-	} else if (i == 1.0) {
-	    R = q;
-	    G = V;
-	    B = p;
-	} else if (i == 2.0) {
-	    R = p;
-	    G = V;
-	    B = t;
-	} else if (i == 3.0) {
-	    R = p;
-	    G = q;
-	    B = V;
-	} else if (i == 4.0) {
-	    R = t;
-	    G = p;
-	    B = V;
-	} else {
-	    // i == 5.0
-	    R = V;
-	    G = p;
-	    B = q;
-	}
-	return make_float4(R, G, B, 1.0);
-    }
 };
 
-}
-
-#endif /* HSV_COLOR_MAP_H_ */
+#endif

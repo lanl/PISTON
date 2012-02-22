@@ -22,80 +22,97 @@ OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABIL
 ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef HSV_COLOR_MAP_H_
-#define HSV_COLOR_MAP_H_
+#include "rendererrender.h"
 
-#include <math.h>
+#include <GL/glut.h>
 
-namespace piston
+int mouse_old_x, mouse_old_y;
+int mouse_buttons = 0;
+
+RendererRender* rendererrender;
+
+
+void mouse(int button, int state, int x, int y)
 {
-
-template <typename ValueType>
-struct color_map : thrust::unary_function<ValueType, float4>
-{
-    const ValueType min;
-    const ValueType max;
-    const ValueType blackMin;
-    const ValueType whiteMax;
-    const bool reversed;
-
-    __host__ __device__
-    color_map(ValueType min, ValueType max, bool reversed=false, ValueType blackMin=-1000000.0, ValueType whiteMax=1000000.0) :
-	min(min), max(max), reversed(reversed), blackMin(blackMin), whiteMax(whiteMax) {}
-
-    __host__ __device__
-    float4 operator()(ValueType val) {
-	// HSV rainbow for height field, stolen form Manta
-    if (val < blackMin) return make_float4(0.0, 0.0, 0.0, 1.0);
-    if (val > whiteMax) return make_float4(1.0, 1.0, 1.0, 1.0);
-	const float V = 0.7f, S = 1.0f;
-	float H = (1.0f - static_cast<float> (val - min) / (max - min));
-	if (reversed) H = 1.0 - H;
-
-	if (H < 0.0f)
-	    H = 0.0f;
-	else if (H > 1.0f)
-	    H = 1.0f;
-	H *= 4.0f;
-
-	float i = floor(H);
-	float f = H - i;
-
-	float p = V * (1.0 - S);
-	float q = V * (1.0 - S * f);
-	float t = V * (1.0 - S * (1 - f));
-
-	float R, G, B;
-	if (i == 0.0) {
-	    R = V;
-	    G = t;
-	    B = p;
-	} else if (i == 1.0) {
-	    R = q;
-	    G = V;
-	    B = p;
-	} else if (i == 2.0) {
-	    R = p;
-	    G = V;
-	    B = t;
-	} else if (i == 3.0) {
-	    R = p;
-	    G = q;
-	    B = V;
-	} else if (i == 4.0) {
-	    R = t;
-	    G = p;
-	    B = V;
-	} else {
-	    // i == 5.0
-	    R = V;
-	    G = p;
-	    B = q;
-	}
-	return make_float4(R, G, B, 1.0);
+    if (state == GLUT_DOWN) {
+	mouse_buttons |= 1<<button;
+    } else if (state == GLUT_UP) {
+	mouse_buttons = 0;
     }
-};
+
+    mouse_old_x = x;
+    mouse_old_y = y;
+    glutPostRedisplay();
+}
+
+
+void motion(int x, int y)
+{
+    float dx = x - mouse_old_x;
+    float dy = y - mouse_old_y;
+
+    if (mouse_buttons == 1)
+    {
+      Quaternion newRotX;
+      newRotX.setEulerAngles(-0.2*dx*3.14159/180.0, 0.0, 0.0);
+      rendererrender->qrot.mul(newRotX);
+
+      Quaternion newRotY;
+      newRotY.setEulerAngles(0.0, 0.0, -0.2*dy*3.14159/180.0);
+      rendererrender->qrot.mul(newRotY);
+    }
+    else if (mouse_buttons == 4)
+    {
+	rendererrender->setZoomLevelPct(rendererrender->zoomLevelPct + dy/1000.0);
+    }
+
+    mouse_old_x = x;
+    mouse_old_y = y;
+    glutPostRedisplay();
+}
+
+
+void keyboard( unsigned char key, int x, int y )
+{
 
 }
 
-#endif /* HSV_COLOR_MAP_H_ */
+
+void display()
+{
+    rendererrender->display();
+    glutSwapBuffers();
+}
+
+
+void idle()
+{
+    glutPostRedisplay();
+}
+
+
+void initGL(int argc, char **argv)
+{
+    glutInit(&argc, argv);
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
+    glutInitWindowSize(2048, 1024);
+    glutCreateWindow("Renderer");
+
+    rendererrender->initGL(true);
+
+    glutDisplayFunc(display);
+    glutKeyboardFunc(keyboard);
+    glutMouseFunc(mouse);
+    glutMotionFunc(motion);
+    glutIdleFunc(idle);
+    glutMainLoop();
+}
+
+
+int main(int argc, char **argv)
+{
+    rendererrender = new RendererRender();
+    initGL(argc, argv);
+    return 0;
+}
+
