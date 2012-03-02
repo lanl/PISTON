@@ -21,3 +21,5 @@ add_subdirectory(examples)
 if (BUILD_DEMO)
   add_subdirectory(demos)
 endif ()
+
+add_subdirectory(samples)
