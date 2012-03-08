@@ -33,7 +33,7 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #endif
 
 #include <QtGui>
-//#include <QtOpenGL>
+#include <QtOpenGL>
 #include <QObject>
 
 #ifdef USE_INTEROP
