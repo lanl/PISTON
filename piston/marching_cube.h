@@ -138,7 +138,6 @@ public:
 	thrust::transform(CountingIterator(0), CountingIterator(0)+NCells,
 	                  thrust::make_zip_iterator(thrust::make_tuple(cubeIndex.begin(), numVertices.begin())),
 	                  classify_cell(input, isovalue, discardMinVals,
-	                                thrust::raw_pointer_cast(&*triTable.begin()),
 	                                thrust::raw_pointer_cast(&*numVertsTable.begin())));
 
 	// enumerating number of valid cells
@@ -256,7 +255,6 @@ public:
 	InputPointDataIterator point_data;
 
 	const float isovalue;
-	const int *triTable;
 	const int *numVertsTable;
 
 	const int xdim;
@@ -267,9 +265,10 @@ public:
 
 	classify_cell(InputDataSet1 &input,
 	              float isovalue, bool discardMinVals,
-	              const int *triTable, const int *numVertsTable) :
+	              const int *numVertsTable) :
 	        	  point_data(input.point_data_begin()), isovalue(isovalue),
-	        	  discardMinVals(discardMinVals), triTable(triTable), numVertsTable(numVertsTable),
+	        	  discardMinVals(discardMinVals), //triTable(triTable),
+	        	  numVertsTable(numVertsTable),
 	        	  xdim(input.xdim), ydim(input.ydim), zdim(input.zdim),
 	        	  cells_per_layer((xdim - 1) * (ydim - 1)) {}
 
