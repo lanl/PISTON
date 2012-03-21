@@ -24,7 +24,15 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 
 #include "glyphrender.h"
 
+#ifdef __APPLE__
+/* Location of some include headers on the Apple systems:
+ * /System/Library/Frameworks/FW.framework/Headers
+*/
+    #include <GLUT.framework/Headers/glut.h>
+#else
 #include <GL/glut.h>
+#endif
+
 
 int mouse_old_x, mouse_old_y;
 int mouse_buttons = 0;

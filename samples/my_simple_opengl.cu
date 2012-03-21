@@ -13,6 +13,10 @@
  * /System/Library/Frameworks/FW.framework/Headers
 */
     #include <GL/glew.h>
+
+    // #include <GL/glu.h>
+    #include <OpenGL.framework/Headers/glu.h>
+
     //#include <OpenGL/OpenGL.h>
     #include <OpenGL.framework/Headers/OpenGL.h>
     //#include <OpenGL.h>
@@ -39,11 +43,10 @@
 //#include <piston/cutil_math.h>
 #include <piston/piston_math.h>
 
-//#define SPACE  thrust::host_space_tag
-#define SPACE thrust::detail::default_device_space_tag
+#define SPACE  thrust::host_space_tag
+//#define SPACE thrust::detail::default_device_space_tag
 
 using namespace piston;
-static const int GRID_SIZE = 4;
 
 struct sine_wave: public piston::image2d<int, float4, SPACE>
 {
@@ -130,7 +133,7 @@ struct print_float4 : public thrust::unary_function<float4, void>
 	}
 };
 
-/// Extracts a dimension of the space, x dim
+/// Extracts a dimension of the space, y dim
 struct extractY : public thrust::unary_function<float4, float>
 {
 	//__host__ __device__
@@ -150,7 +153,7 @@ struct extractX : public thrust::unary_function<float4, float>
 
 };
 
-/// Extracts a dimension of the space, x dim
+/// Extracts a dimension of the space, z dim
 struct extractZ : public thrust::unary_function<float4, float>
 {
 	//__host__ __device__
@@ -160,7 +163,7 @@ struct extractZ : public thrust::unary_function<float4, float>
 
 };
 
-/// Extracts a dimension of the space, x dim
+/// Extracts a dimension of the space, w dim
 struct extractW : public thrust::unary_function<float4, float>
 {
 	//__host__ __device__
@@ -171,9 +174,47 @@ struct extractW : public thrust::unary_function<float4, float>
 };
 
 
-#if 0
+#if 1
+
+// This example, adapted from the CUDA SDK sample program "simpleGL", demonstrates
+// how to use the experimental ogl_interop_allocator with device_vector to allow
+// device_vector to manage OpenGL memory resources. The functionality of
+// ogl_interop_allocator relies on behavior currently unsupported by the NVIDIA
+// driver and should not be relied upon in production code.
+// constants
+const unsigned int g_window_width = 512;
+const unsigned int g_window_height = 512;
+
+const unsigned int g_mesh_width = 256;
+const unsigned int g_mesh_height = 256;
+
+
+#define VBO 1
+#if VBO
+// vbo variables
+GLuint vbo;
+thrust :: host_vector <float >  g_vec(4);
+#else
+//if cuda vbos
+// for a device_vector interoperable with OpenGL, pass ogl_interop_allocator as the allocator type
+//typedef thrust::device_vector<float4, thrust::experimental::cuda::ogl_interop_allocator<float4> > gl_vector;
+
+// define these variables in the global scope so that the GLUT callback functions have access to it
+//gl_vector g_vec;
+#endif
+
+
+float g_anim = 0.0;
+
+// mouse controls
+int g_mouse_old_x, g_mouse_old_y;
+int g_mouse_buttons = 0;
+float g_rotate_x = 0.0, g_rotate_y = 0.0;
+float g_translate_z = -3.0;
+
 bool init_gl(void)
 {
+
     // default initialization
     glClearColor(0.0, 0.0, 0.0, 1.0);
     glDisable(GL_DEPTH_TEST);
@@ -184,31 +225,42 @@ bool init_gl(void)
     // projection
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    gluPerspective(60.0, (GLfloat)g_window_width / (GLfloat) g_window_height, 0.1, 10.0);
+    gluPerspective(60.0, (GLdouble)g_window_width / (GLdouble) g_window_height, 0.1, 10.0);
 
     return true;
 } // end init_gl
 
 void display(void)
 {
+
     // transform the mesh
     thrust::counting_iterator<int> first(0);
     thrust::counting_iterator<int> last(g_mesh_width * g_mesh_height);
 
-    thrust::transform(first, last,
-                      g_vec.begin(),
-                      sine_wave(g_mesh_width,g_mesh_height,g_anim));
+    thrust::transform(
+    		first,
+    		last,
+    		g_vec.begin(),
+    		sine_wave(
+    				g_mesh_width,
+    				g_mesh_height,
+    				g_anim));
+
 
     // map the vector into GL
+    // ORIG thrust::device_ptr<float4> ptr = &g_vec[0];
     thrust::device_ptr<float4> ptr = &g_vec[0];
 
     // pass the device_ptr to the allocator's static function map_buffer
     // to map it into GL
-    GLuint buffer = gl_vector::allocator_type::map_buffer(ptr);
+    // ORIG GLuint buffer = gl_vector::allocator_type::map_buffer(ptr);
 
+
+
+    // Straight from original example.
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    // set view matrix
+    // Set the view matrix.
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     glTranslatef(0.0, 0.0, g_translate_z);
@@ -216,7 +268,8 @@ void display(void)
     glRotatef(g_rotate_y, 0.0, 1.0, 0.0);
 
     // render from the vbo
-    glBindBuffer(GL_ARRAY_BUFFER, buffer);
+    // ORIG glBindBuffer(GL_ARRAY_BUFFER, buffer);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
     glVertexPointer(4, GL_FLOAT, 0, 0);
 
     glEnableClientState(GL_VERTEX_ARRAY);
@@ -227,26 +280,66 @@ void display(void)
     glutSwapBuffers();
     glutPostRedisplay();
 
-    g_anim += 0.001;
+    g_anim += 0.01; // 0.001
 
     // unmap the vector from GL
-    gl_vector::allocator_type::unmap_buffer(buffer);
-} // end display
+    // ORIG gl_vector::allocator_type::unmap_buffer(buffer);
+}
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+//! Create VBO
+////////////////////////////////////////////////////////////////////////////////
+void createVBO(GLuint* vbo)
+{
+    // create buffer object
+    glGenBuffers( 1, vbo);
+    glBindBuffer( GL_ARRAY_BUFFER, *vbo);
+
+    // initialize buffer object
+    unsigned int size = g_mesh_width * g_mesh_height * 4 * sizeof( float);
+    glBufferData( GL_ARRAY_BUFFER, size, 0, GL_DYNAMIC_DRAW);
+
+    glBindBuffer( GL_ARRAY_BUFFER, 0);
+
+    // register buffer object with CUDA
+    //CUDA_SAFE_CALL(cudaGLRegisterBufferObject(*vbo));
+
+    //CUT_CHECK_ERROR_GL();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//! Delete VBO
+////////////////////////////////////////////////////////////////////////////////
+void deleteVBO( GLuint* vbo)
+{
+    glBindBuffer( 1, *vbo);
+    glDeleteBuffers( 1, vbo);
+
+    //CUDA_SAFE_CALL(cudaGLUnregisterBufferObject(*vbo));
+
+    *vbo = 0;
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//! Mouse event handlers
+////////////////////////////////////////////////////////////////////////////////
 void mouse(int button, int state, int x, int y)
 {
-    if(state == GLUT_DOWN)
-    {
-	g_mouse_buttons |= 1<<button;
-    } // end if
-    else if(state == GLUT_UP)
-    {
-	g_mouse_buttons = 0;
-    } // end else if
+	if(state == GLUT_DOWN) {
+		g_mouse_buttons |= 1<<button;
+	}
 
-    g_mouse_old_x = x;
-    g_mouse_old_y = y;
-    glutPostRedisplay();
+	else if(state == GLUT_UP){
+		g_mouse_buttons = 0;
+	}
+
+	g_mouse_old_x = x;
+	g_mouse_old_y = y;
+	glutPostRedisplay();
 } // end mouse
 
 void motion(int x, int y)
@@ -257,12 +350,12 @@ void motion(int x, int y)
 
     if(g_mouse_buttons & 1)
     {
-	g_rotate_x += dy * 0.2;
-	g_rotate_y += dx * 0.2;
+    	g_rotate_x += dy * 0.2;
+    	g_rotate_y += dx * 0.2;
     } // end if
     else if(g_mouse_buttons & 4)
     {
-	g_translate_z += dy * 0.01;
+    	g_translate_z += dy * 0.01;
     } // end else if
 
     g_mouse_old_x = x;
@@ -271,17 +364,13 @@ void motion(int x, int y)
 
 void keyboard(unsigned char key, int, int)
 {
-    switch(key)
-    {
-    // catch 'esc'
-    case(27):
-	      // deallocate memory
-	      g_vec.clear();
-    g_vec.shrink_to_fit();
-    exit(0);
-    default:
-	break;
-    } // end switch
+	if(key == 27){
+		// deallocate memory
+		// ORIG g_vec.clear();
+		// ORIG g_vec.shrink_to_fit();
+        deleteVBO( &vbo);
+        exit(0);
+	} // end if
 } // end keyboard
 
 int main(int argc, char** argv)
@@ -290,12 +379,11 @@ int main(int argc, char** argv)
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);
     glutInitWindowSize(g_window_width, g_window_height);
-    glutCreateWindow("Thrust/GL interop");
+    glutCreateWindow("Sine from Thrust");
 
     // initialize GL
-    if(!init_gl())
-    {
-	throw std::runtime_error("Couldn't initialize OpenGL");
+    if(!init_gl()) {
+	  throw std::runtime_error("Couldn't initialize OpenGL");
     } // end if
 
     // register callbacks
@@ -307,13 +395,19 @@ int main(int argc, char** argv)
     // resize the vector to fit the mesh
     g_vec.resize(g_mesh_width * g_mesh_height);
 
+
+    // create  graphics buffer
+    createVBO( &vbo);
+
     // transform the mesh
     thrust::counting_iterator<int,thrust::device_space_tag> first(0);
     thrust::counting_iterator<int,thrust::device_space_tag> last(g_mesh_width * g_mesh_height);
 
-    thrust::transform(first, last,
-                      g_vec.begin(),
-                      sine_wave(g_mesh_width,g_mesh_height,g_anim));
+    thrust::transform(
+    		first,
+    		last,
+    		g_vec.begin(),
+    		sine_wave(g_mesh_width,g_mesh_height,g_anim));
 
     // start rendering mainloop
     glutMainLoop();
@@ -321,7 +415,18 @@ int main(int argc, char** argv)
     return 0;
 } // end main
 
+
+
+
+
+
+
+
+
 #else
+// Just doing some general tests.
+static const int GRID_SIZE = 4;
+
 int main()
 {
 	// H has storage for 4 integers
