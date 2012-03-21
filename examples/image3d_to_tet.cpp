@@ -14,8 +14,8 @@
 
 using namespace piston;
 
-#define SPACE thrust::host_space_tag
-//#define SPACE thrust::detail::default_device_space_tag
+//#define SPACE thrust::host_space_tag
+#define SPACE thrust::detail::default_device_space_tag
 
 template <typename Space>
 struct pointid_field : public image3d<int, int, Space>
@@ -63,7 +63,7 @@ int main()
     image3d_to_tetrahedrons<height_field<int, float, SPACE> > tetra(field);
 
     thrust::host_vector<int> vec(tetra.point_data_begin(), tetra.point_data_end());
-//    std::cout << "vec.size(): " << vec.size() << std::endl;
+    std::cout << "vec.size(): " << vec.size() << std::endl;
 
     for (int i = 0; i < vec.size(); i++) {
 	if ((i % 4) == 0)
@@ -72,7 +72,9 @@ int main()
     }
     std::cout << std::endl;
 
-    thrust::for_each(tetra.grid_coordinates_begin(), tetra.grid_coordinates_end(), print_tuple3);
+    thrust::host_vector<thrust::tuple<int, int, int> > coordinates(tetra.grid_coordinates_begin(),
+                                                                   tetra.grid_coordinates_end());
+    thrust::for_each(coordinates.begin(), coordinates.end(), print_tuple3);
 
     marching_tetrahedron<image3d_to_tetrahedrons<height_field<int, float, SPACE> >,
 			 image3d_to_tetrahedrons<height_field<int, float, SPACE> > > isosurface(tetra, tetra, 0.5f);

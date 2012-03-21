@@ -36,19 +36,19 @@ struct height_field : public piston::image3d<IndexType, ValueType, Space>
 
     typedef piston::image3d<IndexType, ValueType, Space> Parent;
 
-    typedef thrust::transform_iterator<height_functor,
+    typedef thrust::transform_iterator<height_functor<IndexType, ValueType>,
 				       typename Parent::GridCoordinatesIterator> PointDataIterator;
     PointDataIterator point_data_iterator;
 
     height_field(int xdim, int ydim, int zdim) :
 	Parent(xdim, ydim, zdim),
 	point_data_iterator(this->grid_coordinates_iterator,
-	                    height_functor()){}
+	                    height_functor<IndexType, ValueType>()){}
 
     void resize(int xdim, int ydim, int zdim) {
 	Parent::resize(xdim, ydim, zdim);
 	point_data_iterator = thrust::make_transform_iterator(this->grid_coordinates_iterator,
-	                                                      height_functor());
+	                                                      height_functor<IndexType, ValueType>());
     }
 
     PointDataIterator point_data_begin() {

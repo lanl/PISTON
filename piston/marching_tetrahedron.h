@@ -102,7 +102,7 @@ public:
 	// the total number of valid cells is the last element of the enumeration.
 	unsigned int num_valid_cells = valid_cell_enum.back();
 
-	// no valid cells at all, return with empty vertices vector.
+	// no valid cells at all, return with empty vectors.
 	if (num_valid_cells == 0) {
 	    vertices.clear();
 	    normals.clear();

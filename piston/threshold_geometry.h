@@ -93,7 +93,6 @@ struct threshold_geometry
     IndicesContainer	vertices_indices;
     IndicesContainer    normals_indices;
 
-    unsigned int numTotalVertices;
     bool useInterop;
     float4 *vertexBufferData;
     float3 *normalBufferData;
@@ -137,10 +136,11 @@ struct threshold_geometry
 	                  valid_cell_flags.begin(),
 	                  threshold_cell(input, min_value, max_value));
 
-	valid_cell_enum.resize(NCells);
 	// enumerate valid cells
+	valid_cell_enum.resize(NCells);
 	thrust::inclusive_scan(valid_cell_flags.begin(), valid_cell_flags.end(),
 	                       valid_cell_enum.begin());
+	// the total number of valid cells is the last element of the enumeration.
 	int num_valid_cells = valid_cell_enum.back();
 
 	// no valid cells at all, return with empty vertices vector.
@@ -183,24 +183,24 @@ struct threshold_geometry
 	                    CountingIterator(0), CountingIterator(0)+num_exterior_cells,
 	                    exterior_cell_indices.begin());
 
-	numTotalVertices = num_exterior_cells*24;
+	unsigned int num_total_vertices = num_exterior_cells*24;
 	//std::cout << "number of vertices: " << numTotalVertices << std::endl;
 
 	if (useInterop) {
 #if USE_INTEROP
-	    if (numTotalVertices > vboSize)
+	    if (num_total_vertices > vboSize)
 	    {
               glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[0]);
-              glBufferData(GL_ARRAY_BUFFER, numTotalVertices*sizeof(float4), 0, GL_DYNAMIC_DRAW);
+              glBufferData(GL_ARRAY_BUFFER, num_total_vertices*sizeof(float4), 0, GL_DYNAMIC_DRAW);
               if (glGetError() == GL_OUT_OF_MEMORY) { std::cout << "Out of VBO memory" << std::endl; exit(-1); }
 	      glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[1]);
-	      glBufferData(GL_ARRAY_BUFFER, numTotalVertices*sizeof(float4), 0, GL_DYNAMIC_DRAW);
+	      glBufferData(GL_ARRAY_BUFFER, num_total_vertices*sizeof(float4), 0, GL_DYNAMIC_DRAW);
 	      if (glGetError() == GL_OUT_OF_MEMORY) { std::cout << "Out of VBO memory" << std::endl; exit(-1); }
 	      glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[2]);
-	      glBufferData(GL_ARRAY_BUFFER, numTotalVertices*sizeof(float3), 0, GL_DYNAMIC_DRAW);
+	      glBufferData(GL_ARRAY_BUFFER, num_total_vertices*sizeof(float3), 0, GL_DYNAMIC_DRAW);
 	      if (glGetError() == GL_OUT_OF_MEMORY) { std::cout << "Out of VBO memory" << std::endl; exit(-1); }
 	      glBindBuffer(GL_ARRAY_BUFFER, 0);
-	      vboSize = numTotalVertices;
+	      vboSize = num_total_vertices;
 	    }
 	    size_t num_bytes;
 	    cudaGraphicsMapResources(1, &vboResources[0], 0);
@@ -221,8 +221,8 @@ struct threshold_geometry
 	}
 
 	// generate 6 quards for each exterior cell
-	vertices_indices.resize(num_exterior_cells*24);
-	normals_indices.resize(num_exterior_cells*24);
+	vertices_indices.resize(num_total_vertices);
+	normals_indices.resize(num_total_vertices);
 	thrust::for_each(thrust::make_zip_iterator(thrust::make_tuple(CountingIterator(0),
 	                                                              thrust::make_permutation_iterator(valid_cell_indices.begin(), exterior_cell_indices.begin()))),
 	                 thrust::make_zip_iterator(thrust::make_tuple(CountingIterator(0) + num_exterior_cells,
@@ -341,7 +341,7 @@ struct threshold_geometry
 	    const int n5 = valid_cell_id + cells_per_layer;
 
 	    // we are using fixed boundary conditions here, if a cell is at
-	    // the border of the data set, it DOES NOT have an valid cell
+	    // the border of the data set, it DOES NOT have a valid cell
 	    // neighbor at that face.
 	    const int x = valid_cell_id % (xdim - 1);
 	    const int y = (valid_cell_id / (xdim - 1)) % (ydim -1);
@@ -421,7 +421,7 @@ struct threshold_geometry
 
 	    for (int v = 0; v < 24; v++) {
 		*(vertices_indices + exterior_cell_id*24 + v) = indices[vertices_for_faces[v]];
-		*(normals_indices + exterior_cell_id*24 + v)  = v/4;
+		*(normals_indices  + exterior_cell_id*24 + v)  = v/4;
 	    }
 	}
     };

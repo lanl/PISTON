@@ -43,6 +43,8 @@ public:
     int NPoints;
     int NCells;
 
+    // transform pointid <- [0..NPoints] to grid coordinates of
+    // (i <- [0..xdim-1], j <- [0..ydim-1], k <- [0..zdim-1])
     struct grid_coordinates_functor : public thrust::unary_function<IndexType, thrust::tuple<IndexType, IndexType, IndexType> >
     {
 	int xdim;
