@@ -27,6 +27,8 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 
 #include <vtkImageData.h>
 
+#include <piston/choose_container.h>
+
 namespace piston {
 
 template <typename IndexType, typename ValueType, typename Space>
@@ -47,6 +49,12 @@ struct vtk_image3d : public piston::image3d<IndexType, ValueType, Space>
 //	grid_coordinates_vector(Parent::grid_coordinates_begin(), Parent::grid_coordinates_end()),
 	point_data_vector((ValueType *) image->GetScalarPointer(),
 	                  (ValueType *) image->GetScalarPointer() + this->NPoints) {}
+
+    //this version creates one out of data already on the GPU.
+    vtk_image3d(int dims[3], thrust::device_vector<ValueType> v) :
+        Parent(dims[0], dims[1], dims[2]),
+//        grid_coordinates_vector(Parent::grid_coordinates_begin(), Parent::grid_coordinates_end()),
+        point_data_vector(v) {}
 
     void resize(int xdim, int ydim, int zdim) {
  	Parent::resize(xdim, ydim, zdim);
