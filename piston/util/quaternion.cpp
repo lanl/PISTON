@@ -25,6 +25,12 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #include "quaternion.h"
 
 
+void Quaternion::normalize()
+{
+        float norm = sqrt(x*x + y*y + z*z + w*w);
+    	if (norm > 0.00001) { x /= norm;  y /= norm;  z /= norm;  w /= norm; }
+}
+
 void Quaternion::mul(Quaternion q)
 {
 	float tx, ty, tz, tw;
@@ -44,8 +50,7 @@ void Quaternion::setEulerAngles(float pitch, float yaw, float roll)
 	y = sin(pitch/2.0)*cos(yaw/2.0)*cos(roll/2.0) + cos(pitch/2.0)*sin(yaw/2.0)*sin(roll/2.0);
 	z = cos(pitch/2.0)*sin(yaw/2.0)*cos(roll/2.0) - sin(pitch/2.0)*cos(yaw/2.0)*sin(roll/2.0);
 
-	float norm = sqrt(x*x + y*y + z*z + w*w);
-	if (norm > 0.00001) { x /= norm;  y /= norm;  z /= norm;  w /= norm; }
+	normalize();
 }
 
 

@@ -104,6 +104,8 @@ public:
     NormalsContainer	normals;	// surface normal computed by cross product of triangle edges
     ScalarContainer	scalars;	// interpolated scalar output
 
+    unsigned int num_total_vertices;
+
     marching_cube(InputDataSet1 &input, InputDataSet2 &source,
                   value_type isovalue = value_type()) :
 	input(input), source(source), isovalue(isovalue),
@@ -175,7 +177,7 @@ public:
 	                       output_vertices_enum.begin());
 
 	// get the total number of vertices,
-	unsigned int num_total_vertices = num_vertices[valid_cell_indices.back()] + output_vertices_enum.back();
+	num_total_vertices = num_vertices[valid_cell_indices.back()] + output_vertices_enum.back();
 
 	if (useInterop) {
 #if USE_INTEROP

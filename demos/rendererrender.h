@@ -49,12 +49,20 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #include <vtkXMLPolyDataReader.h>
 #include <vtkTriangleFilter.h>
 #include <vtkPolyDataNormals.h>
+#include <vtkXMLImageDataReader.h>
+
 
 #include <sys/time.h>
 #include "piston/util/quaternion.h"
 
 #include <piston/piston_math.h>
 #include <piston/choose_container.h>
+
+#include <piston/marching_cube.h>
+#include <piston/util/tangle_field.h>
+
+#include <piston/image3d.h>
+#include <piston/vtk_image3d.h>
 
 using namespace piston;
 #define SPACE thrust::detail::default_device_space_tag
@@ -82,20 +90,35 @@ public:
   int mouse_old_x, mouse_old_y;
   Quaternion qrot;
   bool includeInput;
+  float isovalue;
+  float isoMax, isoMin, isoInc;
+  int rcnt;
 
   int mouse_buttons;
   float3 translate;
   float rotationMatrix[16];
   Quaternion qDefault;
-  int viewportWidth, viewportHeight;
+  int grid_size, viewportWidth, viewportHeight;
 
   float maxValue, minValue;
   float zoomLevelPct, zoomLevelPctDefault;
 
-  thrust::host_vector<float3>  inputVerticesHost;
-  thrust::device_vector<float3>  inputVertices;
+  thrust::host_vector<float4>  inputVerticesHost;
+  thrust::host_vector<float3>  inputNormalsHost;
+  thrust::host_vector<float4>  inputColorsHost;
+  thrust::device_vector<float4> inputVertices;
+  thrust::device_vector<float3> inputNormals;
+  thrust::device_vector<float4> inputColors;
 
-  render<thrust::device_vector<float3>::iterator>* renders;
+  tangle_field<int, float, SPACE>* tangle;
+  marching_cube<tangle_field<int, float, SPACE>, tangle_field<int, float, SPACE> > *isosurface;
+
+  render<thrust::device_vector<float4>::iterator, thrust::device_vector<float3>::iterator, thrust::device_vector<float4>::iterator>* renders;
+
+  vtkImageData *output;
+  vtkXMLImageDataReader* reader;
+  vtk_image3d<int, float, SPACE>* image;
+  marching_cube<vtk_image3d<int, float, SPACE>, vtk_image3d<int, float, SPACE> >* isosurface2;
 
 };
 

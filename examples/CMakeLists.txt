@@ -54,9 +54,6 @@ target_link_libraries(mandelbrot pthread)
 cuda_add_executable(image3d_to_tetGPU image3d_to_tet.cu)
 target_link_libraries(image3d_to_tetGPU pthread)
 
-add_executable(image3d_to_tet image3d_to_tet.cpp)
-target_link_libraries(image3d_to_tet pthread)
-
 #set(mc_SOURCES example.cpp marching_cube.cu quaternion.cpp)
 #cuda_add_executable(marching_cube ${mc_SOURCES} ${ex_HEADERS_MOC} ${ex_FORMS_HEADERS} OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}")
 #target_link_libraries(marching_cube GLEW pthread vtkIO ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES} ${QT_LIBRARIES})

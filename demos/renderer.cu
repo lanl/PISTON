@@ -95,7 +95,7 @@ void initGL(int argc, char **argv)
 {
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
-    glutInitWindowSize(2048, 1024);
+    glutInitWindowSize(rendererrender->viewportWidth, rendererrender->viewportHeight);
     glutCreateWindow("Renderer");
 
     rendererrender->initGL(true);
