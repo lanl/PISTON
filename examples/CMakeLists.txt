@@ -54,8 +54,9 @@ target_link_libraries(mandelbrot pthread)
 cuda_add_executable(image3d_to_tetGPU image3d_to_tet.cu)
 target_link_libraries(image3d_to_tetGPU pthread)
 
-add_executable(image3d_to_tet image3d_to_tet.cpp)
-target_link_libraries(image3d_to_tet pthread)
+add_executable(image3d_to_tetOMP image3d_to_tet.cpp)
+set_target_properties(image3d_to_tetOMP PROPERTIES COMPILE_FLAGS "-fopenmp -DTHRESHOLD -DTHRUST_DEVICE_BACKEND=THRUST_DEVICE_BACKEND_OMP")
+target_link_libraries(image3d_to_tetOMP pthread)
 
 #set(mc_SOURCES example.cpp marching_cube.cu quaternion.cpp)
 #cuda_add_executable(marching_cube ${mc_SOURCES} ${ex_HEADERS_MOC} ${ex_FORMS_HEADERS} OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}")
