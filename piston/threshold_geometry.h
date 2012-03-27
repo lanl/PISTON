@@ -105,6 +105,7 @@ struct threshold_geometry
     thrust::device_vector<float3> normals;
 
     float minThresholdRange, maxThresholdRange;
+    unsigned int num_total_vertices;
 
     threshold_geometry(InputDataSet &input, float min_value, float max_value ) :
 	input(input), min_value(min_value), max_value(max_value), colorFlip(false), useInterop(false), vboSize(0)
@@ -183,7 +184,7 @@ struct threshold_geometry
 	                    CountingIterator(0), CountingIterator(0)+num_exterior_cells,
 	                    exterior_cell_indices.begin());
 
-	unsigned int num_total_vertices = num_exterior_cells*24;
+	num_total_vertices = num_exterior_cells*24;
 	//std::cout << "number of vertices: " << numTotalVertices << std::endl;
 
 	if (useInterop) {

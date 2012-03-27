@@ -33,13 +33,13 @@ if (USE_CUDA)
   cuda_add_executable(mysimpleGPU my_simple_opengl.cu ${CMAKE_SOURCE_DIR}/piston/util/quaternion.cpp OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}" "-DBUFFER_SIZE=${INIT_BUFFER_SIZE}" ${GPU_FLAGS})
   target_link_libraries(mysimpleGPU pthread vtkIO vtkRendering vtkFiltering vtkCommon vtkGraphics GLEW ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
 
-  cuda_add_executable(operatorTesterGPU operatorTester.cu logic2d.cu ${CMAKE_SOURCE_DIR}/piston/util/quaternion.cpp OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}" "-DBUFFER_SIZE=${INIT_BUFFER_SIZE}" ${GPU_FLAGS})
-  target_link_libraries(operatorTesterGPU  pthread vtkIO vtkRendering vtkFiltering vtkCommon vtkGraphics GLEW ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})  
+#  cuda_add_executable(operatorTesterGPU operatorTester.cu logic2d.cu ${CMAKE_SOURCE_DIR}/piston/util/quaternion.cpp OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}" "-DBUFFER_SIZE=${INIT_BUFFER_SIZE}" ${GPU_FLAGS})
+#  target_link_libraries(operatorTesterGPU  pthread vtkIO vtkRendering vtkFiltering vtkCommon vtkGraphics GLEW ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})  
 endif ()
 
-add_executable(operatorTesterOMP operatorTester.cu ${CMAKE_SOURCE_DIR}/piston/util/quaternion.cpp)
-set_target_properties(operatorTesterOMP PROPERTIES COMPILE_FLAGS "-fopenmp -DDATA_DIRECTORY=${DATA_DIR} -DTHRUST_DEVICE_BACKEND=THRUST_DEVICE_BACKEND_OMP")
-target_link_libraries(operatorTesterOMP pthread vtkIO GLEW gomp ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
+#add_executable(operatorTesterOMP operatorTester.cu ${CMAKE_SOURCE_DIR}/piston/util/quaternion.cpp)
+#set_target_properties(operatorTesterOMP PROPERTIES COMPILE_FLAGS "-fopenmp -DDATA_DIRECTORY=${DATA_DIR} -DTHRUST_DEVICE_BACKEND=THRUST_DEVICE_BACKEND_OMP")
+#target_link_libraries(operatorTesterOMP pthread vtkIO GLEW gomp ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
 
 
 

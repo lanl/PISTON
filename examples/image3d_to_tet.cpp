@@ -100,4 +100,6 @@ int main()
     thrust::host_vector<float4> vertices(isosurface.vertices_begin(),
                                          isosurface.vertices_end());
     thrust::for_each(vertices.begin(), vertices.end(), print_float4());
+
+    return 0;
 }

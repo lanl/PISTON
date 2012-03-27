@@ -297,7 +297,7 @@ void IsoRender::display()
         glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[2]);
         glNormalPointer(GL_FLOAT, 0, 0);
 
-        glDrawArrays(GL_TRIANGLES, 0, contours[dataSetIndex]->numTotalVertices);
+        glDrawArrays(GL_TRIANGLES, 0, contours[dataSetIndex]->num_total_vertices);
       }
       else
       {
@@ -325,7 +325,7 @@ void IsoRender::display()
         glBindBuffer(GL_ARRAY_BUFFER, planeBuffers[2]);
         glNormalPointer(GL_FLOAT, 0, 0);
 
-        glDrawArrays(GL_TRIANGLES, 0, planeContours[dataSetIndex]->numTotalVertices);
+        glDrawArrays(GL_TRIANGLES, 0, planeContours[dataSetIndex]->num_total_vertices);
       }
       else
       {
@@ -352,7 +352,7 @@ void IsoRender::display()
         glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[2]);
         glNormalPointer(GL_FLOAT, 0, 0);
 
-        glDrawArrays(GL_QUADS, 0, thresholds[dataSetIndex]->numTotalVertices);
+        glDrawArrays(GL_QUADS, 0, thresholds[dataSetIndex]->num_total_vertices);
       }
       else
       {
@@ -795,7 +795,7 @@ void IsoRender::createOperators()
         constantVertices.assign(constantContours[dataSetIndex]->vertices_begin(), constantContours[dataSetIndex]->vertices_end());
 	    constantNormals.assign(constantContours[dataSetIndex]->normals_begin(), constantContours[dataSetIndex]->normals_end());
       }
-      numConstantVertices = constantContours[dataSetIndex]->numTotalVertices;
+      numConstantVertices = constantContours[dataSetIndex]->num_total_vertices;
       if (!useContours) constantContours[dataSetIndex]->freeMemory(false);
       constantContours[dataSetIndex]->discardMinVals = true;
     }

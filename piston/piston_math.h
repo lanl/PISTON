@@ -122,11 +122,68 @@ inline __host__ __device__ float dot(float4 a, float4 b)
 
 inline __host__ __device__ float3 normalize(float3 v)
 {
-    return ((1.0f / dot(v,v)) * v);
+    return ((1.0f / sqrt(dot(v,v))) * v);
 }
 inline __host__ __device__ float4 normalize(float4 v)
 {
-    return ((1.0f / dot(v,v)) * v);
+    return ((1.0f / sqrt(dot(v,v))) * v);
+}
+
+
+inline __host__ __device__ float cosAngle(float3& a_vector0, float3 a_vector1)
+{
+    // compute length of vectors
+    double n0 = sqrt(dot(a_vector0, a_vector0));
+    double n1 = sqrt(dot(a_vector1, a_vector1));
+    double val = n0 * n1;
+
+    // check if lengths of vectors are not zero
+    if (fabs(val) < 0.00001)
+    {
+        return (0);
+    }
+
+    // compute angle
+    return(dot(a_vector0, a_vector1)/(val));
+}
+
+
+inline __host__ __device__ float4 matrixMul(float* r, float4 v)
+{
+    return make_float4(r[0]*v.x + r[1]*v.y + r[2]*v.z + r[3]*v.w, r[4]*v.x + r[5]*v.y + r[6]*v.z +r[7]*v.w, r[8]*v.x + r[9]*v.y + r[10]*v.z + r[11]*v.w, r[12]*v.x + r[13]*v.y + r[14]*v.z + r[15]*v.w);
+}
+
+
+inline __host__ __device__ float3 matrixMul(float* r, float3 v)
+{
+    return make_float3(r[0]*v.x + r[1]*v.y + r[2]*v.z, r[4]*v.x + r[5]*v.y + r[6]*v.z, r[8]*v.x + r[9]*v.y + r[10]*v.z);
+}
+
+
+inline __host__ __device__ float* matrixMul(float* a, float* b)
+{
+    float* c = new float[16];
+    c[0] = a[0]*b[0]+a[1]*b[4]+a[2]*b[8]+a[3]*b[12];
+    c[1] = a[0]*b[1]+a[1]*b[5]+a[2]*b[9]+a[3]*b[13];
+    c[2] = a[0]*b[2]+a[1]*b[6]+a[2]*b[10]+a[3]*b[14];
+    c[3] = a[0]*b[3]+a[1]*b[7]+a[2]*b[11]+a[3]*b[15];
+
+    c[4] = a[4]*b[0]+a[5]*b[4]+a[6]*b[8]+a[7]*b[12];
+    c[5] = a[4]*b[1]+a[5]*b[5]+a[6]*b[9]+a[7]*b[13];
+    c[6] = a[4]*b[2]+a[5]*b[6]+a[6]*b[10]+a[7]*b[14];
+    c[7] = a[4]*b[3]+a[5]*b[7]+a[6]*b[11]+a[7]*b[15];
+
+    c[8] = a[10]*b[8]+a[11]*b[12]+a[8]*b[0]+a[9]*b[4];
+    c[9] = a[10]*b[9]+a[11]*b[13]+a[8]*b[1]+a[9]*b[5];
+    c[10] = a[10]*b[10]+a[11]*b[14]+a[8]*b[2]+a[9]*b[6];
+    c[11] = a[10]*b[11]+a[11]*b[15]+a[8]*b[3]+a[9]*b[7];
+
+    c[12] = a[12]*b[0]+a[13]*b[4]+a[14]*b[8]+a[15]*b[12];
+    c[13] = a[12]*b[1]+a[13]*b[5]+a[14]*b[9]+a[15]*b[13];
+    c[14] = a[12]*b[2]+a[13]*b[6]+a[14]*b[10]+a[15]*b[14];
+    c[15] = a[12]*b[3]+a[13]*b[7]+a[14]*b[11]+a[15]*b[15];
+
+    return c;
 }
 
 #endif
