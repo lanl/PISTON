@@ -1,0 +1,2 @@
+cuda_add_executable(cayley_timing cayley_timing.cu)
+target_link_libraries(cayley_timing pthread)
