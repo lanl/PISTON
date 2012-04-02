@@ -22,10 +22,6 @@ if (BUILD_DEMO)
   add_subdirectory(demos)
 endif ()
 
-<<<<<<< HEAD
 add_subdirectory(samples)
 
 add_subdirectory(benchmark)
-=======
-#add_subdirectory(samples)
->>>>>>> 29cb5d9d1d7240f2f67e3d4239ee24d59075d90d
