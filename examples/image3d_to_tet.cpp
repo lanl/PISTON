@@ -23,6 +23,7 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 */
 
 #include <iostream>
+#include <math.h>
 #include <thrust/host_vector.h>
 #include <thrust/copy.h>
 #include "piston/util/height_field.h"
