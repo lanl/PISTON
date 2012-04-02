@@ -22,6 +22,5 @@ if (BUILD_DEMO)
   add_subdirectory(demos)
 endif ()
 
-add_subdirectory(samples)
-
+#add_subdirectory(samples)
 add_subdirectory(benchmark)
