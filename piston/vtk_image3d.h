@@ -34,32 +34,9 @@ struct vtk_image3d : public piston::image3d<IndexType, ValueType, Space>
 {
     typedef piston::image3d<IndexType, ValueType, Space> Parent;
 
-    struct grid_coordinates_functor : public thrust::unary_function<thrust::tuple<int, int, int>,
-								    thrust::tuple<float, float, float> >
-    {
-	float xmin;
-	float ymin;
-	float zmin;
-	float deltax;
-	float deltay;
-	float deltaz;
-
-	grid_coordinates_functor(float xmin, float ymin, float zmin,
-	                         float deltax, float deltay, float deltaz) :
-	    xmin(xmin), ymin(ymin), deltax(deltax), deltay(deltay) {}
-
-	__host__ __device__
-	thrust::tuple<float, float, float> operator() (thrust::tuple<int, int> grid_coord) const {
-	    const float x = xmin + deltax * thrust::get<0>(grid_coord);
-	    const float y = ymin + deltay * thrust::get<1>(grid_coord);
-	    const float z = zmin + deltaz * thrust::get<2>(grid_coord);
-	    return thrust::make_tuple(x, y, z);
-	}
-    };
-
-    typedef typename thrust::transform_iterator<grid_coordinates_functor,
-	    typename Parent::GridCoordinatesIterator> GridCoordinatesIterator;
-    GridCoordinatesIterator grid_coordinates_iterator;
+//    typedef typename detail::choose_container<typename Parent::CountingIterator, thrust::tuple<IndexType, IndexType, IndexType> >::type GridCoordinatesContainer;
+//    GridCoordinatesContainer grid_coordinates_vector;
+//    typedef typename GridCoordinatesContainer::iterator GridCoordinatesIterator;
 
     typedef typename detail::choose_container<typename Parent::CountingIterator, ValueType>::type PointDataContainer;
     PointDataContainer point_data_vector;
@@ -67,8 +44,7 @@ struct vtk_image3d : public piston::image3d<IndexType, ValueType, Space>
 
     vtk_image3d(vtkImageData *image) :
 	Parent(image->GetDimensions()[0], image->GetDimensions()[1], image->GetDimensions()[2]),
-//	grid_coordinates_iterator(Parent::grid_coordinates_iterator,
-//	                          grid_coordinates_functor(xmin, ymin, (xmax-xmin)/dim0, (ymax-ymin)/dim1)),
+//	grid_coordinates_vector(Parent::grid_coordinates_begin(), Parent::grid_coordinates_end()),
 	point_data_vector((ValueType *) image->GetScalarPointer(),
 	                  (ValueType *) image->GetScalarPointer() + this->NPoints) {}
 
@@ -77,12 +53,12 @@ struct vtk_image3d : public piston::image3d<IndexType, ValueType, Space>
  	// TBD, is there resize in VTK?
      }
 
-     GridCoordinatesIterator grid_coordinates_begin() {
- 	return grid_coordinates_iterator;
-     }
-     GridCoordinatesIterator grid_coordinates_end() {
- 	return grid_coordinates_iterator+this->NPoints;
-     }
+//     GridCoordinatesIterator grid_coordinates_begin() {
+// 	return grid_coordinates_vector.begin();
+//     }
+//     GridCoordinatesIterator grid_coordinates_end() {
+// 	return grid_coordinates_vector.end();
+//     }
 
      PointDataIterator point_data_begin() {
  	return point_data_vector.begin();
