@@ -80,6 +80,7 @@ public:
   void cleanup();
   int read();
   void resetView();
+  void toggleTet(int id);
 
   bool useInterop;
   float3 center_pos;
@@ -105,6 +106,14 @@ public:
   thrust::host_vector<float3>  normals;
   thrust::host_vector<float4>  colors;
   thrust::host_vector<float>  scalars;
+
+  thrust::host_vector<float4>  tetVertices;
+  thrust::host_vector<float3>  tetNormals;
+  thrust::host_vector<float4>  tetColors;
+  bool showTet[6];
+  bool showIso;
+  bool showTets;
+  float3 centerPos;
 
   height_field<int, float, SPACE>* field;
   image3d_to_tetrahedrons<height_field<int, float, SPACE> >* tetra;

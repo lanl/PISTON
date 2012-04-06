@@ -62,7 +62,7 @@ void motion(int x, int y)
     if (mouse_buttons == 1)
     {
       Quaternion newRotX;
-      newRotX.setEulerAngles(-0.2*dx*3.14159/180.0, 0.0, 0.0);
+      newRotX.setEulerAngles(0.0, -0.2*dx*3.14159/180.0, 0.0);
       tetrarender->qrot.mul(newRotX);
 
       Quaternion newRotY;
@@ -82,7 +82,14 @@ void motion(int x, int y)
 
 void keyboard( unsigned char key, int x, int y )
 {
-
+    if (key == '0') tetrarender->toggleTet(0);
+    if (key == '1') tetrarender->toggleTet(1);
+    if (key == '2') tetrarender->toggleTet(2);
+    if (key == '3') tetrarender->toggleTet(3);
+    if (key == '4') tetrarender->toggleTet(4);
+    if (key == '5') tetrarender->toggleTet(5);
+    if (key == 't') tetrarender->showTets = !tetrarender->showTets;
+    if (key == 'i') tetrarender->showIso = !tetrarender->showIso;
 }
 
 

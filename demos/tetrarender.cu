@@ -101,12 +101,14 @@ void TetraRender::display()
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    gluLookAt(0, 0, 10, 0, 0, 0, 0, 1, 0);
+    gluLookAt(centerPos.x, -10, centerPos.z, centerPos.x, centerPos.y, centerPos.z, 0, 0, 1);
     glPushMatrix();
 
     qrot.getRotMat(rotationMatrix);
-    glMultMatrixf(rotationMatrix);
+    float3 offset = matrixMul(rotationMatrix, centerPos);
 
+    glMultMatrixf(rotationMatrix);
+    glTranslatef(offset.x-centerPos.x, offset.y-centerPos.y, offset.z-centerPos.z);
 
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_COLOR_ARRAY);
@@ -125,15 +127,36 @@ void TetraRender::display()
     }
     else
     {
-      glNormalPointer(GL_FLOAT, 0, &normals[0]);
-      glColorPointer(4, GL_FLOAT, 0, &colors[0]);
-      glVertexPointer(4, GL_FLOAT, 0, &vertices[0]);
-      glDrawArrays(GL_TRIANGLES, 0, vertices.size());
+      if (showIso)
+      {
+        glNormalPointer(GL_FLOAT, 0, &normals[0]);
+        glColorPointer(4, GL_FLOAT, 0, &colors[0]);
+        glVertexPointer(4, GL_FLOAT, 0, &vertices[0]);
+        glDrawArrays(GL_TRIANGLES, 0, vertices.size());
+      }
     }
 
     glDisableClientState(GL_VERTEX_ARRAY);
     glDisableClientState(GL_COLOR_ARRAY);
     glDisableClientState(GL_NORMAL_ARRAY);
+
+    if ((!useInterop) && (showTets))
+    {
+      glBegin(GL_TRIANGLES);
+      for (unsigned int i=0; i<6; i++)
+      {
+	if (showTet[i])
+	{
+	  for (unsigned int j=0; j<12; j++)
+	  {
+	    glNormal3f(tetNormals[12*i+j].x, tetNormals[12*i+j].y, tetNormals[12*i+j].z);
+	    glColor4f(tetColors[12*i+j].x, tetColors[12*i+j].y, tetColors[12*i+j].z, 1.0f);
+	    glVertex3f(tetVertices[12*i+j].x, tetVertices[12*i+j].y, tetVertices[12*i+j].z);
+	  }
+	}
+      }
+      glEnd();
+    }
 
     glPopMatrix();
 }
@@ -219,6 +242,12 @@ void TetraRender::initGL(bool aAllowInterop)
 }
 
 
+void TetraRender::toggleTet(int id)
+{
+    showTet[id] = !showTet[id];
+}
+
+
 int TetraRender::read()
 {
     field = new height_field<int, float, SPACE>(2,2,2);
@@ -232,11 +261,58 @@ int TetraRender::read()
     std::cout << std::endl;
 
     thrust::host_vector<thrust::tuple<int, int, int> > coordinates(tetra->grid_coordinates_begin(), tetra->grid_coordinates_end());
-    for (unsigned int i=0; i<coordinates.size(); i++) std::cout << thrust::get<0>(coordinates[i]) << " " << thrust::get<1>(coordinates[i]) << " " << thrust::get<2>(coordinates[i]) << " " << std::endl;
+    for (unsigned int i=0; i<coordinates.size(); i++)
+	std::cout << thrust::get<0>(coordinates[i]) << " " << thrust::get<1>(coordinates[i]) << " " << thrust::get<2>(coordinates[i]) << " " << std::endl;
+
+    for (unsigned int j=0; j<6; j++)
+    {
+      float4 curColor;
+      if (j == 0) curColor = make_float4(1,0,0,1);
+      if (j == 1) curColor = make_float4(0,1,0,1);
+      if (j == 2) curColor = make_float4(0,0,1,1);
+      if (j == 3) curColor = make_float4(1,1,0,1);
+      if (j == 4) curColor = make_float4(0,1,1,1);
+      if (j == 5) curColor = make_float4(1,0,1,1);
+
+      float3 v0 = make_float3(thrust::get<0>(coordinates[4*j+0]), thrust::get<1>(coordinates[4*j+0]), thrust::get<2>(coordinates[4*j+0]));
+      float3 v1 = make_float3(thrust::get<0>(coordinates[4*j+1]), thrust::get<1>(coordinates[4*j+1]), thrust::get<2>(coordinates[4*j+1]));
+      float3 v2 = make_float3(thrust::get<0>(coordinates[4*j+2]), thrust::get<1>(coordinates[4*j+2]), thrust::get<2>(coordinates[4*j+2]));
+      float3 v3 = make_float3(thrust::get<0>(coordinates[4*j+3]), thrust::get<1>(coordinates[4*j+3]), thrust::get<2>(coordinates[4*j+3]));
+
+      for (unsigned int i=0; i<12; i++) tetColors.push_back(curColor);
+
+      tetVertices.push_back(make_float4(v0.x, v0.y, v0.z, 1.0f));
+      tetVertices.push_back(make_float4(v1.x, v1.y, v1.z, 1.0f));
+      tetVertices.push_back(make_float4(v2.x, v2.y, v2.z, 1.0f));
+      float3 n0 = cross(v2-v1, v0-v1);
+      for (unsigned int i=0; i<3; i++) tetNormals.push_back(n0);
+
+      tetVertices.push_back(make_float4(v2.x, v2.y, v2.z, 1.0f));
+      tetVertices.push_back(make_float4(v1.x, v1.y, v1.z, 1.0f));
+      tetVertices.push_back(make_float4(v3.x, v3.y, v3.z, 1.0f));
+      float3 n1 = cross(v3-v1, v2-v1);
+      for (unsigned int i=0; i<3; i++) tetNormals.push_back(n1);
+
+      tetVertices.push_back(make_float4(v3.x, v3.y, v3.z, 1.0f));
+      tetVertices.push_back(make_float4(v1.x, v1.y, v1.z, 1.0f));
+      tetVertices.push_back(make_float4(v0.x, v0.y, v0.z, 1.0f));
+      float3 n2 = cross(v0-v1, v3-v1);
+      for (unsigned int i=0; i<3; i++) tetNormals.push_back(n2);
+
+      tetVertices.push_back(make_float4(v0.x, v0.y, v0.z, 1.0f));
+      tetVertices.push_back(make_float4(v2.x, v2.y, v2.z, 1.0f));
+      tetVertices.push_back(make_float4(v3.x, v3.y, v3.z, 1.0f));
+      float3 n3 = cross(v3-v2, v0-v2);
+      for (unsigned int i=0; i<3; i++) tetNormals.push_back(n3);
+
+      showTet[j] = true;
+    }
+    showIso = true;
+    showTets = false;
+    centerPos = make_float3(0.5, 0.5, 0.5);
 
     isosurface = new marching_tetrahedron<image3d_to_tetrahedrons<height_field<int, float, SPACE> >,
     			                  image3d_to_tetrahedrons<height_field<int, float, SPACE> > >(*tetra, *tetra, 0.5f);
-
     isosurface->useInterop = useInterop;
     zoomLevelBase = cameraFOV = 40.0; cameraZ = 2.0; zoomLevelPct = zoomLevelPctDefault = 0.5;
     center_pos = make_float3(0, 0, 0);

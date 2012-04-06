@@ -73,11 +73,11 @@ public:
 	    const int vertices_for_tetra [24] =
 	    {
 		0, 1, 5, 6,
-		0, 1, 2, 6,
+		0, 2, 1, 6,
 		0, 3, 2, 6,
-		0, 3, 7, 6,
+		0, 7, 3, 6,
 		0, 4, 7, 6,
-		0, 4, 5, 6,
+		0, 5, 4, 6,
 	    };
 	    const int cubeid = pointid/24;
 	    return i[vertices_for_tetra[pointid%24]] + cubeid;
