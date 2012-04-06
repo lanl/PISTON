@@ -85,6 +85,9 @@ target_link_libraries(contourPAR vtkRendering vtkFiltering vtkIO vtkCommon vtkGr
 if (USE_CUDA)
   cuda_add_executable(glyphGPU glyph.cu glyphrender.cu ${CMAKE_SOURCE_DIR}/piston/util/quaternion.cpp OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}" "-DBUFFER_SIZE=${INIT_BUFFER_SIZE}" ${GPU_FLAGS})
   target_link_libraries(glyphGPU pthread vtkIO vtkRendering vtkFiltering vtkCommon vtkGraphics GLEW ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
+  
+  cuda_add_executable(tetraGPU tetra.cu tetrarender.cu ${CMAKE_SOURCE_DIR}/piston/util/quaternion.cpp OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}" "-DBUFFER_SIZE=${INIT_BUFFER_SIZE}" ${GPU_FLAGS})
+  target_link_libraries(tetraGPU pthread vtkIO vtkRendering vtkFiltering vtkCommon vtkGraphics GLEW ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
 endif ()
 
 if (USE_CUDA)

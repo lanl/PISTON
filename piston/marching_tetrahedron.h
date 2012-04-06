@@ -74,6 +74,7 @@ public:
     InputDataSet2 &source;		// scalar field for generating interpolated scalar values
 
     value_type isovalue;
+    bool useInterop;
 
     TableContainer	triTable;	// a copy of triangle edge indices table in host|device_vector
     TableContainer	numVertsTable;	// a copy of number of vertices per cell table in host|device_vector
@@ -86,15 +87,32 @@ public:
 
     IndicesContainer 	output_vertices_enum;	// enumeration of output vertices, only valid ones
 
+#ifdef USE_INTEROP
+    value_type minIso, maxIso;
+    bool colorFlip;
+    float4 *vertexBufferData;
+    float3 *normalBufferData;
+    float4 *colorBufferData;
+    int vboSize;
+    GLuint vboBuffers[3];
+    struct cudaGraphicsResource* vboResources[3]; // vertex buffers for interop
+#endif
+
     VerticesContainer	vertices; 	// output vertices, only valid ones
     NormalsContainer	normals;	// surface normal computed by cross product of triangle edges
     ScalarContainer	scalars;	// interpolated scalar output
+
+    unsigned int num_total_vertices;
 
     marching_tetrahedron(InputDataSet1 &input,  InputDataSet2 &source,
                          value_type isovalue = value_type()) :
 	input(input), source(source), isovalue(isovalue),
 	triTable((int*) triTable_array, (int*) triTable_array+16*7),
-	numVertsTable((int *) numVerticesTable_array, (int *) numVerticesTable_array+16) {}
+	numVertsTable((int *) numVerticesTable_array, (int *) numVerticesTable_array+16)
+#ifdef USE_INTEROP
+    , colorFlip(false), vboSize(0), useInterop(false)
+#endif
+      {}
 
     void operator()()
     {
@@ -142,27 +160,90 @@ public:
 	                       output_vertices_enum.begin());
 
 	// get the total number of vertices,
-	unsigned int num_total_vertices = num_vertices[valid_cell_indices.back()] + output_vertices_enum.back();
+	num_total_vertices = num_vertices[valid_cell_indices.back()] + output_vertices_enum.back();
+
+	if (useInterop)
+	{
+#if USE_INTEROP
+	    if (num_total_vertices > vboSize)
+	    {
+              glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[0]);
+              glBufferData(GL_ARRAY_BUFFER, num_total_vertices*sizeof(float4), 0, GL_DYNAMIC_DRAW);
+              if (glGetError() == GL_OUT_OF_MEMORY) { std::cout << "Out of VBO memory" << std::endl; exit(-1); }
+              glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[1]);
+              glBufferData(GL_ARRAY_BUFFER, num_total_vertices*sizeof(float4), 0, GL_DYNAMIC_DRAW);
+              if (glGetError() == GL_OUT_OF_MEMORY) { std::cout << "Out of VBO memory" << std::endl; exit(-1); }
+              glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[2]);
+              glBufferData(GL_ARRAY_BUFFER, num_total_vertices*sizeof(float3), 0, GL_DYNAMIC_DRAW);
+              if (glGetError() == GL_OUT_OF_MEMORY) { std::cout << "Out of VBO memory" << std::endl; exit(-1); }
+              glBindBuffer(GL_ARRAY_BUFFER, 0);
+              vboSize = num_total_vertices;
+	    }
+	    size_t num_bytes;
+	    cudaGraphicsMapResources(1, &vboResources[0], 0);
+	    cudaGraphicsResourceGetMappedPointer((void **) &vertexBufferData,
+						 &num_bytes, vboResources[0]);
+
+	    if (vboResources[1]) {
+		cudaGraphicsMapResources(1, &vboResources[1], 0);
+		cudaGraphicsResourceGetMappedPointer((void **) &colorBufferData,
+						     &num_bytes, vboResources[1]);
+	    }
+
+	    cudaGraphicsMapResources(1, &vboResources[2], 0);
+	    cudaGraphicsResourceGetMappedPointer((void **) &normalBufferData,
+						 &num_bytes, vboResources[2]);
+#endif
+	} else
+	{
+	    vertices.resize(num_total_vertices);
+	    normals.resize(num_total_vertices);
+	}
 
 	// resize vectors according to the total number of vertices generated.
-	vertices.resize(num_total_vertices);
-	normals.resize(num_total_vertices);
+	//vertices.resize(num_total_vertices);
+	//normals.resize(num_total_vertices);
 	scalars.resize(num_total_vertices);
 
 	// do edge interpolation for each valid cell
-	thrust::for_each(thrust::make_zip_iterator(thrust::make_tuple(valid_cell_indices.begin(), output_vertices_enum.begin(),
-	                                                              thrust::make_permutation_iterator(case_index.begin(),   valid_cell_indices.begin()),
-	                                                              thrust::make_permutation_iterator(num_vertices.begin(), valid_cell_indices.begin()))),
-	                 thrust::make_zip_iterator(thrust::make_tuple(valid_cell_indices.end(),   output_vertices_enum.end(),
-	                                                              thrust::make_permutation_iterator(case_index.begin(),   valid_cell_indices.begin()) + num_valid_cells,
-	                                                              thrust::make_permutation_iterator(num_vertices.begin(), valid_cell_indices.begin()) + num_valid_cells)),
-	                 isosurface_functor(input,
-	                                    source,
-	                                    isovalue,
-	                                    triTable.begin(),
-	                                    thrust::raw_pointer_cast(&*vertices.begin()),
-	                                    thrust::raw_pointer_cast(&*normals.begin()),
-	                                    thrust::raw_pointer_cast(&*scalars.begin())));
+	if (useInterop)
+	{
+#if USE_INTEROP
+	    thrust::for_each(thrust::make_zip_iterator(thrust::make_tuple(valid_cell_indices.begin(), output_vertices_enum.begin(),
+	                                                                  thrust::make_permutation_iterator(case_index.begin(), valid_cell_indices.begin()),
+	                                                                  thrust::make_permutation_iterator(num_vertices.begin(), valid_cell_indices.begin()))),
+	                     thrust::make_zip_iterator(thrust::make_tuple(valid_cell_indices.end(), output_vertices_enum.end(),
+	                                                                  thrust::make_permutation_iterator(case_index.begin(), valid_cell_indices.begin()) + num_valid_cells,
+	                                                                  thrust::make_permutation_iterator(num_vertices.begin(), valid_cell_indices.begin()) + num_valid_cells)),
+	                     isosurface_functor(input, source, isovalue,
+	                                        triTable.begin(),
+	                                        vertexBufferData,
+	                                        normalBufferData,
+	                                        thrust::raw_pointer_cast(&*scalars.begin())));
+	    if (vboResources[1])
+		thrust::transform(scalars.begin(), scalars.end(),
+		                  thrust::device_ptr<float4>(colorBufferData),
+		                  color_map<float>(minIso, maxIso, colorFlip));
+	    for (int i = 0; i < 3; i++)
+		cudaGraphicsUnmapResources(1, &vboResources[i], 0);
+#endif
+	}
+	else
+	{
+	    thrust::for_each(thrust::make_zip_iterator(thrust::make_tuple(valid_cell_indices.begin(), output_vertices_enum.begin(),
+	                                                                  thrust::make_permutation_iterator(case_index.begin(),   valid_cell_indices.begin()),
+	                                                                  thrust::make_permutation_iterator(num_vertices.begin(), valid_cell_indices.begin()))),
+	                     thrust::make_zip_iterator(thrust::make_tuple(valid_cell_indices.end(),   output_vertices_enum.end(),
+	                                                                  thrust::make_permutation_iterator(case_index.begin(),   valid_cell_indices.begin()) + num_valid_cells,
+	                                                                  thrust::make_permutation_iterator(num_vertices.begin(), valid_cell_indices.begin()) + num_valid_cells)),
+	                     isosurface_functor(input,
+	                                        source,
+	                                        isovalue,
+	                                        triTable.begin(),
+	                                        thrust::raw_pointer_cast(&*vertices.begin()),
+	                                        thrust::raw_pointer_cast(&*normals.begin()),
+	                                        thrust::raw_pointer_cast(&*scalars.begin())));
+	}
     }
 
     struct classify_cell : public thrust::unary_function<int, thrust::tuple<int, int> >
