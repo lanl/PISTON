@@ -26,6 +26,10 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #define VTK_IMAGE3D_H_
 
 #include <vtkImageData.h>
+#include <vtkPointData.h>
+#include <vtkFloatArray.h>
+#include <piston/image3d.h>
+#include <piston/choose_container.h>
 
 namespace piston {
 
@@ -34,9 +38,39 @@ struct vtk_image3d : public piston::image3d<IndexType, ValueType, Space>
 {
     typedef piston::image3d<IndexType, ValueType, Space> Parent;
 
-//    typedef typename detail::choose_container<typename Parent::CountingIterator, thrust::tuple<IndexType, IndexType, IndexType> >::type GridCoordinatesContainer;
-//    GridCoordinatesContainer grid_coordinates_vector;
-//    typedef typename GridCoordinatesContainer::iterator GridCoordinatesIterator;
+    // transform pointid <- [0..NPoints] to grid coordinates of
+    // (i <- [0..xdim-1], j <- [0..ydim-1], k <- [0..zdim-1])
+    struct grid_coordinates_functor : public thrust::unary_function<IndexType, thrust::tuple<float, float, float> >
+    {
+        float xmin, ymin, zmin;
+        float deltax, deltay, deltaz;
+
+        grid_coordinates_functor(float xmin   = 0.0f, float ymin   = 0.0f, float zmin   = 0.0f,
+                                 float deltax = 1.0f, float deltay = 1.0f, float deltaz = 1.0f) :
+            xmin(xmin), ymin(ymin), zmin(zmin),
+            deltax(deltax), deltay(deltay), deltaz(deltaz)
+        {
+//          std::cerr
+//            << "GCF: "
+//            << xmin << ", " << ymin << ", " << zmin << " "
+//            << deltax << ", " << deltay << ", " << deltaz << std::endl;
+        }
+
+        __host__ __device__
+        thrust::tuple<float, float, float> operator()(thrust::tuple<float, float, float> grid_coord) const {
+            const float x = xmin + deltax * thrust::get<0>(grid_coord);
+            const float y = ymin + deltay * thrust::get<1>(grid_coord);
+            const float z = zmin + deltaz * thrust::get<2>(grid_coord);
+
+            return thrust::make_tuple(x, y, z);
+        }
+    };
+
+    typedef typename thrust::tuple<float, float, float> GridCoordinatesType;
+
+    typedef typename thrust::transform_iterator<grid_coordinates_functor,
+	    typename Parent::GridCoordinatesIterator> GridCoordinatesIterator;
+    GridCoordinatesIterator grid_coordinates_iterator;
 
     typedef typename detail::choose_container<typename Parent::CountingIterator, ValueType>::type PointDataContainer;
     PointDataContainer point_data_vector;
@@ -44,28 +78,81 @@ struct vtk_image3d : public piston::image3d<IndexType, ValueType, Space>
 
     vtk_image3d(vtkImageData *image) :
 	Parent(image->GetDimensions()[0], image->GetDimensions()[1], image->GetDimensions()[2]),
-//	grid_coordinates_vector(Parent::grid_coordinates_begin(), Parent::grid_coordinates_end()),
+	grid_coordinates_iterator(Parent::grid_coordinates_iterator,
+	                          grid_coordinates_functor(
+	                        			   image->GetOrigin()[0]+((float)image->GetExtent()[0]*image->GetSpacing()[0]),
+	                        			   image->GetOrigin()[1]+((float)image->GetExtent()[2]*image->GetSpacing()[1]),
+	                        		           image->GetOrigin()[2]+((float)image->GetExtent()[4]*image->GetSpacing()[2]),
+	                        		           image->GetSpacing()[0],
+	                        		           image->GetSpacing()[1],
+	                        		           image->GetSpacing()[2])),
 	point_data_vector((ValueType *) image->GetScalarPointer(),
-	                  (ValueType *) image->GetScalarPointer() + this->NPoints) {}
+	                  (ValueType *) image->GetScalarPointer() + this->NPoints)
+    {
+//	std::cout << "Origin: ";
+//	for (int i = 0; i < 3; i++) {
+//	    std::cout << image->GetOrigin()[i] << ", ";
+//	}
+//	std::cout << std::endl;
+//	std::cout << "Extent: ";
+//	for (int i = 0; i < 6; i++) {
+//	    std::cout << image->GetExtent()[i] << ", ";
+//	}
+//	std::cout << std::endl;
+//	std::cout << "Spacing: ";
+//	for (int i = 0; i < 3; i++) {
+//	    std::cout << image->GetSpacing()[i] << ", ";
+//	}
+//	std::cout << std::endl;
+    }
+#if 0
+	point_data_vector((ValueType *) image->GetPointData()->GetArray("Elevation")->GetVoidPointer(0),
+	                  (ValueType *) image->GetPointData()->GetArray("Elevation")->GetVoidPointer(0) + this->NPoints) {
+	}
+#endif
+
+#if 0
+    vtk_image3d(int xdim, int ydim, int zdim,
+                float xmin = 0.0f, float ymin = 0.0f, float zmin = 0.0f,
+                float deltax = 1.0f, float deltay = 1.0f, float deltaz = 1.0f) :
+        Parent(xdim, ydim, zdim),
+	grid_coordinates_iterator(Parent::grid_coordinates_iterator,
+	                          grid_coordinates_functor(xmin, ymin, zmin, deltax, deltay, deltaz)),
+	point_data_vector(this->NPoints) {}
+#endif
+
+#if 1
+
+    // TODO: COPY Constructor??, Constructor from another image/vector?
+    vtk_image3d(int dims[3], thrust::device_vector<ValueType> v) :
+        Parent(dims[0], dims[1], dims[2]),
+//        grid_coordinates_vector(Parent::grid_coordinates_begin(), Parent::grid_coordinates_end()),
+        grid_coordinates_iterator(Parent::grid_coordinates_iterator,
+        	                          grid_coordinates_functor(0,0,0, 1,1,1)),
+        point_data_vector(v.begin(), v.end()) {
+	std::cout << "copy constructor" << std::endl;
+    }
+#endif
 
     void resize(int xdim, int ydim, int zdim) {
  	Parent::resize(xdim, ydim, zdim);
  	// TBD, is there resize in VTK?
      }
 
-//     GridCoordinatesIterator grid_coordinates_begin() {
-// 	return grid_coordinates_vector.begin();
-//     }
-//     GridCoordinatesIterator grid_coordinates_end() {
-// 	return grid_coordinates_vector.end();
-//     }
 
-     PointDataIterator point_data_begin() {
- 	return point_data_vector.begin();
-     }
-     PointDataIterator point_data_end() {
- 	return point_data_vector.end();
-     }
+    GridCoordinatesIterator grid_coordinates_begin() {
+	return grid_coordinates_iterator;
+    }
+    GridCoordinatesIterator grid_coordinates_end() {
+	return grid_coordinates_iterator+this->NPoints;
+    }
+
+    PointDataIterator point_data_begin() {
+	return point_data_vector.begin();
+    }
+    PointDataIterator point_data_end() {
+	return point_data_vector.end();
+    }
 };
 
 }

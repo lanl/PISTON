@@ -342,6 +342,8 @@ public:
 	const float		isovalue;
 	TableIterator		triangle_table;
 
+	typedef typename InputGridCoordinatesIterator::value_type	grid_tuple_type;
+
 	float4 *vertices_output;
 	float3 *normals_output;
 	float  *scalars_output;
@@ -376,12 +378,22 @@ public:
 	float scalar_interp(float s0, float s1, float t) const {
 	    return lerp(s0, s1, t);
 	}
+
+	// FixME: the type of the grid coordinates may not be 3-tuple of ints
+	template <typename Tuple>
 	__host__ __device__
-	float3 tuple2float3(thrust::tuple<int, int, int> xyz) {
-	    return make_float3((float) thrust::get<0>(xyz),
-	                       (float) thrust::get<1>(xyz),
-	                       (float) thrust::get<2>(xyz));
+	float3 tuple2float3(Tuple xyz) {
+	    return make_float3((float) thrust::get<0>(grid_tuple_type(xyz)),
+	                       (float) thrust::get<1>(grid_tuple_type(xyz)),
+	                       (float) thrust::get<2>(grid_tuple_type(xyz)));
 	}
+
+//	__host__ __device__
+//	float3 tuple2float3(Tuple xyz) {
+//	    return make_float3((float) thrust::get<0>(grid_tuple_type(xyz)),
+//	                       (float) thrust::get<1>(grid_tuple_type(xyz)),
+//	                       (float) thrust::get<2>(grid_tuple_type(xyz)));
+//	}
 
 	__host__ __device__
 	void operator()(thrust::tuple<int, int, int, int> indices_tuple) {
