@@ -63,7 +63,6 @@ public:
 	}
     };
 
-    typedef typename thrust::tuple<IndexType, IndexType, IndexType> GridCoordinatesType;
     typedef typename thrust::counting_iterator<IndexType, MemorySpace> CountingIterator;
     typedef typename thrust::transform_iterator<grid_coordinates_functor, CountingIterator> GridCoordinatesIterator;
 
