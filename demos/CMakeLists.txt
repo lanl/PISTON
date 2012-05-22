@@ -14,6 +14,10 @@ include_directories(${GLUT_INCLUDE_DIR})
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${CMAKE_SOURCE_DIR}/demos)
 
+if(VTK_USE_MPI)
+  include_directories(${VTK_MPI_INCLUDE_DIR})
+endif()
+
 set (DATA_DIR "" CACHE PATH "Data directory")
 set (INIT_BUFFER_SIZE 10000 CACHE INT "Initial VBO Size")
 
