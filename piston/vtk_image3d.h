@@ -36,6 +36,9 @@ namespace piston {
 template <typename IndexType, typename ValueType, typename Space>
 struct vtk_image3d : public piston::image3d<IndexType, ValueType, Space>
 {
+    double origin[3];
+    double spacing[3];
+    int extents[6];
     typedef piston::image3d<IndexType, ValueType, Space> Parent;
 
     // transform pointid <- [0..NPoints] to grid coordinates of
@@ -89,21 +92,9 @@ struct vtk_image3d : public piston::image3d<IndexType, ValueType, Space>
 	point_data_vector((ValueType *) image->GetScalarPointer(),
 	                  (ValueType *) image->GetScalarPointer() + this->NPoints)
     {
-//	std::cout << "Origin: ";
-//	for (int i = 0; i < 3; i++) {
-//	    std::cout << image->GetOrigin()[i] << ", ";
-//	}
-//	std::cout << std::endl;
-//	std::cout << "Extent: ";
-//	for (int i = 0; i < 6; i++) {
-//	    std::cout << image->GetExtent()[i] << ", ";
-//	}
-//	std::cout << std::endl;
-//	std::cout << "Spacing: ";
-//	for (int i = 0; i < 3; i++) {
-//	    std::cout << image->GetSpacing()[i] << ", ";
-//	}
-//	std::cout << std::endl;
+      image->GetOrigin(this->origin);
+      image->GetSpacing(this->spacing);
+      image->GetExtent(this->extents);
     }
 #if 0
 	point_data_vector((ValueType *) image->GetPointData()->GetArray("Elevation")->GetVoidPointer(0),
@@ -126,19 +117,48 @@ struct vtk_image3d : public piston::image3d<IndexType, ValueType, Space>
     // TODO: COPY Constructor??, Constructor from another image/vector?
     vtk_image3d(int dims[3], thrust::device_vector<ValueType> v) :
         Parent(dims[0], dims[1], dims[2]),
-//        grid_coordinates_vector(Parent::grid_coordinates_begin(), Parent::grid_coordinates_end()),
-        grid_coordinates_iterator(Parent::grid_coordinates_iterator,
-        	                          grid_coordinates_functor(0,0,0, 1,1,1)),
-        point_data_vector(v.begin(), v.end()) {
-	std::cout << "copy constructor" << std::endl;
+        point_data_vector(v.begin(), v.end())
+    {
+
+      // Initialize to default values
+      origin[0] = origin[1] = origin[2] = 0.0;
+      spacing[0] = spacing[1] = spacing[2] = 0.0;
+      extents[0] = extents[1] = extents[2] = extents[3] =
+        extents[4] = extents[5] = 0.0;
+
+      grid_coordinates_iterator(Parent::grid_coordinates_iterator,
+        grid_coordinates_functor(
+          origin[0],
+          origin[1],
+          origin[2],
+          spacing[0],
+          spacing[1],
+          spacing[2]
+          ));
     }
+
+    // TODO: COPY Constructor??, Constructor from another image/vector?
+    vtk_image3d(int dims[3], double origin[3], double spacing[3], int extents[6],
+                thrust::device_vector<ValueType> v) :
+      Parent(dims[0], dims[1], dims[2]),
+      grid_coordinates_iterator(Parent::grid_coordinates_iterator,
+        grid_coordinates_functor(
+          origin[0]+((float)extents[0]*spacing[0]),
+          origin[1]+((float)extents[2]*spacing[1]),
+          origin[2]+((float)extents[4]*spacing[2]),
+          spacing[0],
+          spacing[1],
+          spacing[2])),
+        point_data_vector(v.begin(), v.end())
+    {
+    }
+
 #endif
 
     void resize(int xdim, int ydim, int zdim) {
- 	Parent::resize(xdim, ydim, zdim);
- 	// TBD, is there resize in VTK?
-     }
-
+      Parent::resize(xdim, ydim, zdim);
+      // TBD, is there resize in VTK?
+    }
 
     GridCoordinatesIterator grid_coordinates_begin() {
 	return grid_coordinates_iterator;
