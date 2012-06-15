@@ -34,19 +34,19 @@ template <typename IndexType, typename ValueType>
 struct plane_functor : public piston::implicit_function3d<IndexType, ValueType>
 {
     typedef piston::implicit_function3d<IndexType, ValueType> Parent;
-    typedef typename Parent::InputType InputType;
+    typedef thrust::tuple<ValueType, ValueType, ValueType> InputType;
 
     const float3 origin;
     const float3 normal;
 
     plane_functor(float3 origin, float3 normal) :
-	origin(origin), normal(normal) {}
+  origin(origin), normal(normal) {}
 
     __host__ __device__
     ValueType operator()(InputType pos) const {
-	const IndexType x = thrust::get<0>(pos);
-	const IndexType y = thrust::get<1>(pos);
-	const IndexType z = thrust::get<2>(pos);
+  const ValueType x = thrust::get<0>(pos);
+  const ValueType y = thrust::get<1>(pos);
+  const ValueType z = thrust::get<2>(pos);
 
         return dot(make_float3(x, y, z) - origin, normal);
     }
