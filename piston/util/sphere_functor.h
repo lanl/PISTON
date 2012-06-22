@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2011, Los Alamos National Security, LLC
+XCopyright (c) 2011, Los Alamos National Security, LLC
 All rights reserved.
 Copyright 2011. Los Alamos National Security, LLC. This software was produced under U.S. Government contract DE-AC52-06NA25396 for Los Alamos National Laboratory (LANL),
 which is operated by Los Alamos National Security, LLC for the U.S. Department of Energy. The U.S. Government has rights to use, reproduce, and distribute this software.
@@ -30,27 +30,26 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 namespace piston
 {
 
-template <typename IndexType, typename ValueType>
-struct sphere_functor : public piston::implicit_function3d<IndexType, ValueType>
+template <typename InputType, typename OutputType>
+struct sphere_functor : public piston::implicit_function3d<InputType, OutputType>
 {
-    typedef piston::implicit_function3d<IndexType, ValueType> Parent;
-    typedef typename Parent::InputType InputType;
+    typedef piston::implicit_function3d<InputType, OutputType> Parent;
 
-    const IndexType x_o;
-    const IndexType y_o;
-    const IndexType z_o;
+    const float x_o;
+    const float y_o;
+    const float z_o;
 
-    sphere_functor(IndexType x, IndexType y, IndexType z) :
+    sphere_functor(float x, float y, float z) :
 	x_o(x), y_o(y), z_o(z) {}
 
     __host__ __device__
-    ValueType operator()(InputType pos) const {
-	const IndexType x = thrust::get<0>(pos);
-	const IndexType y = thrust::get<1>(pos);
-	const IndexType z = thrust::get<2>(pos);
-	const IndexType xx = x - x_o;
-	const IndexType yy = y - y_o;
-	const IndexType zz = z - z_o;
+    OutputType operator()(InputType pos) const {
+	const float x = thrust::get<0>(pos);
+	const float y = thrust::get<1>(pos);
+	const float z = thrust::get<2>(pos);
+	const float xx = x - x_o;
+	const float yy = y - y_o;
+	const float zz = z - z_o;
 	return (xx*xx + yy*yy + zz*zz);
     }
 };

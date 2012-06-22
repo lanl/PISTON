@@ -32,43 +32,34 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 namespace piston {
 
 // TODO: turn this into a factory with different level of caching
-template <typename IndexType, typename ValueType, typename Space>
-struct sphere_field : public piston::image3d<IndexType, ValueType, Space>
+template <typename Space>
+struct sphere_field : public piston::image3d<Space>
 {
-    typedef piston::image3d<IndexType, ValueType, Space> Parent;
+    typedef piston::image3d<Space> Parent;
 
-    typedef typename detail::choose_container<typename Parent::CountingIterator, thrust::tuple<IndexType, IndexType, IndexType> >::type GridCoordinatesContainer;
-    GridCoordinatesContainer grid_coordinates_vector;
-    typedef typename GridCoordinatesContainer::iterator GridCoordinatesIterator;
+    //TODO: move this to parent class?
+    typedef typename thrust::iterator_traits<typename Parent::GridCoordinatesIterator>::value_type
+	    GridCoordinatesType;
 
-    typedef typename detail::choose_container<typename Parent::CountingIterator, ValueType>::type PointDataContainer;
+    typedef typename detail::choose_container<typename Parent::CountingIterator, float>::type PointDataContainer;
     PointDataContainer point_data_vector;
     typedef typename PointDataContainer::iterator PointDataIterator;
 
     sphere_field(int xdim, int ydim, int zdim) :
 	Parent(xdim, ydim, zdim),
-	grid_coordinates_vector(Parent::grid_coordinates_begin(), Parent::grid_coordinates_end()),
-	point_data_vector(thrust::make_transform_iterator(grid_coordinates_vector.begin(), sphere_functor<IndexType, ValueType>(xdim/2, ydim/2, zdim/2)),
-	                  thrust::make_transform_iterator(grid_coordinates_vector.end(),   sphere_functor<IndexType, ValueType>(xdim/2, ydim/2, zdim/2)))
+//	grid_coordinates_vector(Parent::grid_coordinates_begin(), Parent::grid_coordinates_end()),
+	point_data_vector(thrust::make_transform_iterator(this->grid_coordinates_begin(), sphere_functor<GridCoordinatesType, float>(xdim/2, ydim/2, zdim/2)),
+	                  thrust::make_transform_iterator(this->grid_coordinates_end(),   sphere_functor<GridCoordinatesType, float>(xdim/2, ydim/2, zdim/2)))
 	                  {}
 
-    void resize(int xdim, int ydim, int zdim) {
-	Parent::resize(xdim, ydim, zdim);
 
-	grid_coordinates_vector.resize(this->NPoints);
-	grid_coordinates_vector.assign(Parent::grid_coordinates_begin(), Parent::grid_coordinates_end());
-
-	point_data_vector.resize(this->NPoints);
-	point_data_vector.assign(thrust::make_transform_iterator(grid_coordinates_vector.begin(), sphere_functor<IndexType, ValueType>(xdim/2, ydim/2, zdim/2)),
-	                         thrust::make_transform_iterator(grid_coordinates_vector.end(),   sphere_functor<IndexType, ValueType>(xdim/2, ydim/2, zdim/2)));
-    }
-
-    GridCoordinatesIterator grid_coordinates_begin() {
-	return grid_coordinates_vector.begin();
-    }
-    GridCoordinatesIterator grid_coordinates_end() {
-	return grid_coordinates_vector.end();
-    }
+    // FixME: const correctness, should we change it to cbegin()/cend()?
+//    GridCoordinatesIterator grid_coordinates_begin() {
+//	return grid_coordinates_vector.begin();
+//    }
+//    GridCoordinatesIterator grid_coordinates_end() {
+//	return grid_coordinates_vector.end();
+//    }
 
     PointDataIterator point_data_begin() {
 	return point_data_vector.begin();

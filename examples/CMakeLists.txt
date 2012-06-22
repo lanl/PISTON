@@ -6,6 +6,9 @@ set(QT_USE_QTOPENGL TRUE)
 include(${QT_USE_FILE})
 add_definitions(${QT_DEFINITIONS})
 
+find_package(VTK)
+include(${VTK_USE_FILE})
+
 include_directories(${OPENGL_INCLUDE_DIR})
 include_directories(${GLUT_INCLUDE_DIR})
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
@@ -47,9 +50,23 @@ add_executable(thresholdOMP glwindow.cpp ${ex_SOURCES} ${ex_HEADERS_MOC} ${ex_FO
 set_target_properties(thresholdOMP PROPERTIES COMPILE_FLAGS "-fopenmp -DTHRESHOLD -DTHRUST_DEVICE_BACKEND=THRUST_DEVICE_BACKEND_OMP")
 target_link_libraries(thresholdOMP GLEW pthread gomp ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES} ${QT_LIBRARIES})
 
+cuda_add_executable(mandelbrotGPU mandelbrot.cu)
+target_link_libraries(mandelbrotGPU pthread)
 
 add_executable(mandelbrot mandelbrot.cpp)
 target_link_libraries(mandelbrot pthread)
+
+cuda_add_executable(vtk_image3d vtk_image3d.cu)
+target_link_libraries(vtk_image3d vtkIO vtkImaging)
+
+cuda_add_executable(cylinderical cylinderical.cu)
+target_link_libraries(cylinderical pthread ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES} )
+
+cuda_add_executable(spherical spherical.cu)
+target_link_libraries(spherical vtkIO vtkImaging pthread ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
+
+cuda_add_executable(ocean ocean.cu)
+target_link_libraries(ocean vtkIO vtkImaging pthread ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
 
 cuda_add_executable(image3d_to_tetGPU image3d_to_tet.cu)
 target_link_libraries(image3d_to_tetGPU pthread)

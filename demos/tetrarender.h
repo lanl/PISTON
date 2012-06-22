@@ -115,9 +115,9 @@ public:
   bool showTets;
   float3 centerPos;
 
-  height_field<int, float, SPACE>* field;
-  image3d_to_tetrahedrons<height_field<int, float, SPACE> >* tetra;
-  marching_tetrahedron<image3d_to_tetrahedrons<height_field<int, float, SPACE> >, image3d_to_tetrahedrons<height_field<int, float, SPACE> > >* isosurface;
+  height_field<SPACE>* field;
+  image3d_to_tetrahedrons<height_field<SPACE> >* tetra;
+  marching_tetrahedron<image3d_to_tetrahedrons<height_field<SPACE> >, image3d_to_tetrahedrons<height_field<SPACE> > >* isosurface;
 };
 
 #endif

@@ -23,11 +23,11 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 */
 
 #include <sys/time.h>
-
+#include <cmath>
 #include <piston/util/cayley_field.h>
 #include <piston/marching_cube.h>
 
-#define GRID_SIZE 32
+#define GRID_SIZE 512
 #define SPACE thrust::detail::default_device_space_tag
 
 using namespace piston;
@@ -35,14 +35,14 @@ using namespace piston;
 
 int main(int argc, char **argv)
 {
-    cayley_field<int, float, SPACE> cayley(GRID_SIZE, GRID_SIZE, GRID_SIZE);
+    cayley_field<SPACE> cayley(GRID_SIZE, GRID_SIZE, GRID_SIZE);
 
     // get max and min of 3D scalars
     float min_iso = *thrust::min_element(cayley.point_data_begin(), cayley.point_data_end());
     float max_iso = *thrust::max_element(cayley.point_data_begin(), cayley.point_data_end());
 
     // create a isosurface filter with cayley as input
-    marching_cube<cayley_field<int, float, SPACE>, cayley_field<int, float, SPACE> > contour(cayley, cayley, 0.0f);
+    marching_cube<cayley_field<SPACE>, cayley_field<SPACE> > contour(cayley, cayley, 0.0f);
 
     struct timeval begin, end, diff;
     gettimeofday(&begin, 0);

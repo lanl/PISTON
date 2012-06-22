@@ -250,12 +250,12 @@ void TetraRender::toggleTet(int id)
 
 int TetraRender::read()
 {
-    field = new height_field<int, float, SPACE>(2,2,2);
+    field = new height_field<SPACE>(2,2,2);
 
     thrust::copy(field->point_data_begin(), field->point_data_end(), std::ostream_iterator<int>(std::cout, " "));
     std::cout << std::endl;
 
-    tetra = new image3d_to_tetrahedrons<height_field<int, float, SPACE> >(*field);
+    tetra = new image3d_to_tetrahedrons<height_field<SPACE> >(*field);
 
     thrust::copy(tetra->point_data_begin(), tetra->point_data_end(), std::ostream_iterator<int>(std::cout, " "));
     std::cout << std::endl;
@@ -311,8 +311,8 @@ int TetraRender::read()
     showTets = false;
     centerPos = make_float3(0.5, 0.5, 0.5);
 
-    isosurface = new marching_tetrahedron<image3d_to_tetrahedrons<height_field<int, float, SPACE> >,
-    			                  image3d_to_tetrahedrons<height_field<int, float, SPACE> > >(*tetra, *tetra, 0.5f);
+    isosurface = new marching_tetrahedron<image3d_to_tetrahedrons<height_field<SPACE> >,
+    			                  image3d_to_tetrahedrons<height_field<SPACE> > >(*tetra, *tetra, 0.5f);
     isosurface->useInterop = useInterop;
     zoomLevelBase = cameraFOV = 40.0; cameraZ = 2.0; zoomLevelPct = zoomLevelPctDefault = 0.5;
     center_pos = make_float3(0, 0, 0);

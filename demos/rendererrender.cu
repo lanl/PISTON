@@ -320,9 +320,9 @@ int RendererRender::read()
 
     reader->Update();
     output = reader->GetOutput();
-    image = new vtk_image3d<int, float, SPACE>(output);
+    image = new vtk_image3d<SPACE>(output);
     isovalue = 40.0f;  isoMax = 480.0f;  isoMin = 35.0f;  isoInc = 20.0f;
-    isosurface2 = new marching_cube<vtk_image3d<int, float, SPACE>, vtk_image3d<int, float, SPACE> >(*image, *image, isovalue);
+    isosurface2 = new marching_cube<vtk_image3d<SPACE>, vtk_image3d<SPACE> >(*image, *image, isovalue);
     isosurface2->useInterop = false;
     isosurface2->discardMinVals = true;
     (*isosurface2)();

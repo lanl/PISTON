@@ -44,20 +44,20 @@ public:
     struct index2index : public thrust::unary_function<int, int>
     {
 	// TODO: how often should we update these? Fetch it from input all the time?
-	const int xdim;
-	const int ydim;
-	const int zdim;
+	const int dim0;
+	const int dim1;
+	const int dim2;
 	const int points_per_layer;
 
 	int i[8];
 
 	index2index(InputDataSet &input) :
-	    xdim(input.xdim), ydim(input.ydim), zdim(input.zdim),
-	    points_per_layer(xdim*ydim) {
+	    dim0(input.dim0), dim1(input.dim1), dim2(input.dim2),
+	    points_per_layer(dim0*dim1) {
 	    i[0] = 0;
 	    i[1] = 1;
-	    i[2] = 1 + xdim;
-	    i[3] = xdim;
+	    i[2] = 1 + dim0;
+	    i[3] = dim0;
 
 	    i[4] = i[0] + points_per_layer;
 	    i[5] = i[1] + points_per_layer;

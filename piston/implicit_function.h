@@ -28,6 +28,8 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #include <thrust/tuple.h>
 #include <thrust/functional.h>
 
+
+// TODO: this is not a good design, remove it?
 namespace piston
 {
     template <typename IndexType, typename ValueType>

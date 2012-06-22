@@ -110,15 +110,15 @@ public:
   thrust::device_vector<float3> inputNormals;
   thrust::device_vector<float4> inputColors;
 
-  tangle_field<int, float, SPACE>* tangle;
-  marching_cube<tangle_field<int, float, SPACE>, tangle_field<int, float, SPACE> > *isosurface;
+  tangle_field<SPACE>* tangle;
+  marching_cube<tangle_field<SPACE>, tangle_field<SPACE> > *isosurface;
 
   render<thrust::device_vector<float4>::iterator, thrust::device_vector<float3>::iterator, thrust::device_vector<float4>::iterator>* renders;
 
   vtkImageData *output;
   vtkXMLImageDataReader* reader;
-  vtk_image3d<int, float, SPACE>* image;
-  marching_cube<vtk_image3d<int, float, SPACE>, vtk_image3d<int, float, SPACE> >* isosurface2;
+  vtk_image3d<SPACE>* image;
+  marching_cube<vtk_image3d<SPACE>, vtk_image3d<SPACE> >* isosurface2;
 
 };
 

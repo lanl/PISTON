@@ -36,10 +36,12 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #include <piston/choose_container.h>
 #include <piston/hsv_color_map.h>
 
-struct tuple2float4 : thrust::unary_function<thrust::tuple<int, int, int>, float4>
+// FixME: the input type may be 3-tuple of float or int,
+struct tuple2float4 : thrust::unary_function<thrust::tuple<float, float, float>, float4>
 {
+    template <typename Tuple>
     __host__ __device__
-    float4 operator()(thrust::tuple<int, int, int> xyz) {
+    float4 operator()(Tuple xyz) const {
 	return make_float4((float) thrust::get<0>(xyz),
 	                   (float) thrust::get<1>(xyz),
 	                   (float) thrust::get<2>(xyz),
@@ -61,7 +63,7 @@ template <typename InputDataSet>
 struct threshold_geometry
 {
     typedef typename InputDataSet::PointDataIterator InputPointDataIterator;
-    typedef typename InputDataSet::GridCoordinatesIterator InputGridCoordinatesIterator;
+    typedef typename InputDataSet::PhysicalCoordinatesIterator InputGridCoordinatesIterator;
 
     typedef typename thrust::iterator_difference<InputPointDataIterator>::type	diff_type;
     typedef typename thrust::iterator_space<InputPointDataIterator>::type	space_type;
@@ -74,8 +76,10 @@ struct threshold_geometry
 
     typedef typename IndicesContainer::iterator IndicesIterator;
     typedef typename ValidFlagsContainer::iterator ValidFlagsIterator;
-    typedef thrust::permutation_iterator<InputGridCoordinatesIterator, IndicesIterator> VerticesIterator;
-    typedef thrust::permutation_iterator<thrust::device_vector<float3>::iterator, IndicesIterator> NormalsIterator;
+    typedef thrust::permutation_iterator<typename thrust::transform_iterator<tuple2float4, InputGridCoordinatesIterator>, IndicesIterator> VerticesIterator;
+
+    typedef typename detail::choose_container<InputPointDataIterator, float3>::type	NormalsContainer;
+    typedef typename NormalsContainer::iterator  NormalsIterator;
     typedef thrust::permutation_iterator<InputPointDataIterator, IndicesIterator> ScalarsIterator;
 
     InputDataSet &input;
@@ -91,7 +95,7 @@ struct threshold_geometry
     IndicesContainer    exterior_cell_enum;
     IndicesContainer    exterior_cell_indices;
     IndicesContainer	vertices_indices;
-    IndicesContainer    normals_indices;
+    NormalsContainer 	normals;
 
     bool useInterop;
     float4 *vertexBufferData;
@@ -102,7 +106,7 @@ struct threshold_geometry
     GLuint vboBuffers[3];
     struct cudaGraphicsResource* vboResources[3];
 #endif
-    thrust::device_vector<float3> normals;
+
 
     float minThresholdRange, maxThresholdRange;
     unsigned int num_total_vertices;
@@ -110,12 +114,6 @@ struct threshold_geometry
     threshold_geometry(InputDataSet &input, float min_value, float max_value ) :
 	input(input), min_value(min_value), max_value(max_value), colorFlip(false), useInterop(false), vboSize(0)
     {
-    	normals.push_back(make_float3(0.0f, -1.0f,  0.0f));
-    	normals.push_back(make_float3(1.0f,  0.0f,  0.0f));
-    	normals.push_back(make_float3(0.0f,  1.0f,  0.0f));
-    	normals.push_back(make_float3(-1.0f,  0.0f,  0.0f));
-    	normals.push_back(make_float3(0.0f,  0.0f, -1.0f));
-    	normals.push_back(make_float3(0.0f,  0.0f,  1.0f));
     }
 
     void freeMemory(bool includeInput=true)
@@ -123,7 +121,7 @@ struct threshold_geometry
       valid_cell_flags.clear();  valid_cell_enum.clear();  valid_cell_indices.clear();
       num_valid_cell_neighbors.clear();
       exterior_cell_flags.clear();  exterior_cell_enum.clear();  exterior_cell_indices.clear();
-      vertices_indices.clear();  normals_indices.clear();
+      vertices_indices.clear(); normals.clear();
     }
 
     void operator()() {
@@ -147,12 +145,15 @@ struct threshold_geometry
 	// no valid cells at all, return with empty vertices vector.
 	if (num_valid_cells == 0) {
 	    vertices_indices.clear();
-	    normals_indices.clear();
+	    normals.clear();
 	    return;
 	}
 
-	valid_cell_indices.resize(num_valid_cells);
 	// generate indices to cells that pass threshold
+	// This ends the core part of the threshold filter, the rest is
+	// representation and mapper to geometry.
+	// TODO: should we move it to something like GoemetryFilter as VTK?
+	valid_cell_indices.resize(num_valid_cells);
 	thrust::upper_bound(valid_cell_enum.begin(), valid_cell_enum.end(),
 	                    CountingIterator(0), CountingIterator(0)+num_valid_cells,
 	                    valid_cell_indices.begin());
@@ -223,19 +224,17 @@ struct threshold_geometry
 
 	// generate 6 quards for each exterior cell
 	vertices_indices.resize(num_total_vertices);
-	normals_indices.resize(num_total_vertices);
+	normals.resize(num_total_vertices);
 	thrust::for_each(thrust::make_zip_iterator(thrust::make_tuple(CountingIterator(0),
 	                                                              thrust::make_permutation_iterator(valid_cell_indices.begin(), exterior_cell_indices.begin()))),
 	                 thrust::make_zip_iterator(thrust::make_tuple(CountingIterator(0) + num_exterior_cells,
 	                                                              thrust::make_permutation_iterator(valid_cell_indices.begin(), exterior_cell_indices.begin()))),
-	                 generate_quads(input, thrust::raw_pointer_cast(&*vertices_indices.begin()), thrust::raw_pointer_cast(&*normals_indices.begin())));
+	                 generate_quads(input, thrust::raw_pointer_cast(&*vertices_indices.begin()), thrust::raw_pointer_cast(&*normals.begin())));
 
 	if (useInterop) {
 #if USE_INTEROP
-	    thrust::copy(thrust::make_transform_iterator(vertices_begin(),
-	                                                 tuple2float4()),
-	                 thrust::make_transform_iterator(vertices_end(),
-	                                                 tuple2float4()),
+	    thrust::copy(vertices_begin(),
+	                 vertices_end(),
 	                 thrust::device_ptr<float4>(vertexBufferData));
 	    thrust::copy(normals_begin(), normals_end(),
 			 thrust::device_ptr<float3>(normalBufferData));
@@ -271,7 +270,7 @@ struct threshold_geometry
 	threshold_cell(InputDataSet &input, float min_value, float max_value) :
 	    point_data(input.point_data_begin()),
 	    min_value(min_value), max_value(max_value),
-	    xdim(input.xdim), ydim(input.ydim), zdim(input.zdim),
+	    xdim(input.dim0), ydim(input.dim1), zdim(input.dim2),
 	    cells_per_layer((xdim - 1) * (ydim - 1)) {}
 
 	__host__ __device__
@@ -327,7 +326,7 @@ struct threshold_geometry
 	const int *valid_cell_flags;
 
 	valid_cell_neighbors(InputDataSet &input, const int *valid_cell_flags) :
-	    xdim(input.xdim), ydim(input.ydim), zdim(input.zdim),
+	    xdim(input.dim0), ydim(input.dim1), zdim(input.dim2),
 	    cells_per_layer((xdim - 1) * (ydim - 1)),
 	    valid_cell_flags(valid_cell_flags) {}
 
@@ -374,6 +373,9 @@ struct threshold_geometry
     // FixME: the input data type should really be cells rather than cell_ids
     struct generate_quads : public thrust::unary_function<thrust::tuple<int, int>, void>
     {
+    private:
+	InputGridCoordinatesIterator physical_coord;
+
 	const int xdim;
 	const int ydim;
 	const int zdim;
@@ -382,15 +384,25 @@ struct threshold_geometry
 	// crazy C++ const correctness, vertices_indices is a pointer that
 	// does not change the address it points to.
 	int * const vertices_indices;
-	int * const normals_indices;
+	float3 * const normals_output;
 
-	generate_quads(InputDataSet &input, int * const vertices_indices, int * const normals_indices) :
-	    xdim(input.xdim), ydim(input.ydim), zdim(input.zdim),
+	template <typename Tuple>
+	static __host__ __device__
+	float3 tuple2float3(const Tuple& xyz) {
+	    return make_float3((float) thrust::get<0>(xyz),
+	                       (float) thrust::get<1>(xyz),
+	                       (float) thrust::get<2>(xyz));
+	}
+
+    public:
+	generate_quads(InputDataSet &input, int * const vertices_indices, float3 * const normals) :
+	    physical_coord(input.physical_coordinates_begin()),
+	    xdim(input.dim0), ydim(input.dim1), zdim(input.dim2),
 	    cells_per_layer((xdim - 1) * (ydim - 1)),
-	    vertices_indices(vertices_indices), normals_indices(normals_indices) {}
+	    vertices_indices(vertices_indices), normals_output(normals) {}
 
 	__host__ __device__
-	void operator() (thrust::tuple<int, int> indices_tuple) const {
+	void operator() (const thrust::tuple<int, int>& indices_tuple) const {
 	    const int exterior_cell_id = thrust::get<0>(indices_tuple);
 	    const int global_cell_id   = thrust::get<1>(indices_tuple);
 
@@ -422,28 +434,49 @@ struct threshold_geometry
 
 	    for (int v = 0; v < 24; v++) {
 		*(vertices_indices + exterior_cell_id*24 + v) = indices[vertices_for_faces[v]];
-		*(normals_indices  + exterior_cell_id*24 + v)  = v/4;
+	    }
+
+	    // calculate surface normal by cross product of the diagonals of the quad.
+	    float3 p[8];
+	    p[0] = tuple2float3(*(physical_coord + indices[0]));
+	    p[1] = tuple2float3(*(physical_coord + indices[1]));
+	    p[2] = tuple2float3(*(physical_coord + indices[2]));
+	    p[3] = tuple2float3(*(physical_coord + indices[3]));
+	    p[4] = tuple2float3(*(physical_coord + indices[4]));
+	    p[5] = tuple2float3(*(physical_coord + indices[5]));
+	    p[6] = tuple2float3(*(physical_coord + indices[6]));
+	    p[7] = tuple2float3(*(physical_coord + indices[7]));
+
+	    for (int v = 0; v < 24; v += 4) {
+		const float3 edge0 = p[vertices_for_faces[v+2]] - p[vertices_for_faces[v]];
+		const float3 edge1 = p[vertices_for_faces[v+3]] - p[vertices_for_faces[v+1]];
+		const float3 normal = normalize(cross(edge0, edge1));
+		*(normals_output + exterior_cell_id*24 + v) =
+		*(normals_output + exterior_cell_id*24 + v + 1) =
+		*(normals_output + exterior_cell_id*24 + v + 2) =
+		*(normals_output + exterior_cell_id*24 + v + 3) = normal;
 	    }
 	}
     };
 
-
     // FixME: better name!!!
     VerticesIterator vertices_begin() {
-	return thrust::make_permutation_iterator(input.grid_coordinates_begin(), vertices_indices.begin());
+	return thrust::make_permutation_iterator(thrust::make_transform_iterator(input.physical_coordinates_begin(),
+	                                                                         tuple2float4()),
+	                                         vertices_indices.begin());
     }
     VerticesIterator vertices_end() {
-	return thrust::make_permutation_iterator(input.grid_coordinates_begin(), vertices_indices.begin()) +
-		vertices_indices.size();
+	return thrust::make_permutation_iterator(thrust::make_transform_iterator(input.physical_coordinates_begin(),
+	                                                                         tuple2float4()),
+	                                         vertices_indices.begin()) + vertices_indices.size();
     }
 
     // FixME: better name!!!
     NormalsIterator normals_begin() {
-        return thrust::make_permutation_iterator(normals.begin(), normals_indices.begin());
+	return normals.begin();
     }
     NormalsIterator normals_end() {
-        return thrust::make_permutation_iterator(normals.begin(), normals_indices.begin()) +
-        		normals_indices.size();
+	return normals.end();
     }
 
     // FixME: better name!!!

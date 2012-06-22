@@ -32,44 +32,28 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 namespace piston {
 
 // TODO: turn this into a factory with different level of caching
-template <typename IndexType, typename ValueType, typename Space>
-struct plane_field : public piston::image3d<IndexType, ValueType, Space>
+template <typename MemorySpace>
+struct plane_field : public piston::image3d<MemorySpace>
 {
-    typedef piston::image3d<IndexType, ValueType, Space> Parent;
+    typedef piston::image3d<MemorySpace> Parent;
 
-    typedef typename detail::choose_container<typename Parent::CountingIterator, thrust::tuple<IndexType, IndexType, IndexType> >::type GridCoordinatesContainer;
-    GridCoordinatesContainer grid_coordinates_vector;
-    typedef typename GridCoordinatesContainer::iterator GridCoordinatesIterator;
+    //TODO: move this to parent class?
+    typedef typename thrust::iterator_traits<typename Parent::GridCoordinatesIterator>::value_type
+	    GridCoordinatesType;
 
-    typedef typename detail::choose_container<typename Parent::CountingIterator, ValueType>::type PointDataContainer;
+    typedef typename Parent::PhysicalCoordinatesIterator PhysicalCoordinatesIterator;
+
+    typedef typename detail::choose_container<typename Parent::CountingIterator, float>::type PointDataContainer;
     PointDataContainer point_data_vector;
     typedef typename PointDataContainer::iterator PointDataIterator;
 
 
     plane_field(float3 origin, float3 normal, int xdim, int ydim, int zdim) :
 	Parent(xdim, ydim, zdim),
-	grid_coordinates_vector(Parent::grid_coordinates_begin(), Parent::grid_coordinates_end()),
-	point_data_vector(thrust::make_transform_iterator(grid_coordinates_vector.begin(), plane_functor<IndexType, ValueType>(origin, normal)),
-	                  thrust::make_transform_iterator(grid_coordinates_vector.end(),   plane_functor<IndexType, ValueType>(origin, normal)))
+	point_data_vector(thrust::make_transform_iterator(this->physical_coordinates_begin(), plane_functor<GridCoordinatesType, float>(origin, normal)),
+	                  thrust::make_transform_iterator(this->physical_coordinates_end(),   plane_functor<GridCoordinatesType, float>(origin, normal)))
 	                  {}
 
-    void resize(float3 origin, float3 normal, int xdim, int ydim, int zdim) {
-	Parent::resize(xdim, ydim, zdim);
-
-	grid_coordinates_vector.resize(this->NPoints);
-	grid_coordinates_vector.assign(Parent::grid_coordinates_begin(), Parent::grid_coordinates_end());
-
-	point_data_vector.resize(this->NPoints);
-	point_data_vector.assign(thrust::make_transform_iterator(grid_coordinates_vector.begin(), plane_functor<IndexType, ValueType>(origin, normal)),
-	                         thrust::make_transform_iterator(grid_coordinates_vector.end(),   plane_functor<IndexType, ValueType>(origin, normal)));
-    }
-
-    GridCoordinatesIterator grid_coordinates_begin() {
-	return grid_coordinates_vector.begin();
-    }
-    GridCoordinatesIterator grid_coordinates_end() {
-	return grid_coordinates_vector.end();
-    }
 
     PointDataIterator point_data_begin() {
 	return point_data_vector.begin();

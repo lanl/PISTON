@@ -1,2 +1,6 @@
-cuda_add_executable(cayley_timing cayley_timing.cu)
-target_link_libraries(cayley_timing pthread)
+cuda_add_executable(cayley_timing_GPU cayley_timing.cu)
+target_link_libraries(cayley_timing_GPU pthread)
+
+add_executable(cayley_timing_OMP cayley_timing.cpp)
+set_target_properties(cayley_timing_OMP PROPERTIES COMPILE_FLAGS "-fopenmp -DTHRUST_DEVICE_BACKEND=THRUST_DEVICE_BACKEND_OMP")
+target_link_libraries(cayley_timing_OMP pthread gomp)

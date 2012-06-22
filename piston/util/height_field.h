@@ -30,26 +30,23 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 
 namespace piston {
 
-template <typename IndexType, typename ValueType, typename Space>
-struct height_field : public piston::image3d<IndexType, ValueType, Space>
+template <typename MemorySpace>
+struct height_field : public piston::image3d<MemorySpace>
 {
+    typedef piston::image3d<MemorySpace> Parent;
 
-    typedef piston::image3d<IndexType, ValueType, Space> Parent;
+    //TODO: move this to parent class?
+    typedef typename thrust::iterator_traits<typename Parent::GridCoordinatesIterator>::value_type
+	    GridCoordinatesType;
 
-    typedef thrust::transform_iterator<height_functor<IndexType, ValueType>,
-				       typename Parent::GridCoordinatesIterator> PointDataIterator;
+    typedef thrust::transform_iterator<height_functor<GridCoordinatesType, float>,
+				       typename Parent::PhysicalCoordinatesIterator> PointDataIterator;
     PointDataIterator point_data_iterator;
 
     height_field(int xdim, int ydim, int zdim) :
 	Parent(xdim, ydim, zdim),
-	point_data_iterator(this->grid_coordinates_iterator,
-	                    height_functor<IndexType, ValueType>()){}
-
-    void resize(int xdim, int ydim, int zdim) {
-	Parent::resize(xdim, ydim, zdim);
-	point_data_iterator = thrust::make_transform_iterator(this->grid_coordinates_iterator,
-	                                                      height_functor<IndexType, ValueType>());
-    }
+	point_data_iterator(this->physical_coordinates_begin(),
+	                    height_functor<GridCoordinatesType, float>()){}
 
     PointDataIterator point_data_begin() {
 	return point_data_iterator;

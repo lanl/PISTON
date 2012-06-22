@@ -36,9 +36,9 @@ using namespace piston;
 #define SPACE thrust::detail::default_device_space_tag
 
 template <typename Space>
-struct pointid_field : public image3d<int, int, Space>
+struct pointid_field : public image3d<Space>
 {
-    typedef piston::image3d<int, int, Space> Parent;
+    typedef piston::image3d<Space> Parent;
 
     typedef thrust::counting_iterator<int, Space> PointDataIterator;
     PointDataIterator point_data_iterator;
@@ -72,13 +72,13 @@ struct print_float4
 int main()
 {
 //    pointid_field<SPACE> field(3,2,2);
-    height_field<int, float, SPACE> field(2,2,2);
+    height_field<SPACE> field(2,2,2);
 
 //    thrust::copy(field.point_data_begin(), field.point_data_end(),
 //                 std::ostream_iterator<int>(std::cout, " "));
 //    std::cout << std::endl;
 
-    image3d_to_tetrahedrons<height_field<int, float, SPACE> > tetra(field);
+    image3d_to_tetrahedrons<height_field<SPACE> > tetra(field);
 
     thrust::host_vector<int> vec(tetra.point_data_begin(), tetra.point_data_end());
     std::cout << "vec.size(): " << vec.size() << std::endl;
@@ -94,8 +94,8 @@ int main()
                                                                    tetra.grid_coordinates_end());
     thrust::for_each(coordinates.begin(), coordinates.end(), print_tuple3);
 
-    marching_tetrahedron<image3d_to_tetrahedrons<height_field<int, float, SPACE> >,
-			 image3d_to_tetrahedrons<height_field<int, float, SPACE> > > isosurface(tetra, tetra, 0.5f);
+    marching_tetrahedron<image3d_to_tetrahedrons<height_field<SPACE> >,
+			 image3d_to_tetrahedrons<height_field<SPACE> > > isosurface(tetra, tetra, 0.5f);
     isosurface();
 
     thrust::host_vector<float4> vertices(isosurface.vertices_begin(),

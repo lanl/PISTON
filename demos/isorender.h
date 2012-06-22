@@ -171,12 +171,12 @@ public:
   thrust::host_vector<float3> constantNormals;
   int numConstantVertices;
 
-  std::vector<vtk_image3d<int, float, SPACE>*> images;
-  std::vector<plane_field<int, float, SPACE>*> planeFields;
-  std::vector<marching_cube<vtk_image3d<int, float, SPACE>, vtk_image3d<int, float, SPACE> >*> contours;
-  std::vector<marching_cube<plane_field<int, float, SPACE>, vtk_image3d<int, float, SPACE> >*> planeContours;
-  std::vector<marching_cube<vtk_image3d<int, float, SPACE>, vtk_image3d<int, float, SPACE> >*> constantContours;
-  std::vector<threshold_geometry<vtk_image3d<int, float, SPACE> >*> thresholds;
+  std::vector<vtk_image3d<SPACE>*> images;
+  std::vector<plane_field<SPACE>*> planeFields;
+  std::vector<marching_cube<vtk_image3d<SPACE>, vtk_image3d<SPACE> >*> contours;
+  std::vector<marching_cube<plane_field<SPACE>, vtk_image3d<SPACE> >*> planeContours;
+  std::vector<marching_cube<vtk_image3d<SPACE>, vtk_image3d< SPACE> >*> constantContours;
+  std::vector<threshold_geometry<vtk_image3d<SPACE> >*> thresholds;
 
   vtkImageData *output;
   vtkIdType npts;

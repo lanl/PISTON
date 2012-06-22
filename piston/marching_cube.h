@@ -47,6 +47,7 @@ class marching_cube
 public:
     typedef typename InputDataSet1::PointDataIterator InputPointDataIterator;
     typedef typename InputDataSet1::GridCoordinatesIterator InputGridCoordinatesIterator;
+    typedef typename InputDataSet1::PhysicalCoordinatesIterator InputPhysCoordinatesIterator;
     typedef typename InputDataSet2::PointDataIterator ScalarSourceIterator;
 
     typedef typename thrust::iterator_difference<InputPointDataIterator>::type	diff_type;
@@ -273,7 +274,7 @@ public:
 	        	  isovalue(isovalue),
 	        	  discardMinVals(discardMinVals),
 	        	  numVertsTable(numVertsTable),
-	        	  xdim(input.xdim), ydim(input.ydim), zdim(input.zdim),
+	        	  xdim(input.dim0), ydim(input.dim1), zdim(input.dim2),
 	        	  cells_per_layer((xdim - 1) * (ydim - 1)),
 	        	  points_per_layer (xdim*ydim) {}
 
@@ -337,12 +338,12 @@ public:
     {
 	// FixME: constant iterator and/or iterator to const problem.
 	InputPointDataIterator	point_data;
-	InputGridCoordinatesIterator grid_coord;
+	InputPhysCoordinatesIterator physical_coord;
 	ScalarSourceIterator	scalar_source;
 	const float		isovalue;
 	TableIterator		triangle_table;
 
-	typedef typename InputGridCoordinatesIterator::value_type	grid_tuple_type;
+	typedef typename InputPhysCoordinatesIterator::value_type	grid_tuple_type;
 
 	float4 *vertices_output;
 	float3 *normals_output;
@@ -362,12 +363,12 @@ public:
 	                   float3 *normals,
 	                   float  *scalars)
 	    : point_data(input.point_data_begin()),
-	      grid_coord(input.grid_coordinates_begin()),
+	      physical_coord(input.physical_coordinates_begin()),
 	      scalar_source(source.point_data_begin()),
 	      isovalue(isovalue),
 	      triangle_table(triangle_table),
 	      vertices_output(vertices), normals_output(normals), scalars_output(scalars),
-	      xdim(input.xdim), ydim(input.ydim), zdim(input.zdim),
+	      xdim(input.dim0), ydim(input.dim1), zdim(input.dim2),
 	      cells_per_layer((xdim - 1) * (ydim - 1)) {}
 
 	__host__ __device__
@@ -388,12 +389,6 @@ public:
 	                       (float) thrust::get<2>(grid_tuple_type(xyz)));
 	}
 
-//	__host__ __device__
-//	float3 tuple2float3(Tuple xyz) {
-//	    return make_float3((float) thrust::get<0>(grid_tuple_type(xyz)),
-//	                       (float) thrust::get<1>(grid_tuple_type(xyz)),
-//	                       (float) thrust::get<2>(grid_tuple_type(xyz)));
-//	}
 
 	__host__ __device__
 	void operator()(thrust::tuple<int, int, int, int> indices_tuple) {
@@ -434,14 +429,14 @@ public:
 
 	    // TODO: Reconsider what GridCoordinates should be (tuple or float3)
 	    float3 p[8];
-	    p[0] = tuple2float3(*(grid_coord + i[0]));
-	    p[1] = tuple2float3(*(grid_coord + i[1]));
-	    p[2] = tuple2float3(*(grid_coord + i[2]));
-	    p[3] = tuple2float3(*(grid_coord + i[3]));
-	    p[4] = tuple2float3(*(grid_coord + i[4]));
-	    p[5] = tuple2float3(*(grid_coord + i[5]));
-	    p[6] = tuple2float3(*(grid_coord + i[6]));
-	    p[7] = tuple2float3(*(grid_coord + i[7]));
+	    p[0] = tuple2float3(*(physical_coord + i[0]));
+	    p[1] = tuple2float3(*(physical_coord + i[1]));
+	    p[2] = tuple2float3(*(physical_coord + i[2]));
+	    p[3] = tuple2float3(*(physical_coord + i[3]));
+	    p[4] = tuple2float3(*(physical_coord + i[4]));
+	    p[5] = tuple2float3(*(physical_coord + i[5]));
+	    p[6] = tuple2float3(*(physical_coord + i[6]));
+	    p[7] = tuple2float3(*(physical_coord + i[7]));
 
 	    float s[8];
 	    s[0] = *(scalar_source + i[0]);

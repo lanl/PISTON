@@ -232,8 +232,8 @@ void IsoRender::display()
         normals.resize(thresholds[dataSetIndex]->normals_end() - thresholds[dataSetIndex]->normals_begin());
         device_colors.resize(thresholds[dataSetIndex]->vertices_end() - thresholds[dataSetIndex]->vertices_begin());
         thrust::copy(thresholds[dataSetIndex]->normals_begin(), thresholds[dataSetIndex]->normals_end(), normals.begin());
-        thrust::copy(thrust::make_transform_iterator(thresholds[dataSetIndex]->vertices_begin(), tuple2float4()),
-                     thrust::make_transform_iterator(thresholds[dataSetIndex]->vertices_end(), tuple2float4()), vertices.begin());
+        thrust::copy(thresholds[dataSetIndex]->vertices_begin(),
+                     thresholds[dataSetIndex]->vertices_end(), vertices.begin());
         thrust::transform(thresholds[dataSetIndex]->scalars_begin(), thresholds[dataSetIndex]->scalars_end(),
                           device_colors.begin(), color_map<float>(minThreshold, maxThreshold, true));
         colors = device_colors;
@@ -745,33 +745,33 @@ void IsoRender::createOperators()
     {
       readers[dataSetIndex]->Update();
       output = readers[dataSetIndex]->GetOutput();
-      images[dataSetIndex] = new vtk_image3d<int, float, SPACE>(output);
+      images[dataSetIndex] = new vtk_image3d<SPACE>(output);
     }
 
     if ((includeContours) && (contours[dataSetIndex] == 0))
     {
-      contours[dataSetIndex] = new marching_cube<vtk_image3d<int, float, SPACE>, vtk_image3d<int, float, SPACE> >(*(images[dataSetIndex]), *(images[dataSetIndex]), isovalue);
+      contours[dataSetIndex] = new marching_cube<vtk_image3d<SPACE>, vtk_image3d<SPACE> >(*(images[dataSetIndex]), *(images[dataSetIndex]), isovalue);
       contours[dataSetIndex]->useInterop = useInterop;
       contours[dataSetIndex]->discardMinVals = discardMinVals;
     }
 
     if ((includePlane) && (planeContours[dataSetIndex] == 0))
     {
-      planeFields[dataSetIndex] = new plane_field<int, float, SPACE>(make_float3((xMax-xMin+1)/2.0, (yMax-yMin+1)/2.0, (zMax-zMin+1)/2.0), plane_normal, xMax-xMin+1, yMax-yMin+1, zMax-zMin+1);
-      planeContours[dataSetIndex] = new marching_cube<plane_field<int, float, SPACE>, vtk_image3d<int, float, SPACE> >(*(planeFields[dataSetIndex]), *(images[dataSetIndex]), isovalue);
+      planeFields[dataSetIndex] = new plane_field<SPACE>(make_float3((xMax-xMin+1)/2.0, (yMax-yMin+1)/2.0, (zMax-zMin+1)/2.0), plane_normal, xMax-xMin+1, yMax-yMin+1, zMax-zMin+1);
+      planeContours[dataSetIndex] = new marching_cube<plane_field<SPACE>, vtk_image3d<SPACE> >(*(planeFields[dataSetIndex]), *(images[dataSetIndex]), isovalue);
       planeContours[dataSetIndex]->useInterop = useInterop;
     }
 
     if (includeThreshold && (thresholds[dataSetIndex] == 0))
     {
-      thresholds[dataSetIndex] = new threshold_geometry<vtk_image3d<int, float, SPACE> >(*(images[dataSetIndex]), thresholdFloor, threshold);
+      thresholds[dataSetIndex] = new threshold_geometry<vtk_image3d<SPACE> >(*(images[dataSetIndex]), thresholdFloor, threshold);
       thresholds[dataSetIndex]->useInterop = useInterop;
     }
 
     if ((includeConstantContours) && (constantContours[dataSetIndex] == 0))
     {
       if (useContours) constantContours[dataSetIndex] = contours[dataSetIndex];
-      else constantContours[dataSetIndex] = new marching_cube<vtk_image3d<int, float, SPACE>, vtk_image3d<int, float, SPACE> >(*(images[dataSetIndex]), *(images[dataSetIndex]), isovalue);
+      else constantContours[dataSetIndex] = new marching_cube<vtk_image3d<SPACE>, vtk_image3d<SPACE> >(*(images[dataSetIndex]), *(images[dataSetIndex]), isovalue);
     }
 
     if (includeConstantContours)

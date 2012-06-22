@@ -33,62 +33,63 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 namespace piston
 {
 
-template <typename IndexType, typename ValueType, typename MemorySpace>
-class image3d
+// TODO: inherit from image2d?
+template <typename MemorySpace>
+struct image3d
 {
-public:
-    int xdim;
-    int ydim;
-    int zdim;
-    int NPoints;
-    int NCells;
+    typedef unsigned IndexType;
 
+    IndexType dim0;
+    IndexType dim1;
+    IndexType dim2;
+    IndexType NPoints;
+    IndexType NCells;
+
+    // transform from point_id (n) to grid_coordinates (i, j, k)
     struct grid_coordinates_functor : public thrust::unary_function<IndexType, thrust::tuple<IndexType, IndexType, IndexType> >
     {
-	int xdim;
-	int ydim;
-	int zdim;
-	int PointsPerLayer;
+	IndexType dim0;
+	IndexType dim1;
+	IndexType dim2;
+	IndexType PointsPerLayer;
 
-	grid_coordinates_functor(int xdim, int ydim, int zdim) :
-	    xdim(xdim), ydim(ydim), zdim(zdim), PointsPerLayer(xdim*ydim) {}
+	grid_coordinates_functor(IndexType dim0, IndexType dim1, IndexType dim2) :
+	    dim0(dim0), dim1(dim1), dim2(dim2), PointsPerLayer(dim0*dim1) {}
 
 	__host__ __device__
-	thrust::tuple<IndexType, IndexType, IndexType> operator()(IndexType PointId) const {
-	    const IndexType x = PointId % xdim;
-	    const IndexType y = (PointId/xdim) % ydim;
-	    const IndexType z = PointId/PointsPerLayer;
+	thrust::tuple<IndexType, IndexType, IndexType> operator()(const IndexType& point_id) const {
+	    const IndexType i = point_id % dim0;
+	    const IndexType j = (point_id/dim0) % dim1;
+	    const IndexType k = point_id/PointsPerLayer;
 
-	    return thrust::make_tuple(x, y, z);
+	    return thrust::make_tuple(i, j, k);
 	}
     };
 
     typedef typename thrust::counting_iterator<IndexType, MemorySpace> CountingIterator;
     typedef typename thrust::transform_iterator<grid_coordinates_functor, CountingIterator> GridCoordinatesIterator;
-
     GridCoordinatesIterator grid_coordinates_iterator;
 
-    image3d(int xdim, int ydim, int zdim) :
-	xdim(xdim), ydim(ydim), zdim(zdim),
+    image3d(IndexType xdim, IndexType ydim, IndexType zdim) :
+	dim0(xdim), dim1(ydim), dim2(zdim),
 	NPoints(xdim*ydim*zdim),
 	NCells((xdim-1)*(ydim-1)*(zdim-1)),
-	grid_coordinates_iterator(CountingIterator(0), grid_coordinates_functor(xdim, ydim, zdim)) { }
-
-    void resize(int xdim, int ydim, int zdim) {
-	this->xdim = xdim;
-	this->ydim = ydim;
-	this->zdim = zdim;
-	this->NPoints = xdim*ydim*zdim;
-	this->NCells  = (xdim-1)*(ydim-1)*(zdim-1);
-	grid_coordinates_iterator = thrust::make_transform_iterator(CountingIterator(0),
-	                                                            grid_coordinates_functor(xdim, ydim, zdim));
-    }
+	grid_coordinates_iterator(CountingIterator(0), grid_coordinates_functor(xdim, ydim, zdim)) {}
 
     GridCoordinatesIterator grid_coordinates_begin() {
 	return grid_coordinates_iterator;
     }
     GridCoordinatesIterator grid_coordinates_end() {
 	return grid_coordinates_iterator+NPoints;
+    }
+
+    typedef GridCoordinatesIterator PhysicalCoordinatesIterator;
+
+    PhysicalCoordinatesIterator physical_coordinates_begin() {
+	return grid_coordinates_iterator;
+    }
+    PhysicalCoordinatesIterator physical_coordinates_end() {
+	return grid_coordinates_iterator+this->NPoints;
     }
 };
 

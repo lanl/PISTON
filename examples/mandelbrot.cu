@@ -33,8 +33,8 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #include <iostream>
 #include <piston/util/mandelbrot_field.h>
 
-//#define SPACE thrust::detail::default_device_space_tag
-#define SPACE thrust::host_space_tag
+#define SPACE thrust::detail::default_device_space_tag
+//#define SPACE thrust::host_space_tag
 
 int main(int argc, char *argv[])
 {

@@ -30,14 +30,11 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 namespace piston
 {
 
-template <typename IndexType, typename ValueType>
-struct height_functor : public piston::implicit_function3d<IndexType, ValueType>
+template <typename InputType, typename OutputType>
+struct height_functor : public piston::implicit_function3d<InputType, OutputType>
 {
-    typedef piston::implicit_function3d<IndexType, ValueType> Parent;
-    typedef typename Parent::InputType InputType;
-
     __host__ __device__
-    ValueType operator()(InputType pos) const {
+    OutputType operator()(InputType pos) const {
 	return thrust::get<2>(pos);
     };
 };

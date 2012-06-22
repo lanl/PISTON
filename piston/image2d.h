@@ -33,52 +33,43 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 namespace piston
 {
 
-template <typename IndexType, typename ValueType, typename MemorySpace>
-class image2d
+template <typename MemorySpace>
+struct image2d
 {
-public:
-    int xdim;
-    int ydim;
-    int NPoints;
-    int NCells;
+    typedef unsigned int IndexType;
 
-    // Haskell type signature: grid_coordinates_functor :: grid1D IndexType -> grid2D IndexType IndexType
+    IndexType dim0;
+    IndexType dim1;
+    IndexType NPoints;
+    IndexType NCells;
+
+    // transform from point_id (n) to grid_coordinates (i, j)
     struct grid_coordinates_functor : public thrust::unary_function<IndexType, thrust::tuple<IndexType, IndexType> >
     {
-	int xdim;
-	int ydim;
+	const IndexType dim0;
+	const IndexType dim1;
 
-	grid_coordinates_functor(int xdim, int ydim) :
-	    xdim(xdim), ydim(ydim) {}
+	grid_coordinates_functor(IndexType dim0, IndexType dim1) :
+	    dim0(dim0), dim1(dim1) {}
 
 	__host__ __device__
-	thrust::tuple<IndexType, IndexType> operator()(IndexType PointId) const {
-	    const IndexType x = PointId % xdim;
-	    const IndexType y = PointId / xdim;
+	thrust::tuple<IndexType, IndexType> operator()(const IndexType& point_id) const {
+	    const IndexType i = point_id % dim0;
+	    const IndexType j = point_id / dim0;
 
-	    return thrust::make_tuple(x, y);
+	    return thrust::make_tuple(i, j);
 	}
     };
 
-    typedef typename thrust::counting_iterator<IndexType, MemorySpace> CountingIterator;
-    typedef typename thrust::transform_iterator<grid_coordinates_functor, CountingIterator> GridCoordinatesIterator;
-
+    typedef thrust::counting_iterator<IndexType, MemorySpace> CountingIterator;
+    typedef thrust::transform_iterator<grid_coordinates_functor, CountingIterator> GridCoordinatesIterator;
     GridCoordinatesIterator grid_coordinates_iterator;
 
-    image2d(int xdim, int ydim) :
-	xdim(xdim), ydim(ydim),
-	NPoints(xdim*ydim),
-	NCells((xdim-1)*(ydim-1)),
-	grid_coordinates_iterator(CountingIterator(0), grid_coordinates_functor(xdim, ydim)) {}
-
-    void resize(int xdim, int ydim) {
-	this->xdim = xdim;
-	this->ydim = ydim;
-	this->NPoints = xdim*ydim;
-	this->NCells = (xdim-1)*(ydim-1);
-	grid_coordinates_iterator = thrust::make_transform_iterator(CountingIterator(0),
-	                                                            grid_coordinates_functor(xdim, ydim));
-    }
+    image2d(IndexType dim0, IndexType dim1) :
+	dim0(dim0), dim1(dim1),
+	NPoints(dim0*dim1),
+	NCells((dim0-1)*(dim1-1)),
+	grid_coordinates_iterator(CountingIterator(0), grid_coordinates_functor(dim0, dim1)) {}
 
     GridCoordinatesIterator grid_coordinates_begin() {
 	return grid_coordinates_iterator;

@@ -67,14 +67,14 @@ int grid_size = 256;
 float cameraFOV = 60.0;
 bool wireframe = false;
 
-tangle_field<int, float, SPACE>* tangle;
-marching_cube<tangle_field<int, float, SPACE>, tangle_field<int, float, SPACE> > *isosurface;
+tangle_field<SPACE>* tangle;
+marching_cube<tangle_field<SPACE>, tangle_field<SPACE> > *isosurface;
 
-plane_field<int, float, SPACE>* plane;
-marching_cube<plane_field<int, float, SPACE>, tangle_field<int, float, SPACE> > *cutplane;
+plane_field<SPACE>* plane;
+marching_cube<plane_field<SPACE>, tangle_field<SPACE> > *cutplane;
 
-sphere_field<int, float, SPACE>* scalar_field;
-threshold_geometry<sphere_field<int, float, SPACE> >* threshold;
+sphere_field<SPACE>* scalar_field;
+threshold_geometry<sphere_field<SPACE> >* threshold;
 
 GLuint quads_vbo[3];
 struct cudaGraphicsResource *quads_pos_res, *quads_normal_res, *quads_color_res;
@@ -159,6 +159,16 @@ bool GLWindow::initialize(int argc, char *argv[])
     return true;
 }
 
+struct print_float4
+{
+    void operator()(float4 pos) {
+      std::cout << "("
+                << pos.x << ", "
+                << pos.y << ", "
+                << pos.z << ")" << std::endl;
+//        std::cout << (pos.x * pos.x + pos.y * pos.y) << std::endl;
+    }
+};
 
 void GLWindow::initializeGL()
 {
@@ -171,7 +181,7 @@ void GLWindow::initializeGL()
     // good old-fashioned fixed function lighting
     float white[] = { 0.8, 0.8, 0.8, 1.0 };
     float black[] = { 0.0, 0.0, 0.0, 1.0 };
-    float lightPos[] = { 0.0, 0.0, grid_size*1.5, 1.0 };
+    float lightPos[] = { 0.0, 0.0, 1.5, 1.0 };
 
     glLightfv(GL_LIGHT0, GL_AMBIENT, white);
     glLightfv(GL_LIGHT0, GL_DIFFUSE, white);
@@ -188,11 +198,11 @@ void GLWindow::initializeGL()
 
     // Setup the view of the cube.
     glMatrixMode(GL_PROJECTION);
-    gluPerspective( cameraFOV, 1.0, 1.0, grid_size*4.0);
+    gluPerspective( cameraFOV, 1.0, 1.0, 4.0);
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    gluLookAt(0.0, 0.0, grid_size*1.5,
+    gluLookAt(0.0, 0.0, 2.0,
               0.0, 0.0, 0.0,
               0.0, 1.0, 0.0);
 
@@ -202,23 +212,27 @@ void GLWindow::initializeGL()
 #endif
 
 #ifdef TANGLE
-    tangle = new tangle_field<int, float, SPACE>(grid_size, grid_size, grid_size);
-    isosurface = new marching_cube<tangle_field<int, float, SPACE>,  tangle_field<int, float, SPACE> >(*tangle, *tangle, 0.2f);
+    tangle = new tangle_field<SPACE>(grid_size, grid_size, grid_size);
+    isosurface = new marching_cube<tangle_field<SPACE>,  tangle_field<SPACE> >(*tangle, *tangle, 0.3f);
     (*isosurface)();
     buffer_size = thrust::distance(isosurface->vertices_begin(), isosurface->vertices_end())* sizeof(float4);
+//    thrust::for_each(isosurface->vertices_begin(),
+//                     isosurface->vertices_end(), print_float4());
+
+    std::cout << "buf_size: " << buffer_size << "\n";
 #endif
 
 #ifdef CUTPLANE
-    tangle = new tangle_field<int, float, SPACE>(grid_size, grid_size, grid_size);
-    plane = new plane_field<int, float, SPACE>(make_float3(0.0f, 0.0f, grid_size/2), make_float3(0.0f, 0.0f, 1.0f), grid_size, grid_size, grid_size);
-    cutplane = new marching_cube<plane_field<int, float, SPACE>, tangle_field<int, float, SPACE> >(*plane, *tangle, 0.2f);
+    tangle = new tangle_field<SPACE>(grid_size, grid_size, grid_size);
+    plane = new plane_field<SPACE>(make_float3(0.0f, 0.0f, grid_size/2), make_float3(0.0f, 0.0f, 1.0f), grid_size, grid_size, grid_size);
+    cutplane = new marching_cube<plane_field<SPACE>, tangle_field<SPACE> >(*plane, *tangle, 0.2f);
     (*cutplane)();
     buffer_size = thrust::distance(cutplane->vertices_begin(), cutplane->vertices_end())* sizeof(float4);
 #endif
 
 #ifdef THRESHOLD
-    scalar_field = new sphere_field<int, float, SPACE>(grid_size, grid_size, grid_size);
-    threshold = new threshold_geometry<sphere_field<int, float, SPACE> >(*scalar_field, 4, 1600);
+    scalar_field = new sphere_field<SPACE>(grid_size, grid_size, grid_size);
+    threshold = new threshold_geometry<sphere_field<SPACE> >(*scalar_field, 4, 1600);
     (*threshold)();
     buffer_size = thrust::distance(threshold->vertices_begin(), threshold->vertices_end())* sizeof(float4);
 #endif
@@ -255,7 +269,7 @@ void GLWindow::paintGL()
     qrot.getRotMat(rotationMatrix);
     glMultMatrixf(rotationMatrix);
 
-    glTranslatef(-(grid_size-1)/2, -(grid_size-1)/2, -(grid_size-1)/2);
+//    glTranslatef(-(grid_size-1)/2, -(grid_size-1)/2, -(grid_size-1)/2);
     size_t num_bytes;  GLenum drawType = GL_TRIANGLES;
 
 #ifdef TANGLE
@@ -299,8 +313,11 @@ void GLWindow::paintGL()
         vertices.resize(threshold->vertices_end() - threshold->vertices_begin());
         normals.resize(threshold->normals_end() - threshold->normals_begin());
         thrust::device_vector<float4> device_colors(vertices.size());
-        thrust::copy(thrust::make_transform_iterator(threshold->vertices_begin(), tuple2float4()),
-                     thrust::make_transform_iterator(threshold->vertices_end(), tuple2float4()), vertices.begin());
+//        thrust::copy(thrust::make_transform_iterator(threshold->vertices_begin(), tuple2float4()),
+//                     thrust::make_transform_iterator(threshold->vertices_end(), tuple2float4()), vertices.begin());
+        thrust::copy(threshold->vertices_begin(),
+                     threshold->vertices_end(),
+                     vertices.begin());
         thrust::copy(threshold->normals_begin(), threshold->normals_end(), normals.begin());
         thrust::transform(threshold->scalars_begin(), threshold->scalars_end(), device_colors.begin(), color_map<float>(4.0f, 1600.0f));
         colors = device_colors;
