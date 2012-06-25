@@ -37,6 +37,9 @@ template <typename MemorySpace>
 struct vtk_image3d : public piston::image3d<MemorySpace>
 {
     typedef piston::image3d<MemorySpace> Parent;
+    double origin[3];
+    double spacing[3];
+    int extents[6];
 
     //TODO: move this to parent class?
     typedef typename thrust::iterator_traits<typename Parent::GridCoordinatesIterator>::value_type
@@ -87,6 +90,7 @@ struct vtk_image3d : public piston::image3d<MemorySpace>
 	                  (float *) image->GetScalarPointer() + this->NPoints)
     {}
 
+
 #if 0
 	point_data_vector((ValueType *) image->GetPointData()->GetArray("Elevation")->GetVoidPointer(0),
 	                  (ValueType *) image->GetPointData()->GetArray("Elevation")->GetVoidPointer(0) + this->NPoints) {
@@ -108,18 +112,35 @@ struct vtk_image3d : public piston::image3d<MemorySpace>
     vtk_image3d(int dims[3], thrust::device_vector<float> v) :
         Parent(dims[0], dims[1], dims[2]),
         phys_coordinates_iterator(Parent::grid_coordinates_iterator,
-                                      physical_coordinates_functor(0,0,0, 1,1,1)),
+                                  physical_coordinates_functor(0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f)),
         point_data_vector(v.begin(), v.end()) {}
+
+    // TODO: COPY Constructor??, Constructor from another image/vector?
+    vtk_image3d(int dims[3], double origin[3], double spacing[3], int extents[6],
+                thrust::device_vector<float> v) :
+      Parent(dims[0], dims[1], dims[2]),
+      phys_coordinates_iterator(Parent::grid_coordinates_iterator,
+        physical_coordinates_functor(
+          origin[0]+((float)extents[0]*spacing[0]),
+          origin[1]+((float)extents[2]*spacing[1]),
+          origin[2]+((float)extents[4]*spacing[2]),
+          spacing[0],
+          spacing[1],
+          spacing[2])),
+        point_data_vector(v.begin(), v.end())
+    {
+    }
+
 #endif
 
     void resize(int xdim, int ydim, int zdim) {
- 	Parent::resize(xdim, ydim, zdim);
- 	// TBD, is there resize in VTK?
-     }
+      Parent::resize(xdim, ydim, zdim);
+      // TBD, is there resize in VTK?
+    }
 
     // FixME: const correctness, should we change it to cbegin()/cend()?
     PhysicalCoordinatesIterator physical_coordinates_begin() {
-	return phys_coordinates_iterator;
+ 	return phys_coordinates_iterator;
     }
     PhysicalCoordinatesIterator physical_coordinates_end() {
 	return phys_coordinates_iterator+this->NPoints;
