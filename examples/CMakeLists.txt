@@ -59,14 +59,14 @@ target_link_libraries(mandelbrot pthread)
 cuda_add_executable(vtk_image3d vtk_image3d.cu)
 target_link_libraries(vtk_image3d vtkIO vtkImaging)
 
-cuda_add_executable(cylinderical cylinderical.cu)
-target_link_libraries(cylinderical pthread ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES} )
+#cuda_add_executable(cylinderical cylinderical.cu)
+#target_link_libraries(cylinderical pthread ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES} )
 
-cuda_add_executable(spherical spherical.cu)
-target_link_libraries(spherical vtkIO vtkImaging pthread ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
+#cuda_add_executable(spherical spherical.cu)
+#target_link_libraries(spherical vtkIO vtkImaging pthread ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
 
-cuda_add_executable(ocean ocean.cu)
-target_link_libraries(ocean vtkIO vtkImaging pthread ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
+#cuda_add_executable(ocean ocean.cu)
+#target_link_libraries(ocean vtkIO vtkImaging pthread ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
 
 cuda_add_executable(image3d_to_tetGPU image3d_to_tet.cu)
 target_link_libraries(image3d_to_tetGPU pthread)
