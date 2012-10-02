@@ -26,6 +26,7 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #define IMAGE3D_TO_TETRAHEDRONS_H_
 
 #include <piston/image3d.h>
+#include <piston/choose_container.h>
 
 namespace piston
 {
@@ -89,21 +90,28 @@ public:
     typedef typename thrust::transform_iterator<index2index, CountingIterator>	IndicesIterator;
 
     typedef thrust::permutation_iterator<InputGridCoordinatesIterator, IndicesIterator> GridCoordinatesIterator;
-    typedef thrust::permutation_iterator<InputPointDataIterator,       IndicesIterator> PointDataIterator;
+//    typedef thrust::permutation_iterator<InputPointDataIterator,       IndicesIterator> PointDataIterator;
 
     int NCells;
     IndicesIterator indices;
     InputDataSet &input;
 
     GridCoordinatesIterator grid_coordinates_iterator;
-    PointDataIterator	    point_data_iterator;
+//    PointDataIterator	    point_data_iterator;
+
+//    typedef typename detail::choose_container<CountingIterator, float>::type PointDataContainer;
+    typedef thrust::device_vector<float> PointDataContainer;
+    PointDataContainer point_data_vector;
+    typedef typename PointDataContainer::iterator PointDataIterator;
 
     image3d_to_tetrahedrons(InputDataSet &input) :
 	NCells(input.NCells*6),
 	input(input),
 	indices(CountingIterator(0), index2index(input)),
 	grid_coordinates_iterator(input.grid_coordinates_begin(), indices),
-	point_data_iterator(input.point_data_begin(), indices)
+//	point_data_iterator(input.point_data_begin(), indices),
+	point_data_vector(thrust::make_permutation_iterator(input.point_data_begin(), indices),
+	                  thrust::make_permutation_iterator(input.point_data_begin(), indices)+24*input.NCells)
     {}
 
     GridCoordinatesIterator grid_coordinates_begin() {
@@ -114,10 +122,12 @@ public:
     }
 
     PointDataIterator point_data_begin() {
-	return point_data_iterator;
+	return point_data_vector.begin();
+//	return point_data_iterator;
     }
     PointDataIterator point_data_end() {
-	return point_data_iterator+24*input.NCells;
+	return point_data_vector.end();
+//	return point_data_iterator+24*input.NCells;
     }
 };
 
