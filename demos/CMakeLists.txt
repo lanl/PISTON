@@ -101,4 +101,9 @@ endif ()
 
 add_executable(rendererOMP renderer.cpp rendererrender.cpp ${CMAKE_SOURCE_DIR}/piston/util/quaternion.cpp) 
 set_target_properties(rendererOMP PROPERTIES COMPILE_FLAGS "-fopenmp -DDATA_DIRECTORY=${DATA_DIR} -DTHRUST_DEVICE_BACKEND=THRUST_DEVICE_BACKEND_OMP")
-target_link_libraries(rendererOMP pthread vtkIO gomp ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
+target_link_libraries(rendererOMP pthread vtkIO vtkImaging vtkGraphics vtkHybrid gomp ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
+
+add_executable(tetraOMP tetra.cpp tetrarender.cpp ${CMAKE_SOURCE_DIR}/piston/util/quaternion.cpp) 
+set_target_properties(tetraOMP PROPERTIES COMPILE_FLAGS "-fopenmp -DDATA_DIRECTORY=${DATA_DIR} -DTHRUST_DEVICE_BACKEND=THRUST_DEVICE_BACKEND_OMP")
+target_link_libraries(tetraOMP pthread vtkIO vtkImaging vtkGraphics vtkHybrid gomp ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
+

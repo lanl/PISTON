@@ -71,7 +71,12 @@ void motion(int x, int y)
     }
     else if (mouse_buttons == 4)
     {
-	tetrarender->setZoomLevelPct(tetrarender->zoomLevelPct + dy/1000.0);
+      tetrarender->lookPos.x += dx/500.0f;
+      tetrarender->lookPos.z -= dy/500.0f;
+    }
+    else if (mouse_buttons == 2)
+    {
+      tetrarender->setZoomLevelPct(tetrarender->zoomLevelPct + dy/1000.0);
     }
 
     mouse_old_x = x;
@@ -82,13 +87,8 @@ void motion(int x, int y)
 
 void keyboard( unsigned char key, int x, int y )
 {
-    if (key == '0') tetrarender->toggleTet(0);
-    if (key == '1') tetrarender->toggleTet(1);
-    if (key == '2') tetrarender->toggleTet(2);
-    if (key == '3') tetrarender->toggleTet(3);
-    if (key == '4') tetrarender->toggleTet(4);
-    if (key == '5') tetrarender->toggleTet(5);
-    if (key == 't') tetrarender->showTets = !tetrarender->showTets;
+    if (key == 'w') tetrarender->wireMode++;
+    if (tetrarender->wireMode > 2) tetrarender->wireMode = 0;
     if (key == 'i') tetrarender->showIso = !tetrarender->showIso;
 }
 
@@ -111,7 +111,7 @@ void initGL(int argc, char **argv)
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
     glutInitWindowSize(2048, 1024);
-    glutCreateWindow("Glyph");
+    glutCreateWindow("Marching Tetrahedra");
 
     tetrarender->initGL(true);
 
@@ -126,7 +126,9 @@ void initGL(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
-    tetrarender = new TetraRender();
+    if (argc < 2) return 0;
+    if (argc > 2) tetrarender = new TetraRender(argv[1], false, atof(argv[2])); 
+    else tetrarender = new TetraRender(argv[1], true);
     initGL(argc, argv);
     return 0;
 }

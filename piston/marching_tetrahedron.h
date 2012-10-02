@@ -215,7 +215,7 @@ public:
 	                     thrust::make_zip_iterator(thrust::make_tuple(valid_cell_indices.end(), output_vertices_enum.end(),
 	                                                                  thrust::make_permutation_iterator(case_index.begin(), valid_cell_indices.begin()) + num_valid_cells,
 	                                                                  thrust::make_permutation_iterator(num_vertices.begin(), valid_cell_indices.begin()) + num_valid_cells)),
-	                     isosurface_functor(input, source, isovalue,
+	                     isosurface_functor(input, source, isovalue, 
 	                                        triTable.begin(),
 	                                        vertexBufferData,
 	                                        normalBufferData,
@@ -275,10 +275,10 @@ public:
 	}
     };
 
-    struct is_valid_cell : public thrust::unary_function<int, bool>
+    struct is_valid_cell : public thrust::unary_function<int, int>
     {
 	__host__ __device__
-	bool operator()(int num_vertices) const {
+	int operator()(int num_vertices) const {
 	    return num_vertices != 0;
 	}
     };
@@ -307,7 +307,7 @@ public:
 	    : point_data(input.point_data_begin()),
 	      grid_coord(input.grid_coordinates_begin()),
 	      scalar_source(source.point_data_begin()),
-	      isovalue(isovalue),
+	      isovalue(isovalue), 
 	      triangle_table(triangle_table),
 	      vertices_output(vertices),
 	      normals_output(normals),
@@ -327,6 +327,10 @@ public:
 	    return make_float3((float) thrust::get<0>(xyz),
 	                       (float) thrust::get<1>(xyz),
 	                       (float) thrust::get<2>(xyz));
+	}
+        __host__ __device__
+	float3 tuple2float3(float3 xyz) {
+	    return xyz;
 	}
 
 	__host__ __device__
@@ -351,6 +355,7 @@ public:
 	    f[1] = *(point_data + cell_id*4 + 1);
 	    f[2] = *(point_data + cell_id*4 + 2);
 	    f[3] = *(point_data + cell_id*4 + 3);
+
 
 	    // TODO: Reconsider what GridCoordinates should be (tuple or float3)
 	    float3 p[4];

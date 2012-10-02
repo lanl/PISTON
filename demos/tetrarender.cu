@@ -38,12 +38,17 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #define STRINGIZE_VALUE_OF(x) STRINGIZE(x)
 
 #define TETRA_BUFFER_SIZE 12000000
+#define BASE_SCALE 3.5
 
 
-TetraRender::TetraRender()
+TetraRender::TetraRender(char* a_filename, bool a_computeAverageIsovalue, float a_isovalue)
 {
+    strcpy(filename, a_filename);
+    computeAverageIsovalue = a_computeAverageIsovalue;
+    isovalue = a_isovalue;
     mouse_buttons = 0;
     translate = make_float3(0.0, 0.0, 0.0);
+    wireMode = 0;
 }
 
 
@@ -65,120 +70,109 @@ void TetraRender::resetView()
 
 void TetraRender::display()
 {
-    if (true)
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    int minPass, maxPass;  minPass = maxPass = 0;
+    if (wireMode == 0) { minPass = 0; maxPass = 1; }
+    if (wireMode == 1) { minPass = 1; maxPass = 2; }
+    if (wireMode == 2) { minPass = 0; maxPass = 2; }
+
+    for (unsigned int pm=minPass; pm<maxPass; pm++)
     {
-#ifdef USE_INTEROP
-
-      if (useInterop)
-      {
-        for (int i=0; i<4; i++) isosurface->vboResources[i] = vboResources[i];
-        isosurface->minIso = minValue;  isosurface->maxIso = maxValue;
-      }
-#endif
-
+      isosurface->set_isovalue(isovalue);
       ((*isosurface)());
 
       if (!useInterop)
       {
-    	normals.assign(isosurface->normals_begin(), isosurface->normals_end());
-    	vertices.assign(isosurface->vertices_begin(), isosurface->vertices_end());
-    	colors.assign(thrust::make_transform_iterator(isosurface->scalars_begin(), color_map<float>(minValue, maxValue)),
-    	              thrust::make_transform_iterator(isosurface->scalars_end(), color_map<float>(minValue, maxValue)));
+        normals.assign(isosurface->normals_begin(), isosurface->normals_end());
+        vertices.assign(isosurface->vertices_begin(), isosurface->vertices_end());
+        colors.assign(thrust::make_transform_iterator(isosurface->scalars_begin(), color_map<float>(minValue, maxValue)),
+    	            thrust::make_transform_iterator(isosurface->scalars_end(), color_map<float>(minValue, maxValue)));
       }
-    }
-
-    //for (unsigned int i=0; i<vertices.size(); i++) std::cout << vertices[i].x << " " << vertices[i].y << " " << vertices[i].z << " " << std::endl;
-    //scalars.assign(isosurface->scalars_begin(), isosurface->scalars_end());
-    //for (unsigned int i=0; i<scalars.size(); i++) std::cout << scalars[i] << std::endl;
-
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glPolygonMode(GL_FRONT, GL_FILL);
-    glPolygonMode(GL_BACK, GL_LINE);
-
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    gluPerspective(cameraFOV, 2.0, 0.01, 100.0);
-
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-    gluLookAt(centerPos.x, -10, centerPos.z, centerPos.x, centerPos.y, centerPos.z, 0, 0, 1);
-    glPushMatrix();
-
-    qrot.getRotMat(rotationMatrix);
-    float3 offset = matrixMul(rotationMatrix, centerPos);
-
-    glMultMatrixf(rotationMatrix);
-    glTranslatef(offset.x-centerPos.x, offset.y-centerPos.y, offset.z-centerPos.z);
-
-    glEnableClientState(GL_VERTEX_ARRAY);
-    glEnableClientState(GL_COLOR_ARRAY);
-    glEnableClientState(GL_NORMAL_ARRAY);
-
-    if (useInterop)
-    {
-      glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[0]);
-      glVertexPointer(4, GL_FLOAT, 0, 0);
-      glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[1]);
-      glColorPointer(4, GL_FLOAT, 0, 0);
-      glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[2]);
-      glNormalPointer(GL_FLOAT, 0, 0);
-      glDrawArrays(GL_TRIANGLES, 0, isosurface->num_total_vertices);
-      glBindBuffer(GL_ARRAY_BUFFER, 0);
-    }
-    else
-    {
-      if (showIso)
+    
+      glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);      
+      glDisable(GL_POLYGON_OFFSET_LINE);
+      if (pm == 1)
       {
-        glNormalPointer(GL_FLOAT, 0, &normals[0]);
-        glColorPointer(4, GL_FLOAT, 0, &colors[0]);
-        glVertexPointer(4, GL_FLOAT, 0, &vertices[0]);
-        glDrawArrays(GL_TRIANGLES, 0, vertices.size());
-      }
-    }
+        glEnable(GL_POLYGON_OFFSET_LINE);
+        glPolygonOffset(1.0f,1.0f);
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+      } 
 
-    glDisableClientState(GL_VERTEX_ARRAY);
-    glDisableClientState(GL_COLOR_ARRAY);
-    glDisableClientState(GL_NORMAL_ARRAY);
+      glMatrixMode(GL_PROJECTION);
+      glLoadIdentity();
+      gluPerspective(cameraFOV, 2.0f, BASE_SCALE/3.5f, 5.0f*BASE_SCALE); 
 
-    if ((!useInterop) && (showTets))
-    {
-      glBegin(GL_TRIANGLES);
-      for (unsigned int i=0; i<6; i++)
+      glMatrixMode(GL_MODELVIEW);
+      glLoadIdentity();
+      gluLookAt(centerPos.x, -2.0f*BASE_SCALE, centerPos.z, centerPos.x, 0, centerPos.z, cameraUp.x, cameraUp.y, cameraUp.z); 
+      glPushMatrix();
+
+      glTranslatef(lookPos.x, lookPos.y, lookPos.z);
+      if (pm == 1) glTranslatef(0.0f, -BASE_SCALE*0.03f, 0.0f);
+      qrot.getRotMat(rotationMatrix);
+      float3 offset = matrixMul(rotationMatrix, centerPos);
+
+      glMultMatrixf(rotationMatrix);
+      glTranslatef(offset.x-centerPos.x, offset.y-centerPos.y, offset.z-centerPos.z);
+
+      glEnableClientState(GL_VERTEX_ARRAY);
+      if (pm == 0) glEnableClientState(GL_COLOR_ARRAY);
+      glEnableClientState(GL_NORMAL_ARRAY);
+
+      #ifdef USE_INTEROP
+        if (useInterop)
+        {
+          glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[0]);
+          glVertexPointer(4, GL_FLOAT, 0, 0);
+          glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[1]);
+          glColorPointer(4, GL_FLOAT, 0, 0);
+          glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[2]);
+          glNormalPointer(GL_FLOAT, 0, 0);
+          glDrawArrays(GL_TRIANGLES, 0, isosurface->num_total_vertices);
+          glBindBuffer(GL_ARRAY_BUFFER, 0);
+        }
+        else
+      #endif
       {
-	if (showTet[i])
-	{
-	  for (unsigned int j=0; j<12; j++)
-	  {
-	    glNormal3f(tetNormals[12*i+j].x, tetNormals[12*i+j].y, tetNormals[12*i+j].z);
-	    glColor4f(tetColors[12*i+j].x, tetColors[12*i+j].y, tetColors[12*i+j].z, 1.0f);
-	    glVertex3f(tetVertices[12*i+j].x, tetVertices[12*i+j].y, tetVertices[12*i+j].z);
-	  }
-	}
+        if (showIso)
+        {
+          glNormalPointer(GL_FLOAT, 0, &normals[0]);
+          glColorPointer(4, GL_FLOAT, 0, &colors[0]);
+          glVertexPointer(4, GL_FLOAT, 0, &vertices[0]);
+          glDrawArrays(GL_TRIANGLES, 0, vertices.size());
+        }
       }
-      glEnd();
-    }
 
-    glPopMatrix();
+      glDisableClientState(GL_VERTEX_ARRAY);
+      glDisableClientState(GL_COLOR_ARRAY);
+      glDisableClientState(GL_NORMAL_ARRAY);
+
+      glPopMatrix();
+    }
 }
 
 
 void TetraRender::cleanup()
 {
-    if (useInterop)
-    {
-      printf("Deleting VBO\n");
-      if (vboBuffers[0])
+    #ifdef USE_INTEROP
+      if (useInterop)
       {
-        for (int i=0; i<4; i++) cudaGraphicsUnregisterResource(vboResources[i]);
-	for (int i=0; i<4; i++)
-	{
-	  glBindBuffer(1, vboBuffers[i]);
-	  glDeleteBuffers(1, &(vboBuffers[i]));
-	  vboBuffers[i] = 0;
-	}
+        printf("Deleting VBO\n");
+        if (vboBuffers[0])
+        {
+          for (int i=0; i<4; i++) cudaGraphicsUnregisterResource(vboResources[i]);
+	  for (int i=0; i<4; i++)
+	  {
+	    glBindBuffer(1, vboBuffers[i]);
+	    glDeleteBuffers(1, &(vboBuffers[i]));
+	    vboBuffers[i] = 0;
+	  }
+        }
       }
-    }
-    else
+      else
+    #endif
     {
       vertices.clear(); normals.clear(); colors.clear();
     }
@@ -187,11 +181,11 @@ void TetraRender::cleanup()
 
 void TetraRender::initGL(bool aAllowInterop)
 {
-#ifdef USE_INTEROP
-    useInterop = aAllowInterop;
-#else
-    useInterop = false;
-#endif
+    #ifdef USE_INTEROP
+      useInterop = aAllowInterop;
+    #else
+      useInterop = false;
+    #endif
 
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
     glEnable(GL_DEPTH_TEST);
@@ -215,108 +209,115 @@ void TetraRender::initGL(bool aAllowInterop)
     glEnable(GL_NORMALIZE);
     glEnable(GL_COLOR_MATERIAL);
 
-#ifdef USE_INTEROP
-    if (useInterop)
-    {
-      glewInit();
-      cudaGLSetGLDevice(0);
-
-      // initialize contour buffer objects
-      glGenBuffers(4, vboBuffers);
-      for (int i=0; i<3; i++)
+    #ifdef USE_INTEROP
+      if (useInterop)
       {
-        unsigned int buffer_size = (i == 2) ? TETRA_BUFFER_SIZE*sizeof(float3) : TETRA_BUFFER_SIZE*sizeof(float4);
-        glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[i]);
-        glBufferData(GL_ARRAY_BUFFER, buffer_size, 0, GL_DYNAMIC_DRAW);
+        glewInit();
+        cudaGLSetGLDevice(0);
+
+        glGenBuffers(4, vboBuffers);
+        for (int i=0; i<3; i++)
+        {
+          unsigned int buffer_size = (i == 2) ? TETRA_BUFFER_SIZE*sizeof(float3) : TETRA_BUFFER_SIZE*sizeof(float4);
+          glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[i]);
+          glBufferData(GL_ARRAY_BUFFER, buffer_size, 0, GL_DYNAMIC_DRAW);
+        }
+        glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[3]);
+        glBufferData(GL_ARRAY_BUFFER, TETRA_BUFFER_SIZE*sizeof(uint3), 0, GL_DYNAMIC_DRAW);
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        for (int i=0; i<4; i++) cudaGraphicsGLRegisterBuffer(&(vboResources[i]), vboBuffers[i], cudaGraphicsMapFlagsWriteDiscard);
       }
-      glBindBuffer(GL_ARRAY_BUFFER, vboBuffers[3]);
-      glBufferData(GL_ARRAY_BUFFER, TETRA_BUFFER_SIZE*sizeof(uint3), 0, GL_DYNAMIC_DRAW);
+    #endif
 
-      glBindBuffer(GL_ARRAY_BUFFER, 0);
-      for (int i=0; i<4; i++) cudaGraphicsGLRegisterBuffer(&(vboResources[i]), vboBuffers[i], cudaGraphicsMapFlagsWriteDiscard);
-    }
-#endif
+    triFilter = vtkDataSetTriangleFilter::New();
+    triFilter->TetrahedraOnlyOn();
 
-    //printf("Error code: %s\n", cudaGetErrorString(errorCode));
-    read();
-}
-
-
-void TetraRender::toggleTet(int id)
-{
-    showTet[id] = !showTet[id];
-}
-
-
-int TetraRender::read()
-{
-    field = new height_field<SPACE>(2,2,2);
-
-    thrust::copy(field->point_data_begin(), field->point_data_end(), std::ostream_iterator<int>(std::cout, " "));
-    std::cout << std::endl;
-
-    tetra = new image3d_to_tetrahedrons<height_field<SPACE> >(*field);
-
-    thrust::copy(tetra->point_data_begin(), tetra->point_data_end(), std::ostream_iterator<int>(std::cout, " "));
-    std::cout << std::endl;
-
-    thrust::host_vector<thrust::tuple<int, int, int> > coordinates(tetra->grid_coordinates_begin(), tetra->grid_coordinates_end());
-    for (unsigned int i=0; i<coordinates.size(); i++)
-	std::cout << thrust::get<0>(coordinates[i]) << " " << thrust::get<1>(coordinates[i]) << " " << thrust::get<2>(coordinates[i]) << " " << std::endl;
-
-    for (unsigned int j=0; j<6; j++)
+    char fullFilename[1024];
+    strcpy(fullFilename, filename);
+    reader = vtkXMLUnstructuredGridReader::New();
+    int fileFound = reader->CanReadFile(fullFilename);
+    if (!fileFound)
     {
-      float4 curColor;
-      if (j == 0) curColor = make_float4(1,0,0,1);
-      if (j == 1) curColor = make_float4(0,1,0,1);
-      if (j == 2) curColor = make_float4(0,0,1,1);
-      if (j == 3) curColor = make_float4(1,1,0,1);
-      if (j == 4) curColor = make_float4(0,1,1,1);
-      if (j == 5) curColor = make_float4(1,0,1,1);
-
-      float3 v0 = make_float3(thrust::get<0>(coordinates[4*j+0]), thrust::get<1>(coordinates[4*j+0]), thrust::get<2>(coordinates[4*j+0]));
-      float3 v1 = make_float3(thrust::get<0>(coordinates[4*j+1]), thrust::get<1>(coordinates[4*j+1]), thrust::get<2>(coordinates[4*j+1]));
-      float3 v2 = make_float3(thrust::get<0>(coordinates[4*j+2]), thrust::get<1>(coordinates[4*j+2]), thrust::get<2>(coordinates[4*j+2]));
-      float3 v3 = make_float3(thrust::get<0>(coordinates[4*j+3]), thrust::get<1>(coordinates[4*j+3]), thrust::get<2>(coordinates[4*j+3]));
-
-      for (unsigned int i=0; i<12; i++) tetColors.push_back(curColor);
-
-      tetVertices.push_back(make_float4(v0.x, v0.y, v0.z, 1.0f));
-      tetVertices.push_back(make_float4(v1.x, v1.y, v1.z, 1.0f));
-      tetVertices.push_back(make_float4(v2.x, v2.y, v2.z, 1.0f));
-      float3 n0 = cross(v2-v1, v0-v1);
-      for (unsigned int i=0; i<3; i++) tetNormals.push_back(n0);
-
-      tetVertices.push_back(make_float4(v2.x, v2.y, v2.z, 1.0f));
-      tetVertices.push_back(make_float4(v1.x, v1.y, v1.z, 1.0f));
-      tetVertices.push_back(make_float4(v3.x, v3.y, v3.z, 1.0f));
-      float3 n1 = cross(v3-v1, v2-v1);
-      for (unsigned int i=0; i<3; i++) tetNormals.push_back(n1);
-
-      tetVertices.push_back(make_float4(v3.x, v3.y, v3.z, 1.0f));
-      tetVertices.push_back(make_float4(v1.x, v1.y, v1.z, 1.0f));
-      tetVertices.push_back(make_float4(v0.x, v0.y, v0.z, 1.0f));
-      float3 n2 = cross(v0-v1, v3-v1);
-      for (unsigned int i=0; i<3; i++) tetNormals.push_back(n2);
-
-      tetVertices.push_back(make_float4(v0.x, v0.y, v0.z, 1.0f));
-      tetVertices.push_back(make_float4(v2.x, v2.y, v2.z, 1.0f));
-      tetVertices.push_back(make_float4(v3.x, v3.y, v3.z, 1.0f));
-      float3 n3 = cross(v3-v2, v0-v2);
-      for (unsigned int i=0; i<3; i++) tetNormals.push_back(n3);
-
-      showTet[j] = true;
+      sprintf(fullFilename, "%s/%s", STRINGIZE_VALUE_OF(DATA_DIRECTORY), filename);
+      fileFound = reader->CanReadFile(fullFilename);
     }
-    showIso = true;
-    showTets = false;
-    centerPos = make_float3(0.5, 0.5, 0.5);
+    if (fileFound)
+    {
+      reader->SetFileName(fullFilename);  
+      reader->Update();
+      triFilter->SetInput(reader->GetOutput());
+    } 
+    else 
+    {
+      gridSize = atoi(filename);
+      src = vtkRTAnalyticSource::New();
+      src->SetWholeExtent(-gridSize, gridSize, -gridSize, gridSize, -gridSize, gridSize);
+      src->Update();
+      triFilter->SetInput(src->GetOutput());
+    }
 
-    isosurface = new marching_tetrahedron<image3d_to_tetrahedrons<height_field<SPACE> >,
-    			                  image3d_to_tetrahedrons<height_field<SPACE> > >(*tetra, *tetra, 0.5f);
+    triFilter->Update();
+    tetrahedra = triFilter->GetOutput();
+
+    double curVertex[3], minVertex[3], maxVertex[3];
+    for (unsigned int i=0; i<3; i++) { minVertex[i] = DBL_MAX; maxVertex[i] = -DBL_MAX; }
+    for (unsigned int i=0; i<tetrahedra->GetNumberOfPoints(); i++)
+    {
+      tetrahedra->GetPoint(i, curVertex);
+      for (unsigned int j=0; j<3; j++)
+      {
+        if (minVertex[j] > curVertex[j]) minVertex[j] = curVertex[j];
+        if (maxVertex[j] < curVertex[j]) maxVertex[j] = curVertex[j];
+      }
+    }
+    double maxRange = 0.0;
+    for (unsigned int i=0; i<3; i++) 
+    { 
+      double curRange = maxVertex[i] - minVertex[i];
+      if (curRange > maxRange) maxRange = curRange; 
+    }
+    std::cout << "Range: " << maxRange << std::endl;
+        
+    utet = new unstructured_tetrahedra<SPACE>(tetrahedra, BASE_SCALE/maxRange);
+    
+    if (computeAverageIsovalue)
+    {
+      vtkDataArray* array1 = tetrahedra->GetPointData()->GetArray(0);
+      vtkFloatArray* farray = vtkFloatArray::SafeDownCast(array1);
+      float* rawData = farray->GetPointer(0);
+      isovalue = 0.0f;
+      for (unsigned int i=0; i<array1->GetNumberOfTuples(); i++) isovalue += rawData[i];
+      isovalue /= (1.0f*array1->GetNumberOfTuples());
+      std::cout << "Isovalue: " << isovalue << std::endl;
+    }
+    minValue = isovalue*0.9999f;  maxValue = isovalue;
+ 
+    showIso = true;  
+    zoomLevelBase = cameraFOV = 60.0f; cameraZ = 2.0f; zoomLevelPct = zoomLevelPctDefault = 0.5f;
+    cameraFOV = zoomLevelBase*zoomLevelPct;  cameraUp = make_float3(0,0,1);
+ 
+    isosurface = new marching_tetrahedron<unstructured_tetrahedra<SPACE>, unstructured_tetrahedra<SPACE> >(*utet, *utet, isovalue);
+
+    ((*isosurface)());
+    vertices.assign(isosurface->vertices_begin(), isosurface->vertices_end());
+    lookPos = make_float3(0.0f, 0.0f, 0.0f);
+    centerPos = make_float3(0.0f, 0.0f, 0.0f);
+    for (unsigned int i=0; i<vertices.size(); i++) { centerPos.x += vertices[i].x;  centerPos.y += vertices[i].y;  centerPos.z += vertices[i].z; }
+    centerPos.x /= vertices.size();  centerPos.y /= vertices.size();  centerPos.z /= vertices.size(); 
+    printf("Center: %f %f %f\n", centerPos.x, centerPos.y, centerPos.z);
+
     isosurface->useInterop = useInterop;
-    zoomLevelBase = cameraFOV = 40.0; cameraZ = 2.0; zoomLevelPct = zoomLevelPctDefault = 0.5;
-    center_pos = make_float3(0, 0, 0);
-    cameraFOV = zoomLevelBase*zoomLevelPct;  camera_up = make_float3(0,1,0);
 
-    return 0;
+    #ifdef USE_INTEROP
+      if (useInterop)
+      {
+        for (int i=0; i<4; i++) isosurface->vboResources[i] = vboResources[i];
+        isosurface->minIso = minValue;  isosurface->maxIso = maxValue;
+      }
+    #endif
 }
+
+
+
+

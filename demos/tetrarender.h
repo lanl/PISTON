@@ -52,13 +52,30 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #include <vtkXMLPolyDataReader.h>
 #include <vtkTriangleFilter.h>
 #include <vtkPolyDataNormals.h>
+#include <vtkDataSetTriangleFilter.h>
+#include <vtkDataSetToUnstructuredGridFilter.h>
+#include <vtkUnstructuredGrid.h>
+#include <vtkXMLUnstructuredGridReader.h>
+#include <vtkXMLMultiBlockDataReader.h>
 
 #include <sys/time.h>
+
+
+#include <vtkImageData.h>
+#include <vtkRTAnalyticSource.h>
+
+#include <piston/vtk_image3d.h>
+#include <piston/piston_math.h>
+#include <piston/hsv_color_map.h>
+#include "piston/image3d_to_tetrahedrons.h"
+#include "piston/marching_tetrahedron.h"
+
+
 #include "piston/util/quaternion.h"
 
-#include <piston/piston_math.h>
+
 #include <piston/choose_container.h>
-#include <piston/hsv_color_map.h>
+
 
 using namespace piston;
 #define SPACE thrust::detail::default_device_space_tag
@@ -67,36 +84,30 @@ using namespace piston;
 #include <piston/vtk_image3d.h>
 #include "piston/util/height_field.h"
 #include <piston/image3d_to_tetrahedrons.h>
+#include <piston/unstructured_tetrahedra.h>
 #include <piston/marching_tetrahedron.h>
 
 class TetraRender
 {
 public:
-  TetraRender();
+  TetraRender(char* a_filename, bool a_computeAverageIsovalue, float a_isovalue=0.0f);
   void setZoomLevelPct(float pct);
   void display();
   void idle();
   void initGL(bool aAllowInterop);
   void cleanup();
-  int read();
   void resetView();
-  void toggleTet(int id);
 
   bool useInterop;
-  float3 center_pos;
-  float3 camera_up;
   float cameraZ, cameraFOV, zoomLevelBase;
   int mouse_old_x, mouse_old_y;
   Quaternion qrot;
-  bool includeInput, includeGlyphs;
 
   int mouse_buttons;
   float3 translate;
   float rotationMatrix[16];
   Quaternion qDefault;
   int viewportWidth, viewportHeight;
-
-  float maxValue, minValue;
 
   float zoomLevelPct, zoomLevelPctDefault;
 
@@ -107,17 +118,21 @@ public:
   thrust::host_vector<float4>  colors;
   thrust::host_vector<float>  scalars;
 
-  thrust::host_vector<float4>  tetVertices;
-  thrust::host_vector<float3>  tetNormals;
-  thrust::host_vector<float4>  tetColors;
-  bool showTet[6];
   bool showIso;
-  bool showTets;
-  float3 centerPos;
+  float3 centerPos, lookPos, cameraUp;
+  float isovalue;
+  bool computeAverageIsovalue;
+  char filename[512];
+  float minValue, maxValue;
+  int gridSize;
+  int wireMode;
 
-  height_field<SPACE>* field;
-  image3d_to_tetrahedrons<height_field<SPACE> >* tetra;
-  marching_tetrahedron<image3d_to_tetrahedrons<height_field<SPACE> >, image3d_to_tetrahedrons<height_field<SPACE> > >* isosurface;
+  vtkRTAnalyticSource* src;
+  vtkXMLUnstructuredGridReader* reader;
+  vtkUnstructuredGrid* tetrahedra;
+  unstructured_tetrahedra<SPACE>* utet;
+  vtkDataSetTriangleFilter* triFilter;
+  marching_tetrahedron<unstructured_tetrahedra<SPACE>, unstructured_tetrahedra<SPACE> >* isosurface;
 };
 
 #endif
