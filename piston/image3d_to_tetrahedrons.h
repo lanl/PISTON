@@ -33,11 +33,16 @@ namespace piston
 
 // TODO: should we put the InputDataSet in template parameter or
 // as a parameter to the constructor?
+// This is essentially a new "view" on the InputDataSet, i.e. changing from
+// uniform 3D of voxel to tetrahedra mesh. The point data
 template <typename InputDataSet>
 class image3d_to_tetrahedrons
 {
-
 public:
+    static const int TetrasPerVoxel   = 6;
+    static const int VerticesPerTetra = 4;
+    static const int VerticesPerVoxel = TetrasPerVoxel*VerticesPerTetra;
+
     typedef typename InputDataSet::GridCoordinatesIterator InputGridCoordinatesIterator;
     typedef typename InputDataSet::PointDataIterator 	   InputPointDataIterator;
 
@@ -69,9 +74,10 @@ public:
 	// TODO: this has to be instantiated for every point in the tetrahedrons.
 	__host__ __device__
 	int operator()(int pointid) {
-	    // the main diagonal is from (0,0,0) to (1,1,1), I paid as much attention
-	    // as possible to make sure to maintain the orientation of the edges.
-	    const int vertices_for_tetra [24] =
+	    // the main diagonal is from (0,0,0) to (1,1,1), I paid as much
+	    // attention as possible to make sure to maintain the orientation
+	    // of the edges.
+	    const int vertices_for_tetra [VerticesPerVoxel] =
 	    {
 		0, 1, 5, 6,
 		0, 2, 1, 6,
@@ -80,38 +86,35 @@ public:
 		0, 4, 7, 6,
 		0, 5, 4, 6,
 	    };
-	    const int cubeid = pointid/24;
-	    return i[vertices_for_tetra[pointid%24]] + cubeid;
+	    const int cubeid = pointid/VerticesPerVoxel;
+	    return i[vertices_for_tetra[pointid%VerticesPerVoxel]] + cubeid;
 	}
     };
 
     typedef typename thrust::iterator_space<InputPointDataIterator>::type	space_type;
     typedef typename thrust::counting_iterator<int, space_type>			CountingIterator;
-    typedef typename thrust::transform_iterator<index2index, CountingIterator>	IndicesIterator;
 
-    typedef thrust::permutation_iterator<InputGridCoordinatesIterator, IndicesIterator> GridCoordinatesIterator;
-//    typedef thrust::permutation_iterator<InputPointDataIterator,       IndicesIterator> PointDataIterator;
-
+    // TODO: do we still need this?
     int NCells;
-    IndicesIterator indices;
     InputDataSet &input;
 
-    GridCoordinatesIterator grid_coordinates_iterator;
-//    PointDataIterator	    point_data_iterator;
+    typedef typename detail::choose_container<CountingIterator, int>::type IndicesContainer;
+    IndicesContainer indices_vector;
+    typedef typename IndicesContainer::iterator IndicesIterator;
 
-//    typedef typename detail::choose_container<CountingIterator, float>::type PointDataContainer;
-    typedef thrust::device_vector<float> PointDataContainer;
-    PointDataContainer point_data_vector;
-    typedef typename PointDataContainer::iterator PointDataIterator;
+    typedef thrust::permutation_iterator<InputGridCoordinatesIterator, IndicesIterator> GridCoordinatesIterator;
+    GridCoordinatesIterator grid_coordinates_iterator;
+
+    typedef thrust::permutation_iterator<InputPointDataIterator, IndicesIterator> PointDataIterator;
+    PointDataIterator point_data_iterator;
 
     image3d_to_tetrahedrons(InputDataSet &input) :
-	NCells(input.NCells*6),
+	NCells(input.NCells*TetrasPerVoxel),
 	input(input),
-	indices(CountingIterator(0), index2index(input)),
-	grid_coordinates_iterator(input.grid_coordinates_begin(), indices),
-//	point_data_iterator(input.point_data_begin(), indices),
-	point_data_vector(thrust::make_permutation_iterator(input.point_data_begin(), indices),
-	                  thrust::make_permutation_iterator(input.point_data_begin(), indices)+24*input.NCells)
+	indices_vector(thrust::make_transform_iterator(CountingIterator(0), index2index(input)),
+	               thrust::make_transform_iterator(CountingIterator(0), index2index(input))+24*input.NCells),
+	grid_coordinates_iterator(input.grid_coordinates_begin(), indices_vector.begin()),
+	point_data_iterator(input.point_data_begin(), indices_vector.begin())
     {}
 
     GridCoordinatesIterator grid_coordinates_begin() {
@@ -122,12 +125,10 @@ public:
     }
 
     PointDataIterator point_data_begin() {
-	return point_data_vector.begin();
-//	return point_data_iterator;
+	return point_data_iterator;
     }
     PointDataIterator point_data_end() {
-	return point_data_vector.end();
-//	return point_data_iterator+24*input.NCells;
+	return point_data_iterator+24*input.NCells;
     }
 };
 
