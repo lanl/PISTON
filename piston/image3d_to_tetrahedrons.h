@@ -94,9 +94,7 @@ public:
     typedef typename thrust::iterator_space<InputPointDataIterator>::type	space_type;
     typedef typename thrust::counting_iterator<int, space_type>			CountingIterator;
 
-    // TODO: do we still need this?
     int NCells;
-    InputDataSet &input;
 
     typedef typename detail::choose_container<CountingIterator, int>::type IndicesContainer;
     IndicesContainer indices_vector;
@@ -110,9 +108,8 @@ public:
 
     image3d_to_tetrahedrons(InputDataSet &input) :
 	NCells(input.NCells*TetrasPerVoxel),
-	input(input),
 	indices_vector(thrust::make_transform_iterator(CountingIterator(0), index2index(input)),
-	               thrust::make_transform_iterator(CountingIterator(0), index2index(input))+24*input.NCells),
+	               thrust::make_transform_iterator(CountingIterator(0), index2index(input))+NCells*VerticesPerTetra),
 	grid_coordinates_iterator(input.grid_coordinates_begin(), indices_vector.begin()),
 	point_data_iterator(input.point_data_begin(), indices_vector.begin())
     {}
@@ -121,14 +118,14 @@ public:
 	return grid_coordinates_iterator;
     }
     GridCoordinatesIterator grid_coordinates_end() {
-	return grid_coordinates_iterator+24*input.NCells;
+	return grid_coordinates_iterator+NCells*VerticesPerTetra;
     }
 
     PointDataIterator point_data_begin() {
 	return point_data_iterator;
     }
     PointDataIterator point_data_end() {
-	return point_data_iterator+24*input.NCells;
+	return point_data_iterator+NCells*VerticesPerTetra;
     }
 };
 
