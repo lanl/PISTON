@@ -31,8 +31,6 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 namespace piston
 {
 
-// TODO: should we put the InputDataSet in template parameter or
-// as a parameter to the constructor?
 // This is essentially a new "view" on the InputDataSet, i.e. changing from
 // uniform 3D of voxel to tetrahedra mesh. The point data
 template <typename InputDataSet>
@@ -49,7 +47,6 @@ public:
     // construct IndexIterator mapping pointid of tetrahedrons to pointid of image3d
     struct index2index : public thrust::unary_function<int, int>
     {
-	// TODO: how often should we update these? Fetch it from input all the time?
 	const int dim0;
 	const int dim1;
 	const int dim2;
@@ -57,7 +54,7 @@ public:
 
 	int i[8];
 
-	index2index(InputDataSet &input) :
+	index2index(const InputDataSet &input) :
 	    dim0(input.dim0), dim1(input.dim1), dim2(input.dim2),
 	    points_per_layer(dim0*dim1) {
 	    i[0] = 0;
