@@ -41,7 +41,7 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 
 namespace piston {
 
-template <typename InputDataSet1, typename InputDataSet2>
+template <typename InputDataSet1, typename InputDataSet2 = InputDataSet1>
 class marching_cube
 {
 public:
