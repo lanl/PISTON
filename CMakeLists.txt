@@ -20,7 +20,8 @@ add_subdirectory(examples)
 
 if (BUILD_DEMO)
   add_subdirectory(demos)
+  add_subdirectory(tutorial)
 endif ()
 
-#add_subdirectory(samples)
 add_subdirectory(benchmark)
+
