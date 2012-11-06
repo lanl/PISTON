@@ -9,17 +9,23 @@ set(QT_USE_QTOPENGL TRUE)
 include(${QT_USE_FILE})
 add_definitions(${QT_DEFINITIONS})
 
+set (DATA_DIR "" CACHE PATH "Data directory")
+set (INIT_BUFFER_SIZE 10000 CACHE INT "Initial VBO Size")
+set (MPI_INCLUDE_DIR "" CACHE PATH "MPI include directory")
+set (MPI_LIB_DIR "" CACHE PATH "MPI library directory")
+
 include_directories(${OPENGL_INCLUDE_DIR})
 include_directories(${GLUT_INCLUDE_DIR})
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${CMAKE_SOURCE_DIR}/demos)
 
+include_directories(${MPI_INCLUDE_DIR}) 
+LINK_DIRECTORIES(${MPI_LIB_DIR})
+
 if(VTK_USE_MPI)
   include_directories(${VTK_MPI_INCLUDE_DIR})
 endif()
 
-set (DATA_DIR "" CACHE PATH "Data directory")
-set (INIT_BUFFER_SIZE 10000 CACHE INT "Initial VBO Size")
 
 if (ENABLE_INTEROP)
   set(GPU_FLAGS "-DUSE_INTEROP")
@@ -106,4 +112,8 @@ target_link_libraries(rendererOMP pthread vtkIO vtkImaging vtkGraphics vtkHybrid
 add_executable(tetraOMP tetra.cpp tetrarender.cpp ${CMAKE_SOURCE_DIR}/piston/util/quaternion.cpp) 
 set_target_properties(tetraOMP PROPERTIES COMPILE_FLAGS "-fopenmp -DDATA_DIRECTORY=${DATA_DIR} -DTHRUST_DEVICE_BACKEND=THRUST_DEVICE_BACKEND_OMP")
 target_link_libraries(tetraOMP pthread vtkIO vtkImaging vtkGraphics vtkHybrid gomp ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
+
+add_executable(dcontourOMP distributed.cpp distributedrender.cpp ${CMAKE_SOURCE_DIR}/piston/util/quaternion.cpp)
+set_target_properties(dcontourOMP PROPERTIES COMPILE_FLAGS "-fopenmp -DDISTRIBUTED_PISTON -DTHRUST_DEVICE_BACKEND=THRUST_DEVICE_BACKEND_OMP")
+target_link_libraries(dcontourOMP pthread gomp mpi_cxx mpi ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
 
