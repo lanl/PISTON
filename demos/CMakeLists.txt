@@ -98,6 +98,9 @@ if (USE_CUDA)
   
   cuda_add_executable(tetraGPU tetra.cu tetrarender.cu ${CMAKE_SOURCE_DIR}/piston/util/quaternion.cpp OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}" "-DBUFFER_SIZE=${INIT_BUFFER_SIZE}" ${GPU_FLAGS})
   target_link_libraries(tetraGPU pthread vtkIO vtkRendering vtkFiltering vtkCommon vtkGraphics GLEW ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
+
+  cuda_add_executable(structuredtetraGPU structuredtetra.cu structuredtetrarender.cu ${CMAKE_SOURCE_DIR}/piston/util/quaternion.cpp OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}" "-DBUFFER_SIZE=${INIT_BUFFER_SIZE}" ${GPU_FLAGS})
+  target_link_libraries(structuredtetraGPU pthread vtkIO vtkRendering vtkFiltering vtkCommon vtkGraphics GLEW ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
 endif ()
 
 if (USE_CUDA)
@@ -112,6 +115,10 @@ target_link_libraries(rendererOMP pthread vtkIO vtkImaging vtkGraphics vtkHybrid
 add_executable(tetraOMP tetra.cpp tetrarender.cpp ${CMAKE_SOURCE_DIR}/piston/util/quaternion.cpp) 
 set_target_properties(tetraOMP PROPERTIES COMPILE_FLAGS "-fopenmp -DDATA_DIRECTORY=${DATA_DIR} -DTHRUST_DEVICE_BACKEND=THRUST_DEVICE_BACKEND_OMP")
 target_link_libraries(tetraOMP pthread vtkIO vtkImaging vtkGraphics vtkHybrid gomp ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
+
+add_executable(structuredtetraOMP structuredtetra.cpp structuredtetrarender.cpp ${CMAKE_SOURCE_DIR}/piston/util/quaternion.cpp) 
+set_target_properties(structuredtetraOMP PROPERTIES COMPILE_FLAGS "-fopenmp -DDATA_DIRECTORY=${DATA_DIR} -DTHRUST_DEVICE_BACKEND=THRUST_DEVICE_BACKEND_OMP")
+target_link_libraries(structuredtetraOMP pthread vtkIO vtkImaging vtkGraphics vtkHybrid gomp ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
 
 add_executable(dcontourOMP distributed.cpp distributedrender.cpp ${CMAKE_SOURCE_DIR}/piston/util/quaternion.cpp)
 set_target_properties(dcontourOMP PROPERTIES COMPILE_FLAGS "-fopenmp -DDISTRIBUTED_PISTON -DTHRUST_DEVICE_BACKEND=THRUST_DEVICE_BACKEND_OMP")
