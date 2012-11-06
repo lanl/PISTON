@@ -30,7 +30,7 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 
 namespace piston {
 
-template <typename MemorySpace>
+template <typename MemorySpace = thrust::detail::default_device_space_tag>
 struct cayley_field : public piston::image3d<MemorySpace>
 {
     typedef piston::image3d<MemorySpace> Parent;

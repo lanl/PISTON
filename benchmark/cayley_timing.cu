@@ -27,32 +27,38 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #include <piston/util/cayley_field.h>
 #include <piston/marching_cube.h>
 
-#define GRID_SIZE 512
-#define SPACE thrust::detail::default_device_space_tag
-
 using namespace piston;
-
 
 int main(int argc, char **argv)
 {
-    cayley_field<SPACE> cayley(GRID_SIZE, GRID_SIZE, GRID_SIZE);
+    int grid_size = 128;
+    if (argc > 1)
+	grid_size = atoi(argv[1]);
+
+    cayley_field<> cayley(grid_size, grid_size, grid_size);
 
     // get max and min of 3D scalars
-    float min_iso = *thrust::min_element(cayley.point_data_begin(), cayley.point_data_end());
-    float max_iso = *thrust::max_element(cayley.point_data_begin(), cayley.point_data_end());
+    float min_iso = *thrust::min_element(cayley.point_data_begin(),
+                                         cayley.point_data_end());
+    float max_iso = *thrust::max_element(cayley.point_data_begin(),
+                                         cayley.point_data_end());
 
     // create a isosurface filter with cayley as input
-    marching_cube<cayley_field<SPACE>, cayley_field<SPACE> > contour(cayley, cayley, 0.0f);
+    typedef cayley_field<> image_source;
+    marching_cube<image_source> contour(cayley, cayley);
 
     struct timeval begin, end, diff;
     gettimeofday(&begin, 0);
-    for (float isovalue = min_iso; isovalue < max_iso; isovalue += ((max_iso-min_iso)/50)) {
+    for (float isovalue = min_iso; isovalue < max_iso;
+	 isovalue += ((max_iso-min_iso)/50)) {
 	contour.set_isovalue(isovalue);
 	contour();
     }
     gettimeofday(&end, 0);
     timersub(&end, &begin, &diff);
     float seconds = diff.tv_sec + 1.0E-6*diff.tv_usec;
-    std::cout << "GRID_SIZE: " << GRID_SIZE << ", total time: " << seconds << std::endl;
+    std::cout << "grid_size: " << grid_size*2
+	      << ", total time: " << seconds
+	      << ", fps: " << 50.f/seconds << std::endl;
     return 0;
 }

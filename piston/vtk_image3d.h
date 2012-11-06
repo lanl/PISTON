@@ -33,7 +33,7 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 
 namespace piston {
 
-template <typename MemorySpace =  thrust::detail::default_device_space_tag>
+template <typename MemorySpace = thrust::detail::default_device_space_tag>
 struct vtk_image3d : public piston::image3d<MemorySpace>
 {
     typedef piston::image3d<MemorySpace> Parent;
