@@ -120,7 +120,9 @@ add_executable(structuredtetraOMP structuredtetra.cpp structuredtetrarender.cpp 
 set_target_properties(structuredtetraOMP PROPERTIES COMPILE_FLAGS "-fopenmp -DDATA_DIRECTORY=${DATA_DIR} -DTHRUST_DEVICE_BACKEND=THRUST_DEVICE_BACKEND_OMP")
 target_link_libraries(structuredtetraOMP pthread vtkIO vtkImaging vtkGraphics vtkHybrid gomp ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
 
-add_executable(dcontourOMP distributed.cpp distributedrender.cpp ${CMAKE_SOURCE_DIR}/piston/util/quaternion.cpp)
-set_target_properties(dcontourOMP PROPERTIES COMPILE_FLAGS "-fopenmp -DDISTRIBUTED_PISTON -DTHRUST_DEVICE_BACKEND=THRUST_DEVICE_BACKEND_OMP")
-target_link_libraries(dcontourOMP pthread gomp mpi_cxx mpi ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
+if (USE_DISTRIBUTED)
+  add_executable(dcontourOMP distributed.cpp distributedrender.cpp ${CMAKE_SOURCE_DIR}/piston/util/quaternion.cpp)
+  set_target_properties(dcontourOMP PROPERTIES COMPILE_FLAGS "-fopenmp -DDISTRIBUTED_PISTON -DTHRUST_DEVICE_BACKEND=THRUST_DEVICE_BACKEND_OMP")
+  target_link_libraries(dcontourOMP pthread gomp mpi_cxx mpi ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
+endif ()
 
