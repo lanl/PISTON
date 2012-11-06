@@ -45,6 +45,7 @@ struct marching_tetrahedron
 public:
     typedef typename InputDataSet1::PointDataIterator InputPointDataIterator;
     typedef typename InputDataSet1::GridCoordinatesIterator InputGridCoordinatesIterator;
+    typedef typename InputDataSet1::PhysicalCoordinatesIterator InputPhysCoordinatesIterator;
     typedef typename InputDataSet2::PointDataIterator ScalarSourceIterator;
 
     typedef typename thrust::iterator_difference<InputPointDataIterator>::type	diff_type;
@@ -162,8 +163,7 @@ public:
 	// get the total number of vertices,
 	num_total_vertices = num_vertices[valid_cell_indices.back()] + output_vertices_enum.back();
 
-	if (useInterop)
-	{
+	if (useInterop) {
 #if USE_INTEROP
 	    if (num_total_vertices > vboSize)
 	    {
@@ -194,20 +194,16 @@ public:
 	    cudaGraphicsResourceGetMappedPointer((void **) &normalBufferData,
 						 &num_bytes, vboResources[2]);
 #endif
-	} else
-	{
+	} else {
 	    vertices.resize(num_total_vertices);
 	    normals.resize(num_total_vertices);
 	}
 
 	// resize vectors according to the total number of vertices generated.
-	//vertices.resize(num_total_vertices);
-	//normals.resize(num_total_vertices);
 	scalars.resize(num_total_vertices);
 
 	// do edge interpolation for each valid cell
-	if (useInterop)
-	{
+	if (useInterop) {
 #if USE_INTEROP
 	    thrust::for_each(thrust::make_zip_iterator(thrust::make_tuple(valid_cell_indices.begin(), output_vertices_enum.begin(),
 	                                                                  thrust::make_permutation_iterator(case_index.begin(), valid_cell_indices.begin()),
@@ -227,9 +223,7 @@ public:
 	    for (int i = 0; i < 3; i++)
 		cudaGraphicsUnmapResources(1, &vboResources[i], 0);
 #endif
-	}
-	else
-	{
+	} else {
 	    thrust::for_each(thrust::make_zip_iterator(thrust::make_tuple(valid_cell_indices.begin(), output_vertices_enum.begin(),
 	                                                                  thrust::make_permutation_iterator(case_index.begin(),   valid_cell_indices.begin()),
 	                                                                  thrust::make_permutation_iterator(num_vertices.begin(), valid_cell_indices.begin()))),
@@ -287,7 +281,7 @@ public:
     {
 	// FixME: constant iterator and/or iterator to const problem.
 	InputPointDataIterator	point_data;
-	InputGridCoordinatesIterator grid_coord;
+	InputPhysCoordinatesIterator physical_coord;
 	ScalarSourceIterator	scalar_source;
 	const float		isovalue;
 	TableIterator		triangle_table;
@@ -305,7 +299,7 @@ public:
 	                   float3 *normals,
 	                   float  *scalars)
 	    : point_data(input.point_data_begin()),
-	      grid_coord(input.grid_coordinates_begin()),
+	      physical_coord(input.physical_coordinates_begin()),
 	      scalar_source(source.point_data_begin()),
 	      isovalue(isovalue), 
 	      triangle_table(triangle_table),
@@ -359,10 +353,10 @@ public:
 
 	    // TODO: Reconsider what GridCoordinates should be (tuple or float3)
 	    float3 p[4];
-	    p[0] = tuple2float3(*(grid_coord + cell_id*4));
-	    p[1] = tuple2float3(*(grid_coord + cell_id*4 + 1));
-	    p[2] = tuple2float3(*(grid_coord + cell_id*4 + 2));
-	    p[3] = tuple2float3(*(grid_coord + cell_id*4 + 3));
+	    p[0] = tuple2float3(*(physical_coord + cell_id*4));
+	    p[1] = tuple2float3(*(physical_coord + cell_id*4 + 1));
+	    p[2] = tuple2float3(*(physical_coord + cell_id*4 + 2));
+	    p[3] = tuple2float3(*(physical_coord + cell_id*4 + 3));
 
 	    float s[8];
 	    s[0] = *(scalar_source + cell_id*4);

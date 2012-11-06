@@ -42,6 +42,7 @@ public:
     static const int VerticesPerVoxel = TetrasPerVoxel*VerticesPerTetra;
 
     typedef typename InputDataSet::GridCoordinatesIterator InputGridCoordinatesIterator;
+    typedef typename InputDataSet::PhysicalCoordinatesIterator InputPhysCoordinatesIterator;
     typedef typename InputDataSet::PointDataIterator 	   InputPointDataIterator;
 
     // construct IndexIterator mapping pointid of tetrahedrons to pointid of image3d
@@ -100,6 +101,9 @@ public:
     typedef thrust::permutation_iterator<InputGridCoordinatesIterator, IndicesIterator> GridCoordinatesIterator;
     GridCoordinatesIterator grid_coordinates_iterator;
 
+    typedef thrust::permutation_iterator<InputPhysCoordinatesIterator, IndicesIterator> PhysicalCoordinatesIterator;
+    PhysicalCoordinatesIterator phys_coordinates_iterator;
+
     typedef thrust::permutation_iterator<InputPointDataIterator, IndicesIterator> PointDataIterator;
     PointDataIterator point_data_iterator;
 
@@ -108,6 +112,7 @@ public:
 	indices_vector(thrust::make_transform_iterator(CountingIterator(0), index2index(input)),
 	               thrust::make_transform_iterator(CountingIterator(0), index2index(input))+NCells*VerticesPerTetra),
 	grid_coordinates_iterator(input.grid_coordinates_begin(), indices_vector.begin()),
+	phys_coordinates_iterator(input.physical_coordinates_begin(), indices_vector.begin()),
 	point_data_iterator(input.point_data_begin(), indices_vector.begin())
     {}
 
@@ -116,6 +121,13 @@ public:
     }
     GridCoordinatesIterator grid_coordinates_end() {
 	return grid_coordinates_iterator+NCells*VerticesPerTetra;
+    }
+
+    PhysicalCoordinatesIterator physical_coordinates_begin() {
+	return phys_coordinates_iterator;
+    }
+    PhysicalCoordinatesIterator physical_coordinates_end() {
+	return phys_coordinates_iterator+NCells*VerticesPerTetra;
     }
 
     PointDataIterator point_data_begin() {

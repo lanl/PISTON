@@ -245,7 +245,9 @@ public:
 	                     thrust::make_zip_iterator(thrust::make_tuple(valid_cell_indices.end(),   output_vertices_enum.end(),
 	                                                                  thrust::make_permutation_iterator(case_index.begin(),   valid_cell_indices.begin()) + num_valid_cells,
 	                                                                  thrust::make_permutation_iterator(num_vertices.begin(), valid_cell_indices.begin()) + num_valid_cells)),
-	                     isosurface_functor(input, source,isovalue,
+	                     isosurface_functor(input,
+	                                        source,
+	                                        isovalue,
 	                                        triTable.begin(),
 	                                        thrust::raw_pointer_cast(&*vertices.begin()),
 	                                        thrust::raw_pointer_cast(&*normals.begin()),
@@ -392,7 +394,7 @@ public:
 
 	__host__ __device__
 	void operator()(thrust::tuple<int, int, int, int> indices_tuple) {
-	    const int cell_id  = thrust::get<0>(indices_tuple);
+	    const int cell_id      = thrust::get<0>(indices_tuple);
 	    const int outputVertId = thrust::get<1>(indices_tuple);
 	    const int cubeindex    = thrust::get<2>(indices_tuple);
 	    const int numVertices  = thrust::get<3>(indices_tuple);
