@@ -32,7 +32,7 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 namespace piston {
 
 template <typename IndexType, typename ValueType, typename Space>
-struct vtk_plane_field : public piston::image3d<IndexType, ValueType, Space>
+struct vtk_plane_field : public piston::image3d<Space>
 {
     ValueType origin[3];
     ValueType spacing[3];
@@ -77,7 +77,7 @@ struct vtk_plane_field : public piston::image3d<IndexType, ValueType, Space>
 
     GridCoordinatesTransformIterator grid_coordinates_iterator;
 
-    typedef piston::image3d<IndexType, ValueType, Space> Parent;
+    typedef piston::image3d<Space> Parent;
 
     typedef typename detail::choose_container<typename Parent::CountingIterator,
         thrust::tuple<ValueType, ValueType, ValueType> >::type
