@@ -81,10 +81,10 @@ public:
   thrust::host_vector<float3> normals2;
   thrust::host_vector<float4> colors;
 
-  tangle_field</*int, float,*/ SPACE>* cayley;
-  tangle_field</*int, float,*/ SPACE>* cayley2;
-  marching_cube<tangle_field</*int, float,*/ SPACE>, tangle_field</*int, float,*/ SPACE> >* contour2;
-  dmarching_cube<tangle_field</*int, float,*/ SPACE>, tangle_field</*int, float,*/ SPACE> >* contour;
+  tangle_field<SPACE>* cayley;
+  tangle_field<SPACE>* cayley2;
+  marching_cube<tangle_field<SPACE>, tangle_field<SPACE> >* contour2;
+  dmarching_cube<tangle_field<SPACE>, tangle_field<SPACE> >* contour;
 
 };
 
