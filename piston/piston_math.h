@@ -160,6 +160,28 @@ inline __host__ __device__ float3 matrixMul(float* r, float3 v)
 }
 
 
+inline __host__ __device__ void setMatrix9Columns(float* r, float3 col1, float3 col2, float3 col3)
+{
+    r[0] = col1.x;  r[3] = col1.y;  r[6] = col1.z;
+    r[1] = col2.x;  r[4] = col2.y;  r[7] = col2.z;
+    r[2] = col3.x;  r[5] = col3.y;  r[8] = col3.z;
+}
+
+
+inline __host__ __device__ float4 matrix16Mul(float* r, float4 v)
+{
+    return make_float4(r[0]*v.x + r[1]*v.y + r[2]*v.z + r[3]*v.w, r[4]*v.x + r[5]*v.y + r[6]*v.z +r[7]*v.w, r[8]*v.x + r[9]*v.y + r[10]*v.z + r[11]*v.w, r[12]*v.x + r[13]*v.y + r[14]*v.z + r[15]*v.w);
+}
+inline __host__ __device__ float3 matrix16Mul(float* r, float3 v)
+{
+    return make_float3(r[0]*v.x + r[1]*v.y + r[2]*v.z, r[4]*v.x + r[5]*v.y + r[6]*v.z, r[8]*v.x + r[9]*v.y + r[10]*v.z);
+}
+inline __host__ __device__ float3 matrix9Mul(float* r, float3 v)
+{
+    return make_float3(r[0]*v.x + r[1]*v.y + r[2]*v.z, r[3]*v.x + r[4]*v.y + r[5]*v.z, r[6]*v.x + r[7]*v.y + r[8]*v.z);
+}
+
+
 inline __host__ __device__ float* matrixMul(float* a, float* b)
 {
     float* c = new float[16];

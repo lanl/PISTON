@@ -5,6 +5,7 @@ project(piston)
 set (BUILD_DEMO true CACHE BOOL "Build demo (uses VTK)")
 set (USE_CUDA true CACHE BOOL "Use CUDA")
 set (ENABLE_INTEROP ON CACHE BOOL "Use interop")
+set (USE_DISTRIBUTED false CACHE BOOL "Build distributed mem demos")
 
 if (USE_CUDA)
   find_package(CUDA)
@@ -20,7 +21,8 @@ add_subdirectory(examples)
 
 if (BUILD_DEMO)
   add_subdirectory(demos)
+  add_subdirectory(tutorial)
 endif ()
 
-#add_subdirectory(samples)
 add_subdirectory(benchmark)
+

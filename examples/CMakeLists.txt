@@ -35,6 +35,24 @@ if (USE_CUDA)
 
   cuda_add_executable(thresholdGPU glwindow.cu ${ex_SOURCES} ${ex_HEADERS_MOC} ${ex_FORMS_HEADERS} OPTIONS "-DTHRESHOLD" ${GPU_FLAGS})
   target_link_libraries(thresholdGPU GLEW pthread ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES} ${QT_LIBRARIES})
+
+  cuda_add_executable(haloGPU halorender.cu ${ex_SOURCES} ${ex_HEADERS_MOC} ${ex_FORMS_HEADERS} OPTIONS "-DHALO" ${GPU_FLAGS} "-DDATA_DIRECTORY=${DATA_DIR}")
+  target_link_libraries(haloGPU GLEW pthread ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES} ${QT_LIBRARIES})
+
+  cuda_add_executable(haloTestGPU halo.cu OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}")
+  target_link_libraries(haloGPU pthread)
+
+  cuda_add_executable(mandelbrotGPU mandelbrot.cu)
+  target_link_libraries(mandelbrotGPU pthread)
+
+  add_executable(mandelbrot mandelbrot.cpp)
+  target_link_libraries(mandelbrot pthread)
+
+  cuda_add_executable(vtk_image3d vtk_image3d.cu)
+  target_link_libraries(vtk_image3d vtkIO vtkImaging)
+
+  cuda_add_executable(image3d_to_tetGPU image3d_to_tet.cu)
+  target_link_libraries(image3d_to_tetGPU pthread)
 endif ()
 
 
@@ -50,27 +68,17 @@ add_executable(thresholdOMP glwindow.cpp ${ex_SOURCES} ${ex_HEADERS_MOC} ${ex_FO
 set_target_properties(thresholdOMP PROPERTIES COMPILE_FLAGS "-fopenmp -DTHRESHOLD -DTHRUST_DEVICE_BACKEND=THRUST_DEVICE_BACKEND_OMP")
 target_link_libraries(thresholdOMP GLEW pthread gomp ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES} ${QT_LIBRARIES})
 
-cuda_add_executable(mandelbrotGPU mandelbrot.cu)
-target_link_libraries(mandelbrotGPU pthread)
-
-add_executable(mandelbrot mandelbrot.cpp)
-target_link_libraries(mandelbrot pthread)
-
-cuda_add_executable(vtk_image3d vtk_image3d.cu)
-target_link_libraries(vtk_image3d vtkIO vtkImaging)
-
-cuda_add_executable(image3d_to_tetGPU image3d_to_tet.cu)
-target_link_libraries(image3d_to_tetGPU pthread)
-
 add_executable(image3d_to_tetOMP image3d_to_tet.cpp)
 set_target_properties(image3d_to_tetOMP PROPERTIES COMPILE_FLAGS "-fopenmp -DTHRESHOLD -DTHRUST_DEVICE_BACKEND=THRUST_DEVICE_BACKEND_OMP")
 target_link_libraries(image3d_to_tetOMP gomp pthread)
 
-#set(mc_SOURCES example.cpp marching_cube.cu quaternion.cpp)
-#cuda_add_executable(marching_cube ${mc_SOURCES} ${ex_HEADERS_MOC} ${ex_FORMS_HEADERS} OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}")
-#target_link_libraries(marching_cube GLEW pthread vtkIO ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES} ${QT_LIBRARIES})
+add_executable(haloOMP halorender.cpp ${ex_SOURCES} ${ex_HEADERS_MOC} ${ex_FORMS_HEADERS})
+set_target_properties(haloOMP PROPERTIES COMPILE_FLAGS "-fopenmp -DHALO -DTHRUST_DEVICE_BACKEND=THRUST_DEVICE_BACKEND_OMP -DDATA_DIRECTORY=${DATA_DIR}")
+target_link_libraries(haloOMP GLEW pthread gomp ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES} ${QT_LIBRARIES})
 
-#set(eddy_SOURCES example.cpp eddy.cu quaternion.cpp)
-#cuda_add_executable(eddy ${eddy_SOURCES} ${ex_HEADERS_MOC} ${ex_FORMS_HEADERS} OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}")
-#target_link_libraries(eddy GLEW pthread vtkIO ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES} ${QT_LIBRARIES})
+add_executable(haloTestOMP halo.cpp)
+set_target_properties(haloTestOMP PROPERTIES COMPILE_FLAGS "-fopenmp -DTHRUST_DEVICE_BACKEND=THRUST_DEVICE_BACKEND_OMP -DDATA_DIRECTORY=${DATA_DIR}")
+target_link_libraries(haloTestOMP pthread gomp)
+
+
 

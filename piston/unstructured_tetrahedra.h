@@ -46,8 +46,7 @@ struct unstructured_tetrahedra
     thrust::device_vector<vtkIdType> cell_array;
     thrust::device_vector<float> vertex_array;
 
-     
-    struct grid_coordinates_functor : public thrust::unary_function<IndexType, float3>
+    struct grid_coordinates_functor : public thrust::unary_function<IndexType, thrust::tuple<float, float, float> >
     {
         vtkIdType* cdata;
         float* vdata;
@@ -56,11 +55,12 @@ struct unstructured_tetrahedra
 	grid_coordinates_functor(float sfactor, vtkIdType* cdata, float* vdata) : sfactor(sfactor), cdata(cdata), vdata(vdata) {}
 
 	__host__ __device__
-	float3 operator()(const IndexType& point_id) const {
+	thrust::tuple<float, float, float>
+	operator()(const IndexType& point_id) const {
             vtkIdType cellId = point_id / 4;
             int vertexId = point_id % 4;
             int vindex = cdata[5*cellId+vertexId+1];   
-            return make_float3(vdata[vindex*3]*sfactor, vdata[vindex*3+1]*sfactor, vdata[vindex*3+2]*sfactor);
+            return thrust::make_tuple(vdata[vindex*3]*sfactor, vdata[vindex*3+1]*sfactor, vdata[vindex*3+2]*sfactor);
 	}
     };
 

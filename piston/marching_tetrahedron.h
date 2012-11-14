@@ -286,6 +286,8 @@ public:
 	const float		isovalue;
 	TableIterator		triangle_table;
 
+	typedef typename InputPhysCoordinatesIterator::value_type	grid_tuple_type;
+
 	float4 *vertices_output;
 	float3 *normals_output;
 	float  *scalars_output;
@@ -321,10 +323,6 @@ public:
 	    return make_float3((float) thrust::get<0>(xyz),
 	                       (float) thrust::get<1>(xyz),
 	                       (float) thrust::get<2>(xyz));
-	}
-        __host__ __device__
-	float3 tuple2float3(float3 xyz) {
-	    return xyz;
 	}
 
 	__host__ __device__
