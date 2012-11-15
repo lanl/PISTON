@@ -45,6 +45,7 @@ struct marching_tetrahedron
 public:
     typedef typename InputDataSet1::PointDataIterator InputPointDataIterator;
     typedef typename InputDataSet1::GridCoordinatesIterator InputGridCoordinatesIterator;
+    typedef typename InputDataSet1::PhysicalCoordinatesIterator InputPhysCoordinatesIterator;
     typedef typename InputDataSet2::PointDataIterator ScalarSourceIterator;
 
     typedef typename thrust::iterator_difference<InputPointDataIterator>::type	diff_type;
@@ -287,10 +288,12 @@ public:
     {
 	// FixME: constant iterator and/or iterator to const problem.
 	InputPointDataIterator	point_data;
-	InputGridCoordinatesIterator grid_coord;
+	InputPhysCoordinatesIterator physical_coord;
 	ScalarSourceIterator	scalar_source;
 	const float		isovalue;
 	TableIterator		triangle_table;
+
+	typedef typename InputPhysCoordinatesIterator::value_type	grid_tuple_type;
 
 	float4 *vertices_output;
 	float3 *normals_output;
@@ -305,7 +308,7 @@ public:
 	                   float3 *normals,
 	                   float  *scalars)
 	    : point_data(input.point_data_begin()),
-	      grid_coord(input.grid_coordinates_begin()),
+	      physical_coord(input.physical_coordinates_begin()),
 	      scalar_source(source.point_data_begin()),
 	      isovalue(isovalue), 
 	      triangle_table(triangle_table),
@@ -327,10 +330,6 @@ public:
 	    return make_float3((float) thrust::get<0>(xyz),
 	                       (float) thrust::get<1>(xyz),
 	                       (float) thrust::get<2>(xyz));
-	}
-        __host__ __device__
-	float3 tuple2float3(float3 xyz) {
-	    return xyz;
 	}
 
 	__host__ __device__
@@ -359,10 +358,10 @@ public:
 
 	    // TODO: Reconsider what GridCoordinates should be (tuple or float3)
 	    float3 p[4];
-	    p[0] = tuple2float3(*(grid_coord + cell_id*4));
-	    p[1] = tuple2float3(*(grid_coord + cell_id*4 + 1));
-	    p[2] = tuple2float3(*(grid_coord + cell_id*4 + 2));
-	    p[3] = tuple2float3(*(grid_coord + cell_id*4 + 3));
+	    p[0] = tuple2float3(*(physical_coord + cell_id*4));
+	    p[1] = tuple2float3(*(physical_coord + cell_id*4 + 1));
+	    p[2] = tuple2float3(*(physical_coord + cell_id*4 + 2));
+	    p[3] = tuple2float3(*(physical_coord + cell_id*4 + 3));
 
 	    float s[8];
 	    s[0] = *(scalar_source + cell_id*4);
