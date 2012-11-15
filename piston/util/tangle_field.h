@@ -86,39 +86,26 @@ struct tangle_field : public piston::image3d<MemorySpace>
         }
     };
 
-    //typedef typename detail::choose_container<typename Parent::CountingIterator, float>::type PointDataContainer;
-    //PointDataContainer point_data_vector;
-    //typedef typename PointDataContainer::iterator PointDataIterator;
+#ifndef DISTRIBUTED_PISTON
+    typedef typename detail::choose_container<typename Parent::CountingIterator, float>::type PointDataContainer;
+    PointDataContainer point_data_vector;
+    typedef typename PointDataContainer::iterator PointDataIterator;
+#endif
 
     tangle_field(int dim0, int dim1, int dim2) :
 	Parent(dim0, dim1, dim2),
 	phys_coordinates_iterator(Parent::grid_coordinates_iterator,
-	                          physical_coordinates_functor(dim0, dim1, dim2))/*,
-	Parent::point_data_vector(thrust::make_transform_iterator(physical_coordinates_begin(), tangle_functor()),
-	                  thrust::make_transform_iterator(physical_coordinates_end(),   tangle_functor()))*/
-	                  
+	                          physical_coordinates_functor(dim0, dim1, dim2))
+#ifndef DISTRIBUTED_PISTON
+	, point_data_vector(thrust::make_transform_iterator(physical_coordinates_begin(), tangle_functor()),
+	                  thrust::make_transform_iterator(physical_coordinates_end(),   tangle_functor())) { }
+#else                  
     {
         Parent::point_data_vector.resize(this->NPoints);
 	Parent::point_data_vector.assign(thrust::make_transform_iterator(physical_coordinates_begin(), tangle_functor()),
 	                  thrust::make_transform_iterator(physical_coordinates_end(),   tangle_functor()));
     }
-
-    /*tangle_field(int xdim, int ydim, int zdim, bool allocate=true) :
-	Parent(xdim, ydim, zdim)
-    {
-      if (allocate) resize(xdim, ydim, zdim);
-    }
-
-    void resize(int xdim, int ydim, int zdim) {
-	//Parent::resize(xdim, ydim, zdim);
-
-        phys_coordinates_iterator(Parent::grid_coordinates_iterator,
-	                          physical_coordinates_functor(dim0, dim1, dim2))
-
-	Parent::point_data_vector.resize(this->NPoints);
-	Parent::point_data_vector.assign(thrust::make_transform_iterator(Parent::grid_coordinates_begin(), tangle_functor(xdim, ydim, zdim)),
-	                         thrust::make_transform_iterator(Parent::grid_coordinates_end(),   tangle_functor(zdim, ydim, zdim)));
-    }*/
+#endif
 
     PhysicalCoordinatesIterator physical_coordinates_begin() {
 	return phys_coordinates_iterator;
@@ -127,12 +114,14 @@ struct tangle_field : public piston::image3d<MemorySpace>
 	return phys_coordinates_iterator+this->NPoints;
     }
 
-    /*PointDataIterator point_data_begin() {
+#ifndef DISTRIBUTED_PISTON
+    PointDataIterator point_data_begin() {
 	return point_data_vector.begin();
     }
     PointDataIterator point_data_end() {
 	return point_data_vector.end();
-    }*/
+    }
+#endif
 };
 
 }

@@ -92,10 +92,11 @@ struct image3d
     typedef typename thrust::transform_iterator<grid_coordinates_functor, CountingIterator> GridCoordinatesIterator;
     GridCoordinatesIterator grid_coordinates_iterator;
 
+#ifdef DISTRIBUTED_PISTON
     typedef typename detail::choose_container<CountingIterator, float>::type PointDataContainer;
     PointDataContainer point_data_vector;
     typedef typename PointDataContainer::iterator PointDataIterator;
-
+#endif
     
 
     image3d(IndexType xdim, IndexType ydim, IndexType zdim) :
@@ -182,12 +183,14 @@ struct image3d
 	return grid_coordinates_iterator+this->NPoints;
     }
 
+#ifdef DISTRIBUTED_PISTON
     PointDataIterator point_data_begin() {
 	return point_data_vector.begin();
     }
     PointDataIterator point_data_end() {
 	return point_data_vector.end();
     }
+#endif
 };
 
 } // namepsace piston
