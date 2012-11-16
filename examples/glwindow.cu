@@ -53,6 +53,7 @@ using namespace piston;
 #include <piston/util/plane_field.h>
 #include <piston/util/sphere_field.h>
 #include <piston/threshold_geometry.h>
+#include <piston/plane_filed_adaptor.h>
 
 #include <sys/time.h>
 #include <stdio.h>
@@ -70,8 +71,10 @@ bool wireframe = false;
 tangle_field<SPACE>* tangle;
 marching_cube<tangle_field<SPACE>, tangle_field<SPACE> > *isosurface;
 
-plane_field<SPACE>* plane;
-marching_cube<plane_field<SPACE>, tangle_field<SPACE> > *cutplane;
+//plane_field<SPACE>* plane;
+//marching_cube<plane_field<SPACE>, tangle_field<SPACE> > *cutplane;
+plane_field_adaptor<tangle_field<SPACE> >* plane;
+marching_cube<plane_field_adaptor<tangle_field<SPACE> >, tangle_field<SPACE> > *cutplane;
 
 sphere_field<SPACE>* scalar_field;
 threshold_geometry<sphere_field<SPACE> >* threshold;
@@ -202,7 +205,7 @@ void GLWindow::initializeGL()
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    gluLookAt(0.0, 0.0, 2.0,
+    gluLookAt(0.0, 0.0, 4.0,
               0.0, 0.0, 0.0,
               0.0, 1.0, 0.0);
 
@@ -224,8 +227,9 @@ void GLWindow::initializeGL()
 
 #ifdef CUTPLANE
     tangle = new tangle_field<SPACE>(grid_size, grid_size, grid_size);
-    plane = new plane_field<SPACE>(make_float3(0.0f, 0.0f, grid_size/2), make_float3(0.0f, 0.0f, 1.0f), grid_size, grid_size, grid_size);
-    cutplane = new marching_cube<plane_field<SPACE>, tangle_field<SPACE> >(*plane, *tangle, 0.2f);
+//    plane = new plane_field_adaptor<SPACE>(make_float3(0.0f, 0.0f, grid_size/2), make_float3(0.0f, 0.0f, 1.0f), grid_size, grid_size, grid_size);
+    plane = new plane_field_adaptor<tangle_field<SPACE> >(*tangle, make_float3(0, 0, 0), make_float3(0, 0, 1));
+    cutplane = new marching_cube<plane_field_adaptor<tangle_field<SPACE> >, tangle_field<SPACE> >(*plane, *tangle, 0.2f);
     (*cutplane)();
     buffer_size = thrust::distance(cutplane->vertices_begin(), cutplane->vertices_end())* sizeof(float4);
 #endif

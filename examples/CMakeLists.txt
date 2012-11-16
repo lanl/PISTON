@@ -53,6 +53,9 @@ if (USE_CUDA)
 
   cuda_add_executable(image3d_to_tetGPU image3d_to_tet.cu)
   target_link_libraries(image3d_to_tetGPU pthread)
+  
+  cuda_add_executable(plane_field_adaptor plane_field_adaptor.cu)
+  target_link_libraries(plane_field_adaptor pthread)
 endif ()
 
 

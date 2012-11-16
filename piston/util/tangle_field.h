@@ -32,7 +32,7 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 namespace piston {
 
 // TODO: should we parameterize the ValueType? only float makes sense.
-template <typename MemorySpace>
+template <typename MemorySpace = thrust::detail::default_device_space_tag>
 struct tangle_field : public piston::image3d<MemorySpace>
 {
     typedef piston::image3d<MemorySpace> Parent;
