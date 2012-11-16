@@ -77,6 +77,8 @@ void TetraRender::display()
     if (wireMode == 1) { minPass = 1; maxPass = 2; }
     if (wireMode == 2) { minPass = 0; maxPass = 2; }
 
+isovalue *= 1.001;
+
     for (unsigned int pm=minPass; pm<maxPass; pm++)
     {
       isosurface->set_isovalue(isovalue);
