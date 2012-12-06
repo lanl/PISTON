@@ -88,7 +88,22 @@ struct vtk_image3d : public piston::image3d<MemorySpace>
 	                        		           image->GetSpacing()[2])),
 	point_data_vector((float *) image->GetScalarPointer(),
 	                  (float *) image->GetScalarPointer() + this->NPoints)
-    {}
+    {
+        this->origin[0] = image->GetOrigin()[0];
+        this->origin[1] = image->GetOrigin()[1];
+        this->origin[2] = image->GetOrigin()[2];
+
+        this->spacing[0] = image->GetSpacing()[0];
+        this->spacing[1] = image->GetSpacing()[1];
+        this->spacing[2] = image->GetSpacing()[2];
+
+        this->extents[0] = image->GetExtent()[0];
+        this->extents[1] = image->GetExtent()[1];
+        this->extents[2] = image->GetExtent()[2];
+        this->extents[3] = image->GetExtent()[3];
+        this->extents[4] = image->GetExtent()[4];
+        this->extents[5] = image->GetExtent()[5];
+    }
 
 
 #if 0
@@ -113,7 +128,9 @@ struct vtk_image3d : public piston::image3d<MemorySpace>
         Parent(dims[0], dims[1], dims[2]),
         phys_coordinates_iterator(Parent::grid_coordinates_iterator,
                                   physical_coordinates_functor(0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f)),
-        point_data_vector(v.begin(), v.end()) {}
+        point_data_vector(v.begin(), v.end()) {
+	// TODO: this is completely wrong.
+    }
 
     // TODO: COPY Constructor??, Constructor from another image/vector?
     vtk_image3d(int dims[3], double origin[3], double spacing[3], int extents[6],
@@ -129,6 +146,20 @@ struct vtk_image3d : public piston::image3d<MemorySpace>
           spacing[2])),
         point_data_vector(v.begin(), v.end())
     {
+        this->origin[0] = origin[0];
+        this->origin[1] = origin[1];
+        this->origin[2] = origin[2];
+
+        this->spacing[0] = spacing[0];
+        this->spacing[1] = spacing[1];
+        this->spacing[2] = spacing[2];
+
+        this->extents[0] = extents[0];
+        this->extents[1] = extents[1];
+        this->extents[2] = extents[2];
+        this->extents[3] = extents[3];
+        this->extents[4] = extents[4];
+        this->extents[5] = extents[5];
     }
 
 #endif
