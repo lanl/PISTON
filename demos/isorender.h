@@ -77,6 +77,7 @@ typedef enum {
 #include <piston/image3d.h>
 #include <piston/vtk_image3d.h>
 #include <piston/util/plane_field.h>
+#include <piston/plane_filed_adaptor.h>
 #include <piston/marching_cube.h>
 #include <piston/threshold_geometry.h>
 
@@ -172,9 +173,11 @@ public:
   int numConstantVertices;
 
   std::vector<vtk_image3d<SPACE>*> images;
-  std::vector<plane_field<SPACE>*> planeFields;
+  //std::vector<plane_field<SPACE>*> planeFields;
+  std::vector<plane_field_adaptor<vtk_image3d<SPACE> >* > planeFields;
   std::vector<marching_cube<vtk_image3d<SPACE>, vtk_image3d<SPACE> >*> contours;
-  std::vector<marching_cube<plane_field<SPACE>, vtk_image3d<SPACE> >*> planeContours;
+  std::vector<marching_cube<plane_field_adaptor<vtk_image3d<SPACE> >,
+			    vtk_image3d<SPACE> >*> planeContours;
   std::vector<marching_cube<vtk_image3d<SPACE>, vtk_image3d< SPACE> >*> constantContours;
   std::vector<threshold_geometry<vtk_image3d<SPACE> >*> thresholds;
 

@@ -757,8 +757,12 @@ void IsoRender::createOperators()
 
     if ((includePlane) && (planeContours[dataSetIndex] == 0))
     {
-      planeFields[dataSetIndex] = new plane_field<SPACE>(make_float3((xMax-xMin+1)/2.0, (yMax-yMin+1)/2.0, (zMax-zMin+1)/2.0), plane_normal, xMax-xMin+1, yMax-yMin+1, zMax-zMin+1);
-      planeContours[dataSetIndex] = new marching_cube<plane_field<SPACE>, vtk_image3d<SPACE> >(*(planeFields[dataSetIndex]), *(images[dataSetIndex]), isovalue);
+      planeFields[dataSetIndex] = new plane_field_adaptor<vtk_image3d<SPACE> >(*images[dataSetIndex],
+                                                                 make_float3((xMax+xMin+1)/2.0, (yMax+yMin+1)/2.0, (zMax+zMin+1)/2.0),
+//                                                                               make_float3(0, 0, 0),
+                                                                 plane_normal);//, xMax-xMin+1, yMax-yMin+1, zMax-zMin+1);
+      planeContours[dataSetIndex] = new marching_cube<plane_field_adaptor<vtk_image3d<SPACE> >,
+	      vtk_image3d<SPACE> >(*(planeFields[dataSetIndex]), *(images[dataSetIndex]), isovalue);
       planeContours[dataSetIndex]->useInterop = useInterop;
     }
 
@@ -815,6 +819,8 @@ int IsoRender::read(char* aFileName, int aMode)
 
     char filename[1024];
     sprintf(filename, "%s/%s", STRINGIZE_VALUE_OF(DATA_DIRECTORY), userFileName);
+
+printf("Looking for file %s\n", filename);
 
     int fileFound = readers[dataSetIndex]->CanReadFile(filename);
     if (fileFound == 0) sprintf(filename, userFileName);
