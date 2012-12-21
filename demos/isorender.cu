@@ -249,6 +249,7 @@ void IsoRender::display()
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
+
     gluLookAt(center_pos.x, center_pos.y, cameraZ,
                   center_pos.x, center_pos.y, center_pos.z,
                   camera_up.x, camera_up.y, camera_up.z);
@@ -820,8 +821,6 @@ int IsoRender::read(char* aFileName, int aMode)
     char filename[1024];
     sprintf(filename, "%s/%s", STRINGIZE_VALUE_OF(DATA_DIRECTORY), userFileName);
 
-printf("Looking for file %s\n", filename);
-
     int fileFound = readers[dataSetIndex]->CanReadFile(filename);
     if (fileFound == 0) sprintf(filename, userFileName);
     readers[dataSetIndex]->SetFileName(filename);
@@ -831,9 +830,10 @@ printf("Looking for file %s\n", filename);
 
     int dims[3];  output->GetDimensions(dims);
     xMin = yMin = zMin = 0;  xMax = dims[0]-1;  yMax = dims[1]-1;  zMax = dims[2]-1;
+    double bounds[6];  output->GetBounds(bounds);
 
     NPoints = (xMax - xMin + 1) * (yMax - yMin + 1) * (zMax - zMin + 1);
-    center_pos = make_float3((xMax - xMin + 1)/2.0, (yMax - yMin + 1)/2.0, (zMax - zMin + 1)/2.0);
+    center_pos = make_float3((bounds[0]+bounds[1])/2.0f, (bounds[2]+bounds[3])/2.0f, (bounds[4]+bounds[5])/2.0f);
 
     if (userRange)
     {
@@ -855,7 +855,7 @@ printf("Looking for file %s\n", filename);
 
     discardMinVals = true;
     plane_normal.x = 0.0;  plane_normal.y = 0.0;  plane_normal.z = 1.0;  planeLevelPct = 0.5;
-    zoomLevelPctDefault = 0.5;  cameraFOV = 36.0;  cameraZ = 3.0*std::max(std::max(xMax, yMax), zMax);
+    zoomLevelPctDefault = 0.5;  cameraFOV = 36.0;  cameraZ = 3.0*std::max(std::max(bounds[1]-bounds[0], bounds[3]-bounds[2]), bounds[5]-bounds[4]);
     zFar = 2.0*cameraZ;  zNear = zFar/10.0;
     planeMax = (xMax-xMin)*plane_normal.x + (yMax-yMin)*plane_normal.y + (zMax-zMin)*plane_normal.z;
 
@@ -920,8 +920,13 @@ int IsoRender::read(int aDataSetIndex, int aNumIters, int aSaveFrames, char* aFr
     char filename[1024];
     sprintf(filename, "%s/%s", STRINGIZE_VALUE_OF(DATA_DIRECTORY), fname);
     readers[dataSetIndex]->SetFileName(filename);
+
+    readers[dataSetIndex]->Update();
+    output = readers[dataSetIndex]->GetOutput();
+    double bounds[6];  output->GetBounds(bounds);
+
     NPoints = (xMax - xMin + 1) * (yMax - yMin + 1) * (zMax - zMin + 1);
-    center_pos = make_float3((xMax - xMin + 1)/2.0, (yMax - yMin + 1)/2.0, (zMax - zMin + 1)/2.0);
+    center_pos = make_float3((bounds[0]+bounds[1])/2.0f, (bounds[2]+bounds[3])/2.0f, (bounds[4]+bounds[5])/2.0f);
     planeMax = (xMax-xMin)*plane_normal.x + (yMax-yMin)*plane_normal.y + (zMax-zMin)*plane_normal.z;
 
     zoomLevelBase = cameraFOV;  zNear = 200.0;  zFar = 4000.0;
