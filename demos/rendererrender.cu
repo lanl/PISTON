@@ -34,8 +34,8 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 
 #include "rendererrender.h"
 
-//#define TANGLE_EXAMPLE
-#define RTI_EXAMPLE
+#define TANGLE_EXAMPLE
+//#define RTI_EXAMPLE
 #define ORTHO
 
 #define PACKED __attribute__((packed))
@@ -118,7 +118,7 @@ void RendererRender::display()
     //newRotX.setEulerAngles(-0.2*50*3.14159/180.0, 0.0, 0.0);
     //qrot.mul(newRotX);
     qrot.getRotMat(rotationMatrix);
-    float3 center;  center.x = center.y = center.z = grid_size/2;
+    float3 center;  center.x = center.y = center.z = 0.0f; //grid_size/2;
     float3 offset = make_float3(rotationMatrix[0]*center.x + rotationMatrix[1]*center.y + rotationMatrix[2]*center.z,
                                 rotationMatrix[4]*center.x + rotationMatrix[5]*center.y + rotationMatrix[6]*center.z,
                                 rotationMatrix[8]*center.x + rotationMatrix[9]*center.y + rotationMatrix[10]*center.z);
@@ -153,10 +153,10 @@ void RendererRender::display()
     inputColorsHost = inputColors;
 
 #ifdef ORTHO
-    renders->setOrtho(0.0, grid_size, 0.0, grid_size, -2000.0f, 2000.0f);
+    //renders->setOrtho(0.0, grid_size, 0.0, grid_size, -2000.0f, 2000.0f);
+    renders->setOrtho(-2.0f, 2.0f, -2.0f, 2.0f, -2000.0f, 2000.0f);
     renders->setRot(rotationMatrix);
     renders->translate(-offset.x, -offset.y, -offset.z);
-    //renders->setOrtho(-10.0f, 10.0f, -10.0f, 10.0f, -2000.0f, 2000.0f);
 #else
     renders->setPerspective(cameraFOV, viewportWidth/viewportHeight, 1.0f, 5.0f*grid_size);
     renders->setLookAt(make_float3(0,0,4.0f*grid_size), make_float3(0,0,0), make_float3(0,1,0));
@@ -175,8 +175,8 @@ void RendererRender::display()
     glLoadIdentity();
 
 #ifdef ORTHO
-    glOrtho(-0.0, grid_size, 0.0, grid_size, -2000.0f, 2000.0f);
-    //glOrtho(-10.0f, 10.0f, -10.0f, 10.0f, -2000.0f, 2000.0f);
+    //glOrtho(-0.0, grid_size, 0.0, grid_size, -2000.0f, 2000.0f);
+    glOrtho(-2.0f, 2.0f, -2.0f, 2.0f, -2000.0f, 2000.0f);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
@@ -329,9 +329,9 @@ int RendererRender::read()
 #endif
 
 #ifdef TANGLE_EXAMPLE
-    tangle = new tangle_field<int, float, SPACE>(grid_size, grid_size, grid_size);
+    tangle = new tangle_field<SPACE>(grid_size, grid_size, grid_size);
     isovalue = 0.2f;  isoMax = 0.9f;  isoMin = 0.1f;  isoInc = 0.1f;
-    isosurface = new marching_cube<tangle_field<int, float, SPACE>,  tangle_field<int, float, SPACE> >(*tangle, *tangle, isovalue);
+    isosurface = new marching_cube<tangle_field<SPACE>,  tangle_field<SPACE> >(*tangle, *tangle, isovalue);
     (*isosurface)();
 #endif
 

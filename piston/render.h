@@ -441,8 +441,8 @@ public:
         float3 L = make_float3(L4);
         L = normalize(L);
 
-        float dp = dot(L, na);
-        if (dp < 0.0f) dp = 0.0f;
+        float dp = -dot(L, na);
+        dp = fabs(dp); //if (dp < 0.0f) dp = 0.0f;
         float d = 10.0f;
 
         float4 curColor = *(inputColors + 3*id + 0);
@@ -468,7 +468,7 @@ public:
           frame[i*height*pixelSize + j*pixelSize + 0] = b;
           frame[i*height*pixelSize + j*pixelSize + 1] = g;
           frame[i*height*pixelSize + j*pixelSize + 2] = r;
-          if (j < minY) minY = j;  if (j > maxY) maxY = j;
+          if (i < minY) minY = i;  if (i > maxY) maxY = i;
         }
 
         //std::cout << "Range " << minY << " " << maxY << std::endl;
@@ -479,7 +479,7 @@ public:
           float3 v2 = make_float3(*(transformedVertices + 3*id + 2));
 
           int x0 = -99999;
-          if (((s > v0.y) && (s < v1.y)) || ((s < v0.y) && (s > v1.y)))
+          if ((((s > v0.y) && (s < v1.y)) || ((s < v0.y) && (s > v1.y))) && (fabs(v0.x-v1.x) > 0.00001))
           {
             float m0 = (v0.y - v1.y) / (v0.x - v1.x);
             float b0 = v0.y - m0*v0.x;
@@ -487,7 +487,7 @@ public:
           }
 
           int x1 = -99999;
-          if (((s > v2.y) && (s < v1.y)) || ((s < v2.y) && (s > v1.y)))
+          if ((((s > v2.y) && (s < v1.y)) || ((s < v2.y) && (s > v1.y))) && (fabs(v2.x-v1.x) > 0.00001))
           {
             float m1 = (v2.y - v1.y) / (v2.x - v1.x);
             float b1 = v2.y - m1*v2.x;
@@ -495,7 +495,7 @@ public:
           }
 
           int x2 = -99999;
-          if (((s > v0.y) && (s < v2.y)) || ((s < v0.y) && (s > v2.y)))
+          if ((((s > v0.y) && (s < v2.y)) || ((s < v0.y) && (s > v2.y))) && (fabs(v0.x-v2.x) > 0.00001))
           {
             float m2 = (v0.y - v2.y) / (v0.x - v2.x);
             float b2 = v0.y - m2*v0.x;
@@ -590,7 +590,6 @@ public:
       TreeNode* tree;
       int* treeTris;
       int numLevels;
-      float maxZ;
 
       __host__ __device__
       raycast(InputVertices inputVertices, InputNormals inputNormals, InputColors inputColors, int nVertices,
@@ -665,7 +664,7 @@ public:
       }
 
       __host__ __device__
-      void searchTriangle(int t, float3 r0, float3 r1, int x, int y)
+      bool searchTriangle(int t, float3 r0, float3 r1, int x, int y, float& maxZ)
       {
 	float3 v[3];
 	for (unsigned int i=0; i<3; i++) v[i] = make_float3(*(inputVertices + 3*t + i));
@@ -685,7 +684,7 @@ public:
 	  float3 L = make_float3(L4);
 	  L = normalize(L);
 
-	  float dp = dot(L, na);
+	  float dp = -dot(L, na);
 	  dp = fabs(dp); //if (dp < 0.0f) dp = 0.0f;
 	  float d = 10.0f;
 
@@ -707,13 +706,13 @@ public:
 	  frame[y*height*pixelSize + x*pixelSize + 2] = r;
 	  maxZ = ipt.z;
         }
+        return isect;
       }
 
       __host__ __device__
       void operator() (int id)
       {
         int x = id / width;  int y = id % width;
-        maxZ = -FLT_MAX;
 
         float3 r0, r1;
         if (displayInfo.cameraFOV > 0.0f)
@@ -734,6 +733,7 @@ public:
           r0 = make_float3(selectRay.x, selectRay.y, displayInfo.zNear);
           r1 = make_float3(selectRay.x, selectRay.y, displayInfo.zFar);
         }
+        float maxZ = -FLT_MAX;
 
 #ifdef USE_KD_TREE
         int maxLevel = numLevels;
@@ -756,12 +756,12 @@ public:
           else
           {
             for (unsigned int i=0; i<tree[curIndex-1].numTris; i++)
-              searchTriangle(treeTris[tree[curIndex-1].startIndex+i], r0, r1, x, y);
+              searchTriangle(treeTris[tree[curIndex-1].startIndex+i], r0, r1, x, y, maxZ);
           }
           nodesToProcess = false;  for (unsigned int i=0; i<numNodes; i++) if (processNodes[i] >= 0) nodesToProcess = true;
         }
 #else
-        for (int t = 0; t < nVertices/3; t++) searchTriangle(t, r0, r1, x, y);
+        for (int t = 0; t < nVertices/3; t++) searchTriangle(t, r0, r1, x, y, maxZ);
 #endif
       }
     };
