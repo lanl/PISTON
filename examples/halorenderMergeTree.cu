@@ -46,7 +46,7 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #define SPACE thrust::detail::default_device_space_tag
 using namespace piston;
 
-#include <piston/halo_kd.h>
+#include <piston/halo_merge.h>
 
 #include <sys/time.h>
 #include <stdio.h>
@@ -66,7 +66,7 @@ float cameraFOV = 60.0;
 halo *haloFinder;
 
 // parameters needed for the halo_finder (look at halo_finder.h for definitions)
-float linkLength;
+float linkLength, max_linkLength;
 int   particleSize, rL, np;
 
 bool  haloFound, haloShow;
@@ -153,16 +153,18 @@ void GLWindow::initializeGL()
     haloFound = haloShow = false;
     step = 0.1;
 
+    max_linkLength = 1.5;
     linkLength   = 0.2;
     particleSize = 100;
     np = 256;
     rL = 100;
-
     int n = 1; // if you want a fraction of the file to load, use this.. 1/n
+
     char filename[1024];
     sprintf(filename, "%s/sub-24474", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
+    std::string format = "csv";
 
-    haloFinder = new halo_kd(filename, "csv", n, np, rL);
+    haloFinder = new halo_merge(max_linkLength, filename, format, n, np, rL); // maxLL as a parameter
 
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_NORMAL_ARRAY);

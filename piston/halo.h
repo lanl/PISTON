@@ -36,28 +36,35 @@
 namespace piston
 {
 
-struct DataItem
-{
-    float xx;  float yy;  float zz;
-    float vx;  float vy;  float vz;
-    float ms;  int   pt;
-
-    DataItem(){}
-
-    DataItem(float xx, float vx, float yy, float vy, float zz, float vz, float ms, int pt) :
-	     xx(xx), vx(vx), yy(yy), vy(vy), zz(zz), vz(vz), ms(ms), pt(pt) {}
-};
-
-struct Point
-{
-    float x, y, z;
-    Point(float x, float y, float z) : x(x), y(y), z(z) {}
-};
-
-
 class halo
 {
 public:
+
+	struct DataItem
+	{
+		float xx;  float yy;  float zz;
+	    float vx;  float vy;  float vz;
+	    float ms;  int   pt;
+
+	    __host__ __device__
+	    DataItem(){}
+
+	    __host__ __device__
+	    DataItem(float xx, float vx, float yy, float vy, float zz, float vz, float ms, int pt) :
+		     xx(xx), vx(vx), yy(yy), vy(vy), zz(zz), vz(vz), ms(ms), pt(pt) {}
+	};
+
+	struct Point
+	{
+	    float x, y, z;
+
+	    __host__ __device__
+	    Point(){}
+
+	    __host__ __device__
+	    Point(float x, float y, float z) : x(x), y(y), z(z) {}
+	};
+
     // definitions
     typedef thrust::device_vector<float>::iterator FloatIterator;
     typedef thrust::device_vector<int>::iterator IntIterator;
@@ -84,14 +91,13 @@ public:
     int   numOfHalos;     // total number of halos
 
     thrust::device_vector<float>  inputX, inputY, inputZ;		 // positions for each particle
-    thrust::device_vector<int>    haloIndex;	  			 // halo indices for each particle
-    thrust::device_vector<int>    haloIndexUnique;          		 // unique halo indexes
+    thrust::device_vector<int>    haloIndex;	  			     // halo indices for each particle
+    thrust::device_vector<int>    haloIndexUnique;          	 // unique halo indexes
     thrust::device_vector<float>  haloColorsR, haloColorsG, haloColorsB; // colors for each halo
 
     // variables needed to create random numbers
     thrust::default_random_engine rng;
     thrust::uniform_real_distribution<float> u01;
-
 
     halo(std::string filename="", std::string format=".cosmo", int n=1, int np=1, float rL=-1, bool periodic=false)
     {
@@ -103,20 +109,24 @@ public:
 
         if(!readFile(filename, rL, np, n, format))
         {
-          numOfParticles = 7;//8;
-	  inputX = thrust::host_vector<float>(numOfParticles);
-	  inputY = thrust::host_vector<float>(numOfParticles);
-	  inputZ = thrust::host_vector<float>(numOfParticles);
+			numOfParticles = 8;
+			inputX = thrust::host_vector<float>(numOfParticles);
+			inputY = thrust::host_vector<float>(numOfParticles);
+			inputZ = thrust::host_vector<float>(numOfParticles);
 
-	  inputX[0] = 1.0;	inputY[0] = 1.0;	inputZ[0] = 0.0;
-	  inputX[1] = 0.0;	inputY[1] = 4.0;	inputZ[1] = 0.0;
-	  inputX[2] = 8.0;	inputY[2] = 3.0;	inputZ[2] = 0.0;
-	  inputX[3] = 2.0;	inputY[3] = 6.0;	inputZ[3] = 0.0;
-	  inputX[4] = 4.0;	inputY[4] = 2.0;	inputZ[4] = 0.0;
-	  inputX[5] = 5.0;	inputY[5] = 5.0;	inputZ[5] = 0.0;
-	  inputX[6] = 3.0;	inputY[6] = 4.0;	inputZ[6] = 0.0;
-          //inputX[7] = 3.5;	inputY[7] = 4.5;	inputZ[7] = 0.0;
+			inputX[0] = 1.0;	inputY[0] = 1.0;	inputZ[0] = 0.0;
+			inputX[1] = 0.0;	inputY[1] = 4.0;	inputZ[1] = 0.0;
+			inputX[2] = 8.0;	inputY[2] = 3.0;	inputZ[2] = 0.0;
+			inputX[3] = 2.0;	inputY[3] = 6.0;	inputZ[3] = 0.0;
+			inputX[4] = 4.0;	inputY[4] = 2.0;	inputZ[4] = 0.0;
+			inputX[5] = 5.0;	inputY[5] = 5.0;	inputZ[5] = 0.0;
+			inputX[6] = 3.0;	inputY[6] = 4.0;	inputZ[6] = 0.0;
+			inputX[7] = 3.5;	inputY[7] = 4.5;	inputZ[7] = 0.0;
+
+			std::cout << "Test data loaded \n";
         }
+
+        std::cout << "numOfParticles : " << numOfParticles << " \n";
     }
 
 
@@ -153,16 +163,87 @@ public:
 
 
     // read input file - currently can read a .cosmo file or a .csv file
-    // .csv file usage - when you have a big data file and you want a piece of it, load it in VTK and slice it and seva it as .csv file
+    // .csv file usage - when you have a big data file and you want a piece of it, load it in VTK and slice it and save it as .csv file
     bool readFile(std::string filename, float rL, int np, float n, std::string format)
     {
         // check filename
-        if(filename == "") {   std::cout << "no input file specified \n"; return false; }
+        if(filename == "") { std::cout << "no input file specified \n"; return false; }
 
-        if(format=="csv") return readCsvFile(filename, rL, np, n, format);
+        if(format=="csv")    return readCsvFile(filename, rL, np, n, format);
+
+        if(format=="cosmo")  return readCosmoFile(filename, rL, np, n, format);
 
         return false;
     }
+
+    // read a .cosmo file and load the data to inputX, inputY & inputZ
+	bool readCosmoFile(std::string filename, float rL, int np, float n, std::string format)
+	{
+		std::ifstream *myfile = new std::ifstream((filename+"."+format).c_str(), std::ios::in);
+		if (!myfile->is_open()) {   std::cout << "File: " << filename << "." << format << " cannot be opened \n"; return false; }
+
+		// compute the number of particles
+		myfile->seekg(0L, std::ios::end);
+		numOfParticles = myfile->tellg() / 32;  // get particle size in file
+		numOfParticles = numOfParticles / n;    // get the fraction wanted
+
+		 // resize inputX, inputY, inputZ temp vectors
+		thrust::host_vector<float> inputXHost(numOfParticles);
+		thrust::host_vector<float> inputYHost(numOfParticles);
+		thrust::host_vector<float> inputZHost(numOfParticles);
+
+		// scale amount for particles
+		float xscal;
+		if(rL==-1) xscal = 1;
+		else       xscal = rL / (1.0*np);
+
+		// rewind file to beginning for particle reads
+		myfile->seekg(0L, std::ios::beg);
+
+		// declare temporary read buffers
+		int nfloat = 7, nint = 1;
+		float fBlock[nfloat];
+		int iBlock[nint];
+
+		for (int i=0; i<numOfParticles; i++)
+		{
+			// Set file pointer to the requested particle
+			myfile->read((char *)fBlock, nfloat * sizeof(float));
+
+			if (myfile->gcount() != (int)(nfloat * sizeof(float))) {
+			  std::cout << "Premature end-of-file" << std::endl;
+			  return false;
+			}
+
+			myfile->read((char *)iBlock, nint * sizeof(int));
+			if (myfile->gcount() != (int)(nint * sizeof(int))) {
+			  std::cout << "Premature end-of-file" << std::endl;
+			  return false;
+			}
+
+			// These files are always little-endian
+			//vtkByteSwap::Swap4LERange(fBlock, nfloat);
+			//vtkByteSwap::Swap4LERange(iBlock, nint);
+
+			// sanity check
+			if (fBlock[0] > rL || fBlock[2] > rL || fBlock[4] > rL) {
+			  std::cout << "rL is too small" << std::endl;
+			  exit (-1);
+			}
+
+			inputXHost[i] = fBlock[0] / xscal;
+			inputYHost[i] = fBlock[2] / xscal;
+			inputZHost[i] = fBlock[4] / xscal;
+
+			//std::cout << inputXHost[i] << " " << inputYHost[i] << " " << inputZHost[i] << "\n";
+		}
+
+		inputX = inputXHost;
+		inputY = inputYHost;
+		inputZ = inputZHost;
+
+		return true;
+	}
 
 
     // read a .csv file and load the data to inputX, inputY & inputZ
@@ -170,7 +251,7 @@ public:
     {
         // open input file
         std::ifstream *myfile = new std::ifstream((filename+"."+format).c_str(), std::ios::in);
-        if (!myfile->is_open()) {   std::cout << "File: " << filename << " cannot be opened \n" ; return false; }
+        if (!myfile->is_open()) {   std::cout << "File: " << filename << "." << format << " cannot be opened \n"; return false; }
 
         std::vector<Point> vec;
         float x, y, z;
@@ -180,24 +261,24 @@ public:
 
         while(!myfile->eof())
         {
-	  getline(*myfile,line);
+			getline(*myfile,line);
 
-	  if(line=="")continue;
-	  strtok((char*)line.c_str(),",");
+			if(line=="") continue;
+			strtok((char*)line.c_str(),",");
 
-	  int i = 0;
-	  while(++i<7) strtok (NULL, ",");
-			
-	  x = atof(strtok(NULL, ","));
-	  y = atof(strtok(NULL, ","));
-	  z = atof(strtok(NULL, ","));
+			int i = 0;
+			while(++i<7) strtok (NULL, ",");
 
-	  vec.push_back(Point(x,y,z));
+			x = atof(strtok(NULL, ","));
+			y = atof(strtok(NULL, ","));
+			z = atof(strtok(NULL, ","));
+
+			vec.push_back(Point(x,y,z));
         }
 
-        numOfParticles = vec.size();
+        numOfParticles = vec.size() / n;
 
-        // resize inputX, inputY, inputZ
+        // resize inputX, inputY, inputZ temp vectors
         thrust::host_vector<float> inputXHost(numOfParticles);
         thrust::host_vector<float> inputYHost(numOfParticles);
         thrust::host_vector<float> inputZHost(numOfParticles);
@@ -205,18 +286,18 @@ public:
         // scale amount for particles
         float xscal;
         if(rL==-1) xscal = 1;
-        else xscal = rL / (1.0*np);
+        else       xscal = rL / (1.0*np);
 
         for (int i=0; i<numOfParticles; i++)
         {
-          Point p = vec.at(i);
+			Point p = vec.at(i);
 
-	  // sanity check
-	  if (!(rL==-1 && xscal==1) && (p.x > rL || p. y > rL || p.z > rL)) {   std::cout << "rL is too small \n"; exit (-1); }
+			// sanity check
+			if (!(rL==-1 && xscal==1) && (p.x > rL || p. y > rL || p.z > rL)) {   std::cout << "rL is too small \n"; exit (-1); }
 
-	  inputXHost[i] = p.x / xscal;
-	  inputYHost[i] = p.y / xscal;
-	  inputZHost[i] = p.z / xscal;
+			inputXHost[i] = p.x / xscal;
+			inputYHost[i] = p.y / xscal;
+			inputZHost[i] = p.z / xscal;
         }
 
         vec.clear();
@@ -243,6 +324,7 @@ public:
     {
         haloIndex.clear();
         haloIndexUnique.clear();
+
         haloColorsR.clear();
         haloColorsG.clear();
         haloColorsB.clear();
@@ -300,7 +382,7 @@ public:
         haloIndexUnique = thrust::device_vector<int>(numOfHalos);
         thrust::copy(a.begin(), a.begin()+numOfHalos, haloIndexUnique.begin());
 
-std::cout << "haloIndexUnique "; thrust::copy(haloIndexUnique.begin(), haloIndexUnique.begin()+5, std::ostream_iterator<int>(std::cout, " "));   std::cout << std::endl << std::endl;
+//        std::cout << "haloIndexUnique  "; thrust::copy(haloIndexUnique.begin(), haloIndexUnique.begin()+numOfHalos, std::ostream_iterator<int>(std::cout, " "));   std::cout << std::endl << std::endl;
 
         haloUnique.clear(); haloSize.clear(); a.clear(); b.clear();
     }
@@ -315,7 +397,6 @@ std::cout << "haloIndexUnique "; thrust::copy(haloIndexUnique.begin(), haloIndex
         bool operator()(const int x) { return haloId != x; }
     };
 
-
     //reset the halo id to -1, if a particle belongs to a invalid halo
     struct resetInvalidParticles
     {
@@ -329,13 +410,12 @@ std::cout << "haloIndexUnique "; thrust::copy(haloIndexUnique.begin(), haloIndex
         __host__ __device__
         void operator()(int i)
         {
-	    bool found = false;
-	    for(int j=0; j<numUniqueHalos; j++) if(haloUnique[j] == haloIndex[i]) { found = true; break; }
+			bool found = false;
+			for(int j=0; j<numUniqueHalos; j++) if(haloUnique[j] == haloIndex[i]) { found = true; break; }
 
-	    if(!found) haloIndex[i] = -1;
+			if(!found) haloIndex[i] = -1;
         }
     };
-
 
     // check whether number of particles in this halo exceed particleSize
     struct notValidHalo
@@ -347,6 +427,10 @@ std::cout << "haloIndexUnique "; thrust::copy(haloIndexUnique.begin(), haloIndex
         bool operator()(int i) { return i < particleSize; }
     };
 
+    thrust::device_vector<int> getHalos()
+	{
+    	return haloIndex;
+	}
 };
 
 }
