@@ -741,8 +741,7 @@ public:
 						}
 					}
 				}
-
-				/*
+				
 				//compair with particles in neighboring cubes
 				int startInd = i*26;
 				for(int k=0; k<26; k++)
@@ -776,8 +775,7 @@ public:
 							}
 						}
 					}
-				}
-				*/
+				}				
 			}
 		}
 	};
