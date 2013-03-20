@@ -251,35 +251,35 @@ public:
         __host__ __device__
         getChildren(KDtreeNode* tree, int level) : tree(tree), level(level) {}
 
-		__host__ __device__
-		thrust::tuple<KDtreeNode, KDtreeNode>  operator()(int i)
-		{
-			KDtreeNode* current = &tree[i];
+				__host__ __device__
+				thrust::tuple<KDtreeNode, KDtreeNode>  operator()(int i)
+				{
+					KDtreeNode* current = &tree[i];
 
-			int lSplit = (current->size!=1) ? (float)(current->size/2) : 0;
-			int rSplit = (current->size!=1) ? (current->size - lSplit) : 0;
+					int lSplit = (current->size!=1) ? (float)(current->size/2) : 0;
+					int rSplit = (current->size!=1) ? (current->size - lSplit) : 0;
 
-			KDtreeNode left = KDtreeNode();
-			if(lSplit>0)
-			{
-				left.parent      = current->i;
-				left.startInd    = current->startInd;
-				left.size        = lSplit;
-				left.isRight     = false;
-				left.ind         = (left.size==1) ? left.startInd : -1;
-			}
+					KDtreeNode left = KDtreeNode();
+					if(lSplit>0)
+					{
+						left.parent      = current->i;
+						left.startInd    = current->startInd;
+						left.size        = lSplit;
+						left.isRight     = false;
+						left.ind         = (left.size==1) ? left.startInd : -1;
+					}
 
-			KDtreeNode right = KDtreeNode();
-			if(rSplit>0)
-			{
-				right.parent      = current->i;
-				right.startInd    = current->startInd+lSplit;
-				right.size        = rSplit;
-				right.isRight     = true;
-				right.ind         = (right.size==1) ? right.startInd : -1;
-			}
+					KDtreeNode right = KDtreeNode();
+					if(rSplit>0)
+					{
+						right.parent      = current->i;
+						right.startInd    = current->startInd+lSplit;
+						right.size        = rSplit;
+						right.isRight     = true;
+						right.ind         = (right.size==1) ? right.startInd : -1;
+					}
 
-			return thrust::make_tuple(left,right);
+					return thrust::make_tuple(left,right);
         }
     };
 
@@ -326,18 +326,18 @@ public:
         thrust::device_vector<int>::iterator rankFirst, pointId;
         for(int l=0; l<levels; l++)
         {
-			if (l%3 == 0)      rankFirst = ktree->m_xrank.begin();
-			else if (l%3 == 1) rankFirst = ktree->m_yrank.begin();
-			else               rankFirst = ktree->m_zrank.begin();
+          if (l%3 == 0)      rankFirst = ktree->m_xrank.begin();
+          else if (l%3 == 1) rankFirst = ktree->m_yrank.begin();
+          else               rankFirst = ktree->m_zrank.begin();
 
-			pointId = ktree->m_pointId.begin();
+          pointId = ktree->m_pointId.begin();
 
-			Level currentL = levelInfo[l];
-			thrust::for_each(CountingIterator(currentL.startInd), CountingIterator(currentL.startInd)+currentL.size,
-					setSplitValue(thrust::raw_pointer_cast(&*rankFirst),
-						  thrust::raw_pointer_cast(&*inputX.begin()), thrust::raw_pointer_cast(&*inputY.begin()), thrust::raw_pointer_cast(&*inputZ.begin()),
-						  thrust::raw_pointer_cast(&*pointId), tree, l));
-			if (l+1 < levels) ktree->buildTreeLevel(l+1);
+          Level currentL = levelInfo[l];
+          thrust::for_each(CountingIterator(currentL.startInd), CountingIterator(currentL.startInd)+currentL.size,
+              setSplitValue(thrust::raw_pointer_cast(&*rankFirst),
+                  thrust::raw_pointer_cast(&*inputX.begin()), thrust::raw_pointer_cast(&*inputY.begin()), thrust::raw_pointer_cast(&*inputZ.begin()),
+                  thrust::raw_pointer_cast(&*pointId), tree, l));
+          if (l+1 < levels) ktree->buildTreeLevel(l+1);
         }
 
         thrust::device_vector<float> inputReorder;  inputReorder.resize(inputX.size());

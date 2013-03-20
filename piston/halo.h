@@ -67,7 +67,7 @@ public:
 
     // definitions
     typedef thrust::device_vector<float>::iterator FloatIterator;
-    typedef thrust::device_vector<int>::iterator IntIterator;
+    typedef thrust::device_vector<int>::iterator   IntIterator;
 
     typedef thrust::tuple<float, float> Float2;
 
@@ -80,6 +80,7 @@ public:
     typedef Float3zipIterator ParticleTupleZipIterator;
 
     typedef thrust::counting_iterator<int> CountingIterator;
+    typedef thrust::constant_iterator<int> ConstantIterator;
 
     //inputs
     float linkLength;     // linking length used to link two particles
@@ -109,21 +110,21 @@ public:
 
         if(!readFile(filename, rL, np, n, format))
         {
-			numOfParticles = 8;
-			inputX = thrust::host_vector<float>(numOfParticles);
-			inputY = thrust::host_vector<float>(numOfParticles);
-			inputZ = thrust::host_vector<float>(numOfParticles);
+					numOfParticles = 8;
+					inputX = thrust::host_vector<float>(numOfParticles);
+					inputY = thrust::host_vector<float>(numOfParticles);
+					inputZ = thrust::host_vector<float>(numOfParticles);
 
-			inputX[0] = 1.0;	inputY[0] = 1.0;	inputZ[0] = 0.0;
-			inputX[1] = 0.0;	inputY[1] = 4.0;	inputZ[1] = 0.0;
-			inputX[2] = 8.0;	inputY[2] = 3.0;	inputZ[2] = 0.0;
-			inputX[3] = 2.0;	inputY[3] = 6.0;	inputZ[3] = 0.0;
-			inputX[4] = 4.0;	inputY[4] = 2.0;	inputZ[4] = 0.0;
-			inputX[5] = 5.0;	inputY[5] = 5.0;	inputZ[5] = 0.0;
-			inputX[6] = 3.0;	inputY[6] = 4.0;	inputZ[6] = 0.0;
-			inputX[7] = 3.5;	inputY[7] = 4.5;	inputZ[7] = 0.0;
+					inputX[0] = 1.0;	inputY[0] = 1.0;	inputZ[0] = 0.0;
+					inputX[1] = 0.0;	inputY[1] = 4.0;	inputZ[1] = 0.0;
+					inputX[2] = 8.0;	inputY[2] = 3.0;	inputZ[2] = 0.0;
+					inputX[3] = 2.0;	inputY[3] = 6.0;	inputZ[3] = 0.0;
+					inputX[4] = 4.0;	inputY[4] = 2.0;	inputZ[4] = 0.0;
+					inputX[5] = 5.0;	inputY[5] = 5.0;	inputZ[5] = 0.0;
+					inputX[6] = 3.0;	inputY[6] = 4.0;	inputZ[6] = 0.0;
+					inputX[7] = 3.5;	inputY[7] = 4.5;	inputZ[7] = 0.0;
 
-			std::cout << "Test data loaded \n";
+					std::cout << "Test data loaded \n";
         }
 
         std::cout << "numOfParticles : " << numOfParticles << " \n";
@@ -177,136 +178,136 @@ public:
     }
 
     // read a .cosmo file and load the data to inputX, inputY & inputZ
-	bool readCosmoFile(std::string filename, float rL, int np, float n, std::string format)
-	{
-		std::ifstream *myfile = new std::ifstream((filename+"."+format).c_str(), std::ios::in);
-		if (!myfile->is_open()) {   std::cout << "File: " << filename << "." << format << " cannot be opened \n"; return false; }
-
-		// compute the number of particles
-		myfile->seekg(0L, std::ios::end);
-		numOfParticles = myfile->tellg() / 32;  // get particle size in file
-		numOfParticles = numOfParticles / n;    // get the fraction wanted
-
-		 // resize inputX, inputY, inputZ temp vectors
-		thrust::host_vector<float> inputXHost(numOfParticles);
-		thrust::host_vector<float> inputYHost(numOfParticles);
-		thrust::host_vector<float> inputZHost(numOfParticles);
-
-		// scale amount for particles
-		float xscal;
-		if(rL==-1) xscal = 1;
-		else       xscal = rL / (1.0*np);
-
-		// rewind file to beginning for particle reads
-		myfile->seekg(0L, std::ios::beg);
-
-		// declare temporary read buffers
-		int nfloat = 7, nint = 1;
-		float fBlock[nfloat];
-		int iBlock[nint];
-
-		for (int i=0; i<numOfParticles; i++)
+		bool readCosmoFile(std::string filename, float rL, int np, float n, std::string format)
 		{
-			// Set file pointer to the requested particle
-			myfile->read((char *)fBlock, nfloat * sizeof(float));
+			std::ifstream *myfile = new std::ifstream((filename+"."+format).c_str(), std::ios::in);
+			if (!myfile->is_open()) {   std::cout << "File: " << filename << "." << format << " cannot be opened \n"; return false; }
 
-			if (myfile->gcount() != (int)(nfloat * sizeof(float))) {
-			  std::cout << "Premature end-of-file" << std::endl;
-			  return false;
+			// compute the number of particles
+			myfile->seekg(0L, std::ios::end);
+			numOfParticles = myfile->tellg() / 32;  // get particle size in file
+			numOfParticles = numOfParticles / n;    // get the fraction wanted
+
+			 // resize inputX, inputY, inputZ temp vectors
+			thrust::host_vector<float> inputXHost(numOfParticles);
+			thrust::host_vector<float> inputYHost(numOfParticles);
+			thrust::host_vector<float> inputZHost(numOfParticles);
+
+			// scale amount for particles
+			float xscal;
+			if(rL==-1) xscal = 1;
+			else       xscal = rL / (1.0*np);
+
+			// rewind file to beginning for particle reads
+			myfile->seekg(0L, std::ios::beg);
+
+			// declare temporary read buffers
+			int nfloat = 7, nint = 1;
+			float fBlock[nfloat];
+			int iBlock[nint];
+
+			for (int i=0; i<numOfParticles; i++)
+			{
+				// Set file pointer to the requested particle
+				myfile->read((char *)fBlock, nfloat * sizeof(float));
+
+				if (myfile->gcount() != (int)(nfloat * sizeof(float))) {
+					std::cout << "Premature end-of-file" << std::endl;
+					return false;
+				}
+
+				myfile->read((char *)iBlock, nint * sizeof(int));
+				if (myfile->gcount() != (int)(nint * sizeof(int))) {
+					std::cout << "Premature end-of-file" << std::endl;
+					return false;
+				}
+
+				// These files are always little-endian
+				//vtkByteSwap::Swap4LERange(fBlock, nfloat);
+				//vtkByteSwap::Swap4LERange(iBlock, nint);
+
+				// sanity check
+				if (fBlock[0] > rL || fBlock[2] > rL || fBlock[4] > rL) {
+					std::cout << "rL is too small" << std::endl;
+					exit (-1);
+				}
+
+				inputXHost[i] = fBlock[0] / xscal;
+				inputYHost[i] = fBlock[2] / xscal;
+				inputZHost[i] = fBlock[4] / xscal;
+
+				//std::cout << inputXHost[i] << " " << inputYHost[i] << " " << inputZHost[i] << "\n";
 			}
 
-			myfile->read((char *)iBlock, nint * sizeof(int));
-			if (myfile->gcount() != (int)(nint * sizeof(int))) {
-			  std::cout << "Premature end-of-file" << std::endl;
-			  return false;
-			}
+			inputX = inputXHost;
+			inputY = inputYHost;
+			inputZ = inputZHost;
 
-			// These files are always little-endian
-			//vtkByteSwap::Swap4LERange(fBlock, nfloat);
-			//vtkByteSwap::Swap4LERange(iBlock, nint);
-
-			// sanity check
-			if (fBlock[0] > rL || fBlock[2] > rL || fBlock[4] > rL) {
-			  std::cout << "rL is too small" << std::endl;
-			  exit (-1);
-			}
-
-			inputXHost[i] = fBlock[0] / xscal;
-			inputYHost[i] = fBlock[2] / xscal;
-			inputZHost[i] = fBlock[4] / xscal;
-
-			//std::cout << inputXHost[i] << " " << inputYHost[i] << " " << inputZHost[i] << "\n";
+			return true;
 		}
-
-		inputX = inputXHost;
-		inputY = inputYHost;
-		inputZ = inputZHost;
-
-		return true;
-	}
 
 
     // read a .csv file and load the data to inputX, inputY & inputZ
     bool readCsvFile(std::string filename, float rL, int np, float n, std::string format)
     {
-        // open input file
-        std::ifstream *myfile = new std::ifstream((filename+"."+format).c_str(), std::ios::in);
-        if (!myfile->is_open()) {   std::cout << "File: " << filename << "." << format << " cannot be opened \n"; return false; }
+      // open input file
+      std::ifstream *myfile = new std::ifstream((filename+"."+format).c_str(), std::ios::in);
+      if (!myfile->is_open()) {   std::cout << "File: " << filename << "." << format << " cannot be opened \n"; return false; }
 
-        std::vector<Point> vec;
-        float x, y, z;
+      std::vector<Point> vec;
+      float x, y, z;
 
-        std::string line;
-        getline(*myfile,line);
+      std::string line;
+      getline(*myfile,line);
 
-        while(!myfile->eof())
-        {
-			getline(*myfile,line);
+      while(!myfile->eof())
+      {
+				getline(*myfile,line);
 
-			if(line=="") continue;
-			strtok((char*)line.c_str(),",");
+				if(line=="") continue;
+				strtok((char*)line.c_str(),",");
 
-			int i = 0;
-			while(++i<7) strtok (NULL, ",");
+				int i = 0;
+				while(++i<7) strtok (NULL, ",");
 
-			x = atof(strtok(NULL, ","));
-			y = atof(strtok(NULL, ","));
-			z = atof(strtok(NULL, ","));
+				x = atof(strtok(NULL, ","));
+				y = atof(strtok(NULL, ","));
+				z = atof(strtok(NULL, ","));
 
-			vec.push_back(Point(x,y,z));
-        }
+				vec.push_back(Point(x,y,z));
+      }
 
-        numOfParticles = vec.size() / n;
+      numOfParticles = vec.size() / n;
 
-        // resize inputX, inputY, inputZ temp vectors
-        thrust::host_vector<float> inputXHost(numOfParticles);
-        thrust::host_vector<float> inputYHost(numOfParticles);
-        thrust::host_vector<float> inputZHost(numOfParticles);
+      // resize inputX, inputY, inputZ temp vectors
+      thrust::host_vector<float> inputXHost(numOfParticles);
+      thrust::host_vector<float> inputYHost(numOfParticles);
+      thrust::host_vector<float> inputZHost(numOfParticles);
 
-        // scale amount for particles
-        float xscal;
-        if(rL==-1) xscal = 1;
-        else       xscal = rL / (1.0*np);
+      // scale amount for particles
+      float xscal;
+      if(rL==-1) xscal = 1;
+      else       xscal = rL / (1.0*np);
 
-        for (int i=0; i<numOfParticles; i++)
-        {
-			Point p = vec.at(i);
+      for (int i=0; i<numOfParticles; i++)
+      {
+				Point p = vec.at(i);
 
-			// sanity check
-			if (!(rL==-1 && xscal==1) && (p.x > rL || p. y > rL || p.z > rL)) {   std::cout << "rL is too small \n"; exit (-1); }
+				// sanity check
+				if (!(rL==-1 && xscal==1) && (p.x > rL || p. y > rL || p.z > rL)) {   std::cout << "rL is too small \n"; exit (-1); }
 
-			inputXHost[i] = p.x / xscal;
-			inputYHost[i] = p.y / xscal;
-			inputZHost[i] = p.z / xscal;
-        }
+				inputXHost[i] = p.x / xscal;
+				inputYHost[i] = p.y / xscal;
+				inputZHost[i] = p.z / xscal;
+      }
 
-        vec.clear();
+      vec.clear();
 
-        inputX = inputXHost;
-        inputY = inputYHost;
-        inputZ = inputZHost;
+      inputX = inputXHost;
+      inputY = inputYHost;
+      inputZ = inputZHost;
 
-        return true;
+      return true;
     }
 
 
@@ -333,7 +334,7 @@ public:
         numOfParticles = inputX.size();
 
         haloIndex.resize(numOfParticles);
-        thrust::sequence(haloIndex.begin(), haloIndex.end());
+				thrust::copy(CountingIterator(0), CountingIterator(0)+numOfParticles, haloIndex.begin());
     }
 
 

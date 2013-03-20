@@ -56,14 +56,14 @@ int main(int argc, char* argv[])
   halo *halo;
 
   float linkLength, max_linkLength;
-  int   particleSize, rL, np;
+  int   particleSize, rL, np, n;
 
-  max_linkLength = 2;
+  max_linkLength = 3;
   linkLength   = 1.5;
   particleSize = 1;
   np = 256;
-  rL = 100;
-  int n = 4; //if you want a fraction of the file to load, use this.. 1/n
+  rL = 64;
+  n = 1; //if you want a fraction of the file to load, use this.. 1/n
 
   char filename[1024];
 //  sprintf(filename, "%s/sub-8435", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
@@ -87,13 +87,13 @@ int main(int argc, char* argv[])
 //  halo = new halo_naive(filename, format, n, np, rL);
 //  (*halo)(linkLength, particleSize);
 //  thrust::device_vector<int> a = halo->getHalos();
-
-  std::cout << "VTK based result" << std::endl;
-
-  halo = new halo_vtk(filename, format, n, np, rL);
-  (*halo)(linkLength, particleSize);
-  thrust::device_vector<int> b = halo->getHalos();
-
+//
+//  std::cout << "VTK based result" << std::endl;
+//
+//  halo = new halo_vtk(filename, format, n, np, rL);
+//  (*halo)(linkLength, particleSize);
+//  thrust::device_vector<int> b = halo->getHalos();
+//
   std::cout << "Kdtree based result" << std::endl;
 
   halo = new halo_kd(filename, format, n, np, rL);
@@ -111,8 +111,8 @@ int main(int argc, char* argv[])
   std::cout << "Comparing results" << std::endl;
 //  std::string output1 = (compareResults(a, b, halo->numOfParticles)==true) ? "Naive vs VTK        - Result is the same" : "Naive vs VTK        - Result is NOT the same";
 //  std::cout << output1 << std::endl;
-  std::string output2 = (compareResults(b, c, halo->numOfParticles)==true) ? "Vtk vs Kdtree     - Result is the same" : "Vtk vs Kdtree     - Result is NOT the same";
-  std::cout << output2 << std::endl;
+//  std::string output2 = (compareResults(b, c, halo->numOfParticles)==true) ? "Vtk vs Kdtree     - Result is the same" : "Vtk vs Kdtree     - Result is NOT the same";
+//  std::cout << output2 << std::endl;
   std::string output3 = (compareResults(c, d, halo->numOfParticles)==true) ? "Kdtree vs Mergetree - Result is the same" : "Kdtree vs Mergetree - Result is NOT the same";
   std::cout << output3 << std::endl;
   std::cout << "--------------------" << std::endl;
