@@ -372,18 +372,22 @@ public:
 
         int numUniqueHalos = thrust::get<0>(new_end) - a.begin();
 
-        // get the number of valid halos & their ids
-        thrust::device_vector<int>::iterator new_end1 = thrust::remove_if(a.begin(), thrust::get<0>(new_end), b.begin(), notValidHalo(particleSize));
-        numOfHalos = new_end1 - a.begin();
+        // get the number of invalid halos & their ids
+        thrust::device_vector<int>::iterator new_end1 = thrust::remove_if(a.begin(), thrust::get<0>(new_end), b.begin(), validHalo(particleSize));
+        int numOfInvalidHalos = new_end1 - a.begin();
 
         // for all particals in invalid halos, set halo id to -1
-        thrust::for_each(CountingIterator(0), CountingIterator(0)+numOfHalos,
-		         resetInvalidParticles(thrust::raw_pointer_cast(&*a.begin()), numUniqueHalos, particleSize, thrust::raw_pointer_cast(&*haloIndex.begin())));
+				for(int i=0; i<numOfInvalidHalos; i++)
+					thrust::replace(haloIndex.begin(), haloIndex.end(), ((int)a[i]), -1);
+
+				// get the number of halid halos & their ids
+				new_end  = thrust::reduce_by_key(haloUnique.begin(), haloUnique.end(), haloSize.begin(), a.begin(), b.begin());
+				new_end1 = thrust::remove_if(a.begin(), thrust::get<0>(new_end), b.begin(), invalidHalo(particleSize));
+
+				numOfHalos = new_end1 - a.begin();
 
         haloIndexUnique = thrust::device_vector<int>(numOfHalos);
         thrust::copy(a.begin(), a.begin()+numOfHalos, haloIndexUnique.begin());
-
-//        std::cout << "haloIndexUnique  "; thrust::copy(haloIndexUnique.begin(), haloIndexUnique.begin()+numOfHalos, std::ostream_iterator<int>(std::cout, " "));   std::cout << std::endl << std::endl;
 
         haloUnique.clear(); haloSize.clear(); a.clear(); b.clear();
     }
@@ -411,27 +415,37 @@ public:
         __host__ __device__
         void operator()(int i)
         {
-			bool found = false;
-			for(int j=0; j<numUniqueHalos; j++) if(haloUnique[j] == haloIndex[i]) { found = true; break; }
+					bool found = false;
+					for(int j=0; j<numUniqueHalos; j++) if(haloUnique[j] == haloIndex[i]) { found = true; break; }
 
-			if(!found) haloIndex[i] = -1;
+					if(!found) haloIndex[i] = -1;
         }
     };
 
     // check whether number of particles in this halo exceed particleSize
-    struct notValidHalo
+    struct validHalo
     {
         int particleSize;
-        notValidHalo(int particleSize) : particleSize(particleSize) {}
+        validHalo(int particleSize) : particleSize(particleSize) {}
+
+        __host__ __device__
+        bool operator()(int i) { return i >= particleSize; }
+    };
+
+		struct invalidHalo
+    {
+        int particleSize;
+        invalidHalo(int particleSize) : particleSize(particleSize) {}
 
         __host__ __device__
         bool operator()(int i) { return i < particleSize; }
     };
 
+
     thrust::device_vector<int> getHalos()
-	{
-    	return haloIndex;
-	}
+		{
+		  	return haloIndex;
+		}
 };
 
 }

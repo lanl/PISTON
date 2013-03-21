@@ -116,26 +116,28 @@ public:
 
         struct timeval begin, mid, end, diff1, diff2;
         gettimeofday(&begin, 0);
-        findHalos(linkLength, numOfParticles);
+        
+				findHalos(linkLength, numOfParticles);
+
+				thrust::device_vector<int> tmp; tmp.resize(haloIndex.size());
+				thrust::scatter(haloIndex.begin(), haloIndex.end(), haloIndexOriginal.begin(), tmp.begin());
+				thrust::copy(tmp.begin(), tmp.end(), haloIndex.begin());
+
+				// set correct halo ids
+				thrust::fill(tmp.begin(), tmp.end(), -1);
+				for(int i=0; i<numOfParticles; i++)
+				{										
+					if(tmp[i]==-1)
+					{
+						thrust::for_each(CountingIterator(i), CountingIterator(numOfParticles),
+								setCorrectHaloId(thrust::raw_pointer_cast(&*haloIndex.begin()), thrust::raw_pointer_cast(&*tmp.begin()), haloIndex[i], i));
+					}					
+				}
+				thrust::copy(tmp.begin(), tmp.end(), haloIndex.begin());
+
         gettimeofday(&mid, 0);
-        getUniqueHalos(particleSize); // get the unique valid halo ids
+				getUniqueHalos(particleSize); // get the unique valid halo ids
         gettimeofday(&end, 0);
-
-        thrust::device_vector<int> tmp; tmp.resize(haloIndex.size());
-		thrust::scatter(haloIndex.begin(), haloIndex.end(), haloIndexOriginal.begin(), tmp.begin());
-		thrust::copy(tmp.begin(), tmp.end(), haloIndex.begin());
-
-		// set correct halo ids
-		thrust::fill(tmp.begin(), tmp.end(), -1);
-		for(int i=0; i<numOfParticles; i++)
-		{
-			if(tmp[i]==-1)
-			{
-				thrust::for_each(CountingIterator(i), CountingIterator(i)+(numOfParticles-i),
-						setCorrectHaloId(thrust::raw_pointer_cast(&*haloIndex.begin()), thrust::raw_pointer_cast(&*tmp.begin()), haloIndex[i], i));
-			}
-		}
-		thrust::copy(tmp.begin(), tmp.end(), haloIndex.begin());
 
         timersub(&mid, &begin, &diff1);
         float seconds1 = diff1.tv_sec + 1.0E-6*diff1.tv_usec;
@@ -151,19 +153,19 @@ public:
     struct setCorrectHaloId
     {
     	int* haloIndex;
-		int* tmp;
-		int n, i;
+			int* tmp;
+			int n, i;
 
-		__host__ __device__
-		setCorrectHaloId(int* haloIndex, int* tmp, int n, int i) :
-			  haloIndex(haloIndex), tmp(tmp), n(n), i(i) {}
+			__host__ __device__
+			setCorrectHaloId(int* haloIndex, int* tmp, int n, int i) :
+					haloIndex(haloIndex), tmp(tmp), n(n), i(i) {}
 
-		__host__ __device__
-		void operator()(int j)
-		{
-			if(haloIndex[j] == n)
-				tmp[j] = i;
-		}
+			__host__ __device__
+			void operator()(int j)
+			{
+				if(haloIndex[j] == n)
+					tmp[j] = i;
+			}
     };
 
     // build the b-Kdtree & split the data
