@@ -6,6 +6,7 @@
 #include <thrust/fill.h>
 #include <thrust/tuple.h>
 #include <thrust/count.h>
+#include <thrust/replace.h>
 #include <thrust/remove.h>
 #include <thrust/unique.h>
 #include <thrust/random.h>
@@ -90,11 +91,14 @@ public:
     int   np;             // number of particles in a dimension
     bool  periodic;
     int   numOfHalos;     // total number of halos
+    int   numOfHaloParticles;
 
     thrust::device_vector<float>  inputX, inputY, inputZ;		 // positions for each particle
-    thrust::device_vector<int>    haloIndex;	  			     // halo indices for each particle
-    thrust::device_vector<int>    haloIndexUnique;          	 // unique halo indexes
+    thrust::device_vector<int>    haloIndex;	  			       // halo indices for each particle
+    thrust::device_vector<int>    haloIndexUnique;           // unique halo indexes
     thrust::device_vector<float>  haloColorsR, haloColorsG, haloColorsB; // colors for each halo
+
+    thrust::device_vector<float>  inputX_f, inputY_f, inputZ_f;    // positions for each particle
 
     // variables needed to create random numbers
     thrust::default_random_engine rng;
@@ -127,6 +131,9 @@ public:
 					std::cout << "Test data loaded \n";
         }
 
+        haloIndex.resize(numOfParticles);
+        thrust::copy(CountingIterator(0), CountingIterator(0)+numOfParticles, haloIndex.begin());
+
         std::cout << "numOfParticles : " << numOfParticles << " \n";
     }
 
@@ -140,20 +147,29 @@ public:
         return thrust::make_zip_iterator(thrust::make_tuple(inputX.begin(), inputY.begin(), inputZ.begin()));
     }
 
-
     // get end of vertices
     Float3zipIterator vertices_end()
     {
         return thrust::make_zip_iterator(thrust::make_tuple(inputX.end(), inputY.end(), inputZ.end()));
     }
 
+    // get start of halos
+    IntIterator halos_begin()
+    {
+        return haloIndex.begin();
+    }
+
+    // get end of halos
+    IntIterator halos_end()
+    {
+        return haloIndex.end();
+    }
 
     // get the color of halo i
     Float3 getColor(int i)
     {
         return thrust::make_tuple(haloColorsR[i], haloColorsG[i], haloColorsB[i]);
     }
-
 
     // get the index in haloIndexUnique for a halo i
     int getHaloInd(int i)

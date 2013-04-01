@@ -126,12 +126,12 @@ public:
 				// set correct halo ids
 				thrust::fill(tmp.begin(), tmp.end(), -1);
 				for(int i=0; i<numOfParticles; i++)
-				{										
+				{
 					if(tmp[i]==-1)
 					{
 						thrust::for_each(CountingIterator(i), CountingIterator(numOfParticles),
 								setCorrectHaloId(thrust::raw_pointer_cast(&*haloIndex.begin()), thrust::raw_pointer_cast(&*tmp.begin()), haloIndex[i], i));
-					}					
+					}
 				}
 				thrust::copy(tmp.begin(), tmp.end(), haloIndex.begin());
 

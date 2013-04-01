@@ -46,7 +46,8 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #define SPACE thrust::detail::default_device_space_tag
 using namespace piston;
 
-#include <piston/halo_merge.h>
+#include <piston/halo_merge.h>   //wathsala
+#include <piston/hsv_color_map.h>
 
 #include <sys/time.h>
 #include <stdio.h>
@@ -77,6 +78,10 @@ typedef thrust::tuple<float, float, float> Float3;
 typedef thrust::device_vector<float>::iterator FloatIterator;
 typedef thrust::tuple<FloatIterator, FloatIterator, FloatIterator> Float3IteratorTuple;
 typedef thrust::zip_iterator<Float3IteratorTuple> Float3zipIterator;
+
+thrust::host_vector<float3> vertices;
+thrust::host_vector<float4> colors;
+
 //-------
 
 
@@ -157,7 +162,7 @@ void GLWindow::initializeGL()
     linkLength   = 0.2;
     particleSize = 100;
     np = 256;
-    rL = 100;
+    rL = 64;
     int n = 1; // if you want a fraction of the file to load, use this.. 1/n
 
     char filename[1024];
@@ -192,6 +197,12 @@ void GLWindow::paintGL()
 
     glTranslatef(-(grid_size-1)/2, -(grid_size-1)/2, -(grid_size-1)/2);
 
+//    vertices.assign(haloFinder->vertices_begin(), haloFinder->vertices_end());
+//    colors.assign(thrust::make_transform_iterator(haloFinder->halos_begin(), color_map<int>(0.0f, 1.0f)),
+//                  thrust::make_transform_iterator(haloFinder->halos_end(), color_map<int>(0.0f, 1.0f)));
+
+    //--------------------------
+
     glBegin(GL_POINTS);
 
     glColor3f(1, 0, 0);
@@ -205,10 +216,10 @@ void GLWindow::paintGL()
       if (haloFound && haloShow)
       {
         int haloIndU  = haloFinder->getHaloInd(count++);
-	if(haloIndU==-1) continue;
+        if(haloIndU==-1) continue;
 
-	Float3 color  = haloFinder->getColor(haloIndU);
-	glColor3f(thrust::get<0>(color), thrust::get<1>(color), thrust::get<2>(color));
+        Float3 color  = haloFinder->getColor(haloIndU);
+        glColor3f(thrust::get<0>(color), thrust::get<1>(color), thrust::get<2>(color));
       }
       glVertex3f(thrust::get<0>(vertex), thrust::get<1>(vertex), thrust::get<2>(vertex));
     }
@@ -225,6 +236,7 @@ void GLWindow::paintGL()
     {
       char title[256];
       sprintf(title, "Halo Finder, fps: %2.2f", float(frame_count)/seconds);
+//      std::cout << title << std::endl;
       seconds = 0.0f;
       frame_count = 0;
     }
