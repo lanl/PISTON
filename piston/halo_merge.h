@@ -356,6 +356,9 @@ public:
 
 		particleStartOfCubes.resize(numOfCubes);
 		thrust::exclusive_scan(particleSizeOfCubes.begin(), particleSizeOfCubes.begin()+numOfCubes, particleStartOfCubes.begin());
+
+		tmpIntArray1.clear();
+		tmpIntArray2.clear();
 	}
 	
 	// for each cube, get its neighbors, here we only set 13 of them not all 26
@@ -492,7 +495,6 @@ public:
 	void localStepMethod()
 	{
 	  struct timeval begin, mid1, mid2, mid3, mid4, end, diff0, diff1, diff2, diff3, diff4;
-//std::cout<<"a"<<std::endl;
 	  gettimeofday(&begin, 0);
 		initEdgeArrays();  				// init arrays needed for storing edges
 		gettimeofday(&mid1, 0);
@@ -501,9 +503,9 @@ public:
 		sortEdgesPerCube(); 			// for each cube, sort the set of edges by weight
 		gettimeofday(&mid3, 0);
 		sortCubeIDByParticleID(); // sort cube ids by particle ids
-    gettimeofday(&mid4, 0);
+		gettimeofday(&mid4, 0);
 		getSubMergeTreePerCube(); // for each cube, get the sub merge tree
-    gettimeofday(&end, 0);
+		gettimeofday(&end, 0);
 
 		#ifdef TEST
 			outputEdgeDetails("After removing unecessary edges found in each cube..");	  // output edge details
@@ -654,27 +656,84 @@ public:
 		}
 	};
 
-	void removeEmptyEdges()
-	{
-		// get new number of edges
-		numOfEdges = thrust::reduce(edgeSizeOfCubes.begin(), edgeSizeOfCubes.end());
+  // for each cube, sort the set of edges by weight
+  void sortEdgesPerCube()
+  {
+    struct timeval begin, mid1, end, diff0, diff1;
 
-		tmpEdgeArray1.resize(numOfEdges);
+    tmpFloatArray1.resize(numOfEdges); // stores the keys
+    gettimeofday(&begin, 0);
+    thrust::for_each(CountingIterator(0), CountingIterator(0)+numOfCubes,
+        setValuesAndKeys(thrust::raw_pointer_cast(&*edges.begin()),
+                 thrust::raw_pointer_cast(&*edgeSizeOfCubes.begin()),
+                 thrust::raw_pointer_cast(&*edgeStartOfCubes.begin()),
+                 max_ll,
+                 thrust::raw_pointer_cast(&*tmpFloatArray1.begin())));
+    gettimeofday(&mid1, 0);
 
-		int size = 0;
-		for(int i=0; i<numOfCubes; i++) // copy the new set of edges, per cube
-		{
-			int a = edgeStartOfCubes[i];
-			int b = edgeSizeOfCubes[i];
-			thrust::copy(edges.begin()+a, 
-									 edges.begin()+a+b, 
-									 tmpEdgeArray1.begin()+size);
-			
-			edgeStartOfCubes[i] = size;
-			size += b; // for each cube, get new start of edges			
-		}
-		edges = tmpEdgeArray1; 
-	}
+//    thrust::sort_by_key(tmpFloatArray1.begin(), tmpFloatArray1.end(), edges.begin());
+
+    for(int i=0; i<numOfCubes; i++)
+    {
+        int start = edgeStartOfCubes[i];
+        int size  = edgeSizeOfCubes[i];
+
+        if(size<2) continue;
+
+        gettimeofday(&mid1, 0);
+        thrust::sort_by_key(tmpFloatArray1.begin()+start, tmpFloatArray1.begin()+start+size, edges.begin()+start);
+        gettimeofday(&end, 0);
+
+        timersub(&end, &mid1, &diff1);
+        float seconds = diff1.tv_sec + 1.0E-6*diff1.tv_usec;
+
+        if(size>5000)
+          std::cout << "size: " << size << " time: " << seconds << " s"<< std::endl << std::flush;
+    }
+    gettimeofday(&end, 0);
+
+    tmpFloatArray1.clear();
+
+    timersub(&mid1, &begin, &diff0);
+    float seconds0 = diff0.tv_sec + 1.0E-6*diff0.tv_usec;
+    std::cout << "Time elapsedA0: " << seconds0 << " s"<< std::endl << std::flush;
+    timersub(&end, &mid1, &diff1);
+    float seconds1 = diff1.tv_sec + 1.0E-6*diff1.tv_usec;
+    std::cout << "Time elapsedA1: " << seconds1 << " s"<< std::endl << std::flush;
+
+  }
+
+  // set values & keys arrays needed for edge sorting
+  struct setValuesAndKeys : public thrust::unary_function<int, void>
+  {
+    float max_ll;
+
+    float *keys;
+
+    Edge *edges;
+    int  *edgeSizeOfCubes, *edgeStartOfCubes;
+
+    __host__ __device__
+    setValuesAndKeys(Edge *edges, int *edgeSizeOfCubes,int *edgeStartOfCubes,
+        float max_ll, float *keys) :
+        edges(edges), edgeSizeOfCubes(edgeSizeOfCubes), edgeStartOfCubes(edgeStartOfCubes),
+        max_ll(max_ll), keys(keys) {}
+
+    __host__ __device__
+    void operator()(int i)
+    {
+      for(int j=edgeStartOfCubes[i]; j<edgeStartOfCubes[i]+edgeSizeOfCubes[i]; j++)
+      {
+        keys[j]    = (float) (edges[j].weight + 2*i*max_ll);
+      }
+    }
+  };
+
+  // sort cube id by particle id
+  void sortCubeIDByParticleID()
+  {
+    thrust::sort_by_key(particleId.begin(), particleId.end(), cubeId.begin());
+  }
 
 	// for each cube, compute the sub merge trees
 	void getSubMergeTreePerCube(bool consider=false)
@@ -684,12 +743,10 @@ public:
 		// clear stuff
 		nodes.clear();
 		nodesTmp1.clear();
-		nodesTmp2.clear();		
-
+		nodesTmp2.clear();
 		nodes.resize(numOfParticles);
 		nodesTmp1.resize(numOfEdges);
 		nodesTmp2.resize(numOfEdges); 
-
 //	  gettimeofday(&begin, 0);
 		thrust::for_each(CountingIterator(0), CountingIterator(0)+numOfParticles,
 				initNodes(thrust::raw_pointer_cast(&*nodes.begin())));
@@ -704,10 +761,12 @@ public:
 												thrust::raw_pointer_cast(&*nodesTmp2.begin()),
 												thrust::raw_pointer_cast(&*nodes.begin()),
 												consider));
+		nodesTmp1.clear();
+		nodesTmp2.clear();
+		nodes.clear();
 //		gettimeofday(&mid2, 0);
     removeEmptyEdges();   // remove empty items in edge sets
 //		gettimeofday(&end, 0);
-
 /*
 		timersub(&mid1, &begin, &diff0);
     float seconds0 = diff0.tv_sec + 1.0E-6*diff0.tv_usec;
@@ -719,61 +778,6 @@ public:
     float seconds2 = diff2.tv_sec + 1.0E-6*diff2.tv_usec;
     std::cout << "Time elapsedA2: " << seconds2 << " s"<< std::endl << std::flush;
 */
-	}
-
-	// for each cube, sort the set of edges by weight
-	void sortEdgesPerCube()
-	{
-//	  struct timeval begin, mid1, end, diff0, diff1;
-
-		tmpFloatArray1.resize(numOfEdges); // stores the keys
-//	  gettimeofday(&begin, 0);
-		thrust::for_each(CountingIterator(0), CountingIterator(0)+numOfCubes,
-				setValuesAndKeys(thrust::raw_pointer_cast(&*edges.begin()),
-						  	 thrust::raw_pointer_cast(&*edgeSizeOfCubes.begin()),
-							   thrust::raw_pointer_cast(&*edgeStartOfCubes.begin()),
-							   max_ll,
-								 thrust::raw_pointer_cast(&*tmpFloatArray1.begin())));
-//		gettimeofday(&mid1, 0);
-		thrust::sort_by_key(tmpFloatArray1.begin(), tmpFloatArray1.end(), edges.begin());
-//		gettimeofday(&end, 0);
-
-//    timersub(&mid1, &begin, &diff0);
-//    float seconds0 = diff0.tv_sec + 1.0E-6*diff0.tv_usec;
-//    std::cout << "Time elapsedA0: " << seconds0 << " s"<< std::endl << std::flush;
-//    timersub(&end, &mid1, &diff1);
-//    float seconds1 = diff1.tv_sec + 1.0E-6*diff1.tv_usec;
-//    std::cout << "Time elapsedA1: " << seconds1 << " s"<< std::endl << std::flush;
-	}
-
-	// set values & keys arrays needed for edge sorting
-	struct setValuesAndKeys : public thrust::unary_function<int, void>
-	{
-		float max_ll;
-
-		float *keys;
-
-		Edge *edges;
-		int  *edgeSizeOfCubes, *edgeStartOfCubes;
-
-		__host__ __device__
-		setValuesAndKeys(Edge *edges, int *edgeSizeOfCubes,int *edgeStartOfCubes,
-				float max_ll, float *keys) :
-				edges(edges), edgeSizeOfCubes(edgeSizeOfCubes), edgeStartOfCubes(edgeStartOfCubes),
-				max_ll(max_ll), keys(keys){}
-
-		__host__ __device__
-		void operator()(int i)
-		{
-			for(int j=edgeStartOfCubes[i]; j<edgeStartOfCubes[i]+edgeSizeOfCubes[i]; j++)
-				keys[j]    = (float) (edges[j].weight + 2*i*max_ll);
-		}
-	};
-
-	// sort cube id by particle id
-	void sortCubeIDByParticleID()
-	{
-		thrust::sort_by_key(particleId.begin(), particleId.end(), cubeId.begin());
 	}
 
 	// init the nodes array with node id & halo id
@@ -929,7 +933,28 @@ public:
 		}
 	};
 
+  void removeEmptyEdges()
+  {
+    // get new number of edges
+    numOfEdges = thrust::reduce(edgeSizeOfCubes.begin(), edgeSizeOfCubes.begin()+numOfCubes);
+    tmpEdgeArray1.resize(numOfEdges);
 
+    int size = 0;
+    for(int i=0; i<numOfCubes; i++) // copy the new set of edges, per cube
+    {
+      int a = edgeStartOfCubes[i];
+      int b = edgeSizeOfCubes[i];
+      thrust::copy(edges.begin()+a,
+                   edges.begin()+a+b,
+                   tmpEdgeArray1.begin()+size);
+
+      edgeStartOfCubes[i] = size;
+      size += b; // for each cube, get new start of edges
+    }
+    edges = tmpEdgeArray1;
+
+    tmpEdgeArray1.clear();
+  }
 
 	//---------------- METHOD - Global functions
 
@@ -994,6 +1019,10 @@ public:
 			// set new number of cubes
 			numOfCubesOld = numOfCubes;
 			numOfCubes = (int)std::ceil(((double)numOfCubes/2));
+
+			tmpIntArray1.clear();
+			tmpIntArray2.clear();
+			tmpIntArray3.clear();
 		}
 	}
 
