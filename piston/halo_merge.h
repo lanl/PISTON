@@ -3,9 +3,6 @@
 
 #include <piston/halo.h>
 
-#include "parallel_radix_sort.h"
-#include <stdarg.h>
-
 // When TEST is defined, output all results
 //#define TEST
 
@@ -220,7 +217,7 @@ public:
 		
 		haloIndexUnique.resize(numOfParticles);		
 		thrust::copy(haloIndex.begin(), haloIndex.end(), haloIndexUnique.begin());
-		thrust::sort(haloIndexUnique.begin(), haloIndexUnique.end());
+		thrust::stable_sort(haloIndexUnique.begin(), haloIndexUnique.end());
 	  new_end = thrust::unique(haloIndexUnique.begin(), haloIndexUnique.end());
 	  new_end = thrust::remove(haloIndexUnique.begin(), new_end, -1);
 	  numOfHalos = new_end - haloIndexUnique.begin();
@@ -580,50 +577,8 @@ public:
 		// for each cube, set the space required for storing edges
 		edgeSizeOfCubes.resize(numOfCubes);
 
-/*
-{
-			struct timeval begin, end, diff;
-			tmpIntArray1.resize(numOfParticles); 
-			tmpIntArray2.resize(numOfCubes); 
-			tmpIntArray3.resize(numOfCubes);
-
-			gettimeofday(&begin, 0);
-			for(int i=0; i<=13; i++)
-			{
-				std::cout << i << std::endl;
-				int ite = thrust::transform_reduce(CountingIterator(0), CountingIterator(0)+numOfCubes, 
-											getCubeSize(thrust::raw_pointer_cast(&*neighborsOfCubes.begin()), thrust::raw_pointer_cast(&*particleSizeOfCubes.begin()), i), 
-											0, thrust::maximum<int>());
-				std::cout << ite << std::endl;
-				for(int j=0; j<ite; j++)
-				{				
-					thrust::for_each(CountingIterator(0), CountingIterator(0)+numOfParticles,
-							getSize(thrust::raw_pointer_cast(&*neighborsOfCubes.begin()),
-											thrust::raw_pointer_cast(&*particleStartOfCubes.begin()),
-											thrust::raw_pointer_cast(&*particleSizeOfCubes.begin()),
-											thrust::raw_pointer_cast(&*inputX.begin()),
-									    thrust::raw_pointer_cast(&*inputY.begin()),
-									    thrust::raw_pointer_cast(&*inputZ.begin()),
-									    thrust::raw_pointer_cast(&*particleId.begin()),
-									    thrust::raw_pointer_cast(&*cubeId.begin()),
-									    thrust::raw_pointer_cast(&*tmpIntArray1.begin()),				
-											max_ll, j, i));
-				}
-			}
-//			thrust::reduce_by_key(cubeId.begin(), cubeId.begin()+numOfParticles, tmpIntArray1.begin(), tmpIntArray2.begin(), tmpIntArray3.begin());
-//      thrust::transform(tmpIntArray3.begin(), tmpIntArray3.end(), tmpIntArray3.begin(), multiply(0.5));
-			gettimeofday(&end, 0);
-
-			timersub(&end, &begin, &diff);
-			float seconds = diff.tv_sec + 1.0E-6*diff.tv_usec;
-			std::cout << "Time elapsed0: " << seconds << " s" << std::endl << std::flush;
-}
-*/
-
 		for(int i=0; i<=13; i++)
 		{
-			struct timeval begin, end, diff;
-			gettimeofday(&begin, 0);
 			thrust::for_each(CountingIterator(0), CountingIterator(0)+numOfCubes,
 					getEdgesSizes(thrust::raw_pointer_cast(&*neighborsOfCubes.begin()),
 									      thrust::raw_pointer_cast(&*particleStartOfCubes.begin()),
@@ -634,12 +589,6 @@ public:
 									      thrust::raw_pointer_cast(&*particleId.begin()),
 									      max_ll, min_ll, i,
 									      thrust::raw_pointer_cast(&*edgeSizeOfCubes.begin())));
-			gettimeofday(&end, 0);
-		  timersub(&end, &begin, &diff);
-		  float seconds = diff.tv_sec + 1.0E-6*diff.tv_usec;
-//		  std::cout << "Time elapsed1: " << seconds << " s"<< std::endl << std::flush;
-
-//			std::cout << "edgeSizeOfCubes	 "; thrust::copy(edgeSizeOfCubes.begin(), edgeSizeOfCubes.begin()+20, std::ostream_iterator<int>(std::cout, " ")); std::cout << std::endl << std::endl;
 		}
 		edgeStartOfCubes.resize(numOfCubes);
 		thrust::exclusive_scan(edgeSizeOfCubes.begin(), edgeSizeOfCubes.begin()+numOfCubes, edgeStartOfCubes.begin());
@@ -649,92 +598,6 @@ public:
 		// init edge arrays
 		edges.resize(numOfEdges);
 	}
-
-  struct getSize : public thrust::unary_function<int, void>
-  {
-    int    num, ite;
-    float  max_ll;
-    float *inputX, *inputY, *inputZ;
-
-    int   *cubeId;
-    int   *particleId, *particleStartOfCubes, *particleSizeOfCubes;
-    int   *neighborsOfCubes;
-
-    int   *tmp;
-
-    __host__ __device__
-    getSize(int *neighborsOfCubes, int *particleStartOfCubes, int *particleSizeOfCubes,
-        float *inputX, float *inputY, float *inputZ,
-        int *particleId, int *cubeId, int *tmp, float max_ll, int ite, int num) :
-				neighborsOfCubes(neighborsOfCubes),
-        particleStartOfCubes(particleStartOfCubes), particleSizeOfCubes(particleSizeOfCubes),
-        inputX(inputX), inputY(inputY), inputZ(inputZ),
-        particleId(particleId), cubeId(cubeId), tmp(tmp), max_ll(max_ll), ite(ite), num(num) {}
-
-		__host__ __device__
-		void operator()(int i)
-		{
-			int cube = (num==0) ? cubeId[i] : neighborsOfCubes[13*cubeId[i]+(num-1)];
-
-			if(ite >= particleSizeOfCubes[cube]) return;
-
-			int ii = particleId[i];
-			int jj = particleId[particleStartOfCubes[cube]+num];
-
-			if(ii==jj) return;
-
-			float currentX = inputX[ii];
-			float currentY = inputY[ii];
-			float currentZ = inputZ[ii];
-
-			float otherX = inputX[jj];
-      float otherY = inputY[jj];
-      float otherZ = inputZ[jj];
-
-      float xd, yd, zd;
-      xd = (currentX-otherX);  if (xd < 0.0f) xd = -xd;
-      yd = (currentY-otherY);  if (yd < 0.0f) yd = -yd;
-      zd = (currentZ-otherZ);  if (zd < 0.0f) zd = -zd;
-
-      if(xd<=max_ll && yd<=max_ll && zd<=max_ll)
-      {
-        float dist = (float)std::sqrt(xd*xd + yd*yd + zd*zd);
-
-        if(dist <= max_ll) tmp[i]++;
-      }
-		}
-	};
-
-  struct getCubeSize : public thrust::unary_function<int, int>
-  {
-	  int *neighborsOfCubes;
-		int *particleSizeOfCubes;
-		int  num;
-
-    __host__ __device__
-    getCubeSize(int *neighborsOfCubes, int *particleSizeOfCubes, int num) : 
-			neighborsOfCubes(neighborsOfCubes), particleSizeOfCubes(particleSizeOfCubes), num(num) {};
-
-    __host__ __device__
-    int operator() (int i)        
-		{
-      return (num==0) ? particleSizeOfCubes[i] : particleSizeOfCubes[neighborsOfCubes[i*13+num]];
-    }
-  };
-
-  struct multiply : public thrust::unary_function<int, int>
-  {
-    float value;
-
-    __host__ __device__
-    multiply(float value) : value(value) {};
-
-    __host__ __device__
-    int operator() (int i)        
-		{
-      return ((int)(value*i));
-    }
-  };
 
   // for each cube, get the size of edges for allocations of edge array
   struct getEdgesSizes : public thrust::unary_function<int, void>
@@ -910,30 +773,6 @@ public:
     tmpIntArray1.clear();
   }
 
-thrust::host_vector<int> random_vector(size_t N)
-{
-    thrust::host_vector<int> vec(N);
-    static thrust::default_random_engine rng;
-    static thrust::uniform_int_distribution<int> dist(0, 1000);
-
-    for (size_t i = 0; i < N; i++)
-      vec[i] = (int) (dist(rng)%100);
-
-    return vec;
-}
-
-thrust::host_vector<float> random_vectorF(size_t N)
-{
-    thrust::host_vector<float> vec(N);
-    static thrust::default_random_engine rng;
-    static thrust::uniform_real_distribution<float> dist(0, 9);
-
-    for (size_t i = 0; i < N; i++)
-      vec[i] = dist(rng);
-
-    return vec;
-}
-
   // set values & keys arrays needed for edge sorting
   struct setValuesAndKeys : public thrust::unary_function<int, void>
   {
@@ -964,7 +803,7 @@ thrust::host_vector<float> random_vectorF(size_t N)
   void sortCubeIDByParticleID()
   {
     thrust::device_vector<int> temp(particleId.begin(), particleId.end());
-    thrust::sort_by_key(temp.begin(), temp.end(), cubeId.begin());
+    thrust::stable_sort_by_key(temp.begin(), temp.end(), cubeId.begin());
 
 //    thrust::sort_by_key(particleId.begin(), particleId.end(), cubeId.begin());
   }
@@ -997,7 +836,7 @@ thrust::host_vector<float> random_vectorF(size_t N)
 												thrust::raw_pointer_cast(&*nodes.begin()),
 												min_ll, consider));
 
-    removeEmptyEdges();   // remove empty items in edge sets
+    removeEmptyEdges(); // remove empty items in edge sets
 	}
 
 	// init the nodes array with node id & halo id
@@ -1057,7 +896,6 @@ thrust::host_vector<float> random_vectorF(size_t N)
           {
             Node *a = &nodes[particleId[k]];
 
-            if(a->nodeId==-1)   break;
 						if(a->parent==NULL) continue;
 
             Node *b = (a->parentSuper==NULL) ? a : a->parentSuper;
