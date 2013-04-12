@@ -66,8 +66,8 @@ float cameraFOV = 60.0;
 halo *haloFinder;
 
 // parameters needed for the halo_finder (look at halo_finder.h for definitions)
-float linkLength, max_linkLength;
-int   particleSize, rL, np;
+float linkLength, max_linkLength, min_linkLength;
+int   particleSize, rL, np, n;
 
 bool  haloFound, haloShow;
 bool  particleSizeSelected, linkLengthSelected;
@@ -157,14 +157,15 @@ void GLWindow::initializeGL()
     particleSizeSelected = false;
     linkLengthSelected   = true;
     haloFound = haloShow = false;
-    step = 0.1;
+    step = 0.05;
 
-    max_linkLength = 1.5;
+    max_linkLength = 2;
+    min_linkLength = 0.2;
     linkLength   = 0.2;
     particleSize = 100;
     np = 256;
     rL = 64;
-    int n = 1; // if you want a fraction of the file to load, use this.. 1/n
+    n  = 1; //if you want a fraction of the file to load, use this.. 1/n
 
     char filename[1024];
     sprintf(filename, "%s/sub-24474", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
@@ -172,7 +173,7 @@ void GLWindow::initializeGL()
 //    sprintf(filename, "%s/256", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
 //    std::string format = "cosmo";
 
-    haloFinder = new halo_merge(max_linkLength, filename, format, n, np, rL); // maxLL as a parameter
+    haloFinder = new halo_merge(min_linkLength, max_linkLength, filename, format, n, np, rL); // maxLL as a parameter
 
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_COLOR_ARRAY);

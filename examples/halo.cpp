@@ -19,6 +19,7 @@ using namespace std;
 
 using namespace piston;
 
+
 struct compare
 {
 	int *a, *b, *c;
@@ -57,12 +58,13 @@ int main(int argc, char* argv[])
 
   halo *halo;
 
-  float linkLength, max_linkLength;
+  float linkLength, max_linkLength, min_linkLength;
   int   particleSize, rL, np, n;
 
-  max_linkLength = 1.5;
-  linkLength   = 0.2;
-  particleSize = 100;
+  max_linkLength = 2;
+  min_linkLength = 0;
+  linkLength     = 1.5;
+  particleSize   = 100;
   np = 256;
   rL = 64;
   n  = 1; //if you want a fraction of the file to load, use this.. 1/n
@@ -75,6 +77,7 @@ int main(int argc, char* argv[])
 //  sprintf(filename, "%s/256", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
 //  std::string format = "cosmo";
 
+  std::cout << "min_linkLength " << min_linkLength << std::endl;
   std::cout << "max_linkLength " << max_linkLength << std::endl;
   std::cout << "linkLength " << linkLength << std::endl;
   std::cout << "particleSize " << particleSize << std::endl;
@@ -103,7 +106,7 @@ int main(int argc, char* argv[])
 
   std::cout << "Merge tree based result" << std::endl;
 
-  halo = new halo_merge(max_linkLength, filename, format, n, np, rL);
+  halo = new halo_merge(min_linkLength, max_linkLength, filename, format, n, np, rL);
   (*halo)(linkLength, particleSize);
   thrust::device_vector<int> d = halo->getHalos();
 
@@ -120,8 +123,9 @@ int main(int argc, char* argv[])
 
 //	std::cout << "a "; thrust::copy(a.begin(), a.begin()+163, std::ostream_iterator<int>(std::cout, " "));   std::cout << std::endl << std::endl;
 //  std::cout << "c "; thrust::copy(c.begin(), c.begin()+163, std::ostream_iterator<int>(std::cout, " "));   std::cout << std::endl << std::endl;
-//  std::cout << "d "; thrust::copy(d.begin(), d.begin()+163, std::ostream_iterator<int>(std::cout, " "));   std::cout << std::endl << std::endl;
+//  std::cout << "d "; thrust::copy(d.begin(), d.begin()+halo->numOfParticles, std::ostream_iterator<int>(std::cout, " "));   std::cout << std::endl << std::endl;
 
   return 0;
 }
+
 

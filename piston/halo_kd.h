@@ -343,7 +343,8 @@ public:
         }
 
         thrust::device_vector<float> inputReorder;  inputReorder.resize(inputX.size());
-        thrust::copy(thrust::make_permutation_iterator(inputX.begin(), pointId), thrust::make_permutation_iterator(inputX.end(), pointId+inputX.size()), inputReorder.begin());
+        thrust::copy(thrust::make_permutation_iterator(inputX.begin(), pointId), thrust::make_permutation_iterator(inputX.end(), pointId+inputX.size())
+, inputReorder.begin());
         thrust::copy(inputReorder.begin(), inputReorder.end(), inputX.begin());
         thrust::copy(thrust::make_permutation_iterator(inputY.begin(), pointId), thrust::make_permutation_iterator(inputY.end(), pointId+inputX.size()), inputReorder.begin());
         thrust::copy(inputReorder.begin(), inputReorder.end(), inputY.begin());
