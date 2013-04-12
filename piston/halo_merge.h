@@ -3,6 +3,9 @@
 
 #include <piston/halo.h>
 
+#include "parallel_radix_sort.h"
+#include <stdarg.h>
+
 // When TEST is defined, output all results
 //#define TEST
 
@@ -111,8 +114,11 @@ public:
 			globalStepMethod();
 			gettimeofday(&end, 0);
 
+			cubeId.clear();
+			particleId.clear();
       particleSizeOfCubes.clear();
       particleStartOfCubes.clear();
+			neighborsOfCubes.clear();
 
 			edges.clear();
 			edgeSizeOfCubes.clear();
@@ -756,6 +762,12 @@ public:
 		}
 	};
 
+void InitRandom(int *a, int n) {
+  for (int i = 0; i < n; ++i) {
+    a[i] = rand();
+  }
+}
+
   // for each cube, sort the set of edges by weight
   void sortEdgesPerCube()
   {
@@ -767,6 +779,36 @@ public:
                  thrust::raw_pointer_cast(&*edgeStartOfCubes.begin()),
                  max_ll,
                  thrust::raw_pointer_cast(&*tmpIntArray1.begin())));
+//--------------
+/*
+		std::cout << numOfEdges << std::endl;
+
+		int N = numOfEdges;
+
+		int *keys, *vals;
+		keys = new int[N];
+		vals = new int[N];
+		InitRandom(keys, N);
+		InitRandom(vals, N);
+//	  int  *keys = thrust::raw_pointer_cast(&*tmpIntArray1.begin());
+//	  Edge *vals = thrust::raw_pointer_cast(&*edges.begin());
+
+		for(size_t i = 0; i < N; i+=N/20){
+			std::cout << keys[i] << " ";
+		}
+		std::cout << std::endl;
+
+		std::cout << N << std::endl;
+
+	  struct timeval begin, end, diff;
+	  gettimeofday(&begin, 0);
+		parallel_radix_sort::SortPairs(keys, vals, N);
+	  gettimeofday(&end, 0);
+    timersub(&end, &begin, &diff);
+    float seconds = diff.tv_sec + 1.0E-6*diff.tv_usec;
+    std::cout << "Time elapsed: " << seconds << " parallel_radix_sort" << std::endl << std::flush;
+*/    
+//--------------
 
     thrust::stable_sort_by_key(tmpIntArray1.begin(), tmpIntArray1.end(), edges.begin());
 
