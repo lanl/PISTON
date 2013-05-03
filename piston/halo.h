@@ -243,11 +243,12 @@ public:
 				//vtkByteSwap::Swap4LERange(iBlock, nint);
 
 				// sanity check
+/*
 				if (fBlock[0] > rL || fBlock[2] > rL || fBlock[4] > rL) {
 					std::cout << "rL is too small" << std::endl;
 					exit (-1);
 				}
-
+*/
 				inputXHost[i] = fBlock[0] / xscal;
 				inputYHost[i] = fBlock[2] / xscal;
 				inputZHost[i] = fBlock[4] / xscal;
@@ -310,7 +311,7 @@ public:
 				Point p = vec.at(i);
 
 				// sanity check
-				if (!(rL==-1 && xscal==1) && (p.x > rL || p. y > rL || p.z > rL)) {   std::cout << "rL is too small \n"; exit (-1); }
+//				if (!(rL==-1 && xscal==1) && (p.x > rL || p. y > rL || p.z > rL)) {   std::cout << "rL is too small \n"; exit (-1); }
 
 				inputXHost[i] = p.x / xscal;
 				inputYHost[i] = p.y / xscal;
