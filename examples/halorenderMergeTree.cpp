@@ -160,7 +160,7 @@ void GLWindow::initializeGL()
     step = 0.05;
 
     max_linkLength = 2;
-    min_linkLength = 0.2;
+    min_linkLength = 0;
     linkLength   = 0.2;
     particleSize = 100;
     np = 256;

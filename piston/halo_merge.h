@@ -560,6 +560,7 @@ public:
 			outputMergeTreeDetails("The sub merge trees.."); // output merge tree details
 		#endif
 
+/*
     timersub(&mid1, &begin, &diff0);
     float seconds0 = diff0.tv_sec + 1.0E-6*diff0.tv_usec;
     std::cout << "Time elapsed0: " << seconds0 << " s for initEdgeArrays"<< std::endl << std::flush;
@@ -575,6 +576,7 @@ public:
     timersub(&end, &mid4, &diff4);
     float seconds4 = diff4.tv_sec + 1.0E-6*diff4.tv_usec;
     std::cout << "Time elapsed5: " << seconds4 << " s for getSubMergeTreePerCube"<< std::endl << std::flush;
+*/
 	}
 
 	// for each cube, init arrays needed for storing edges
