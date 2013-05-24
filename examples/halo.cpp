@@ -71,15 +71,15 @@ int main(int argc, char* argv[])
   particleSize   = 100;
   np = 256;
   rL = 64;
-  n  = 4; //16, 8, 4, 3, 2, 1 //if you want a fraction of the file to load, use this.. 1/n
+  n  = 1; //16, 8, 4, 3, 2, 1 //if you want a fraction of the file to load, use this.. 1/n
 
   char filename[1024];
 // sprintf(filename, "%s/sub-8435", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
 // std::string format = "csv";
-//  sprintf(filename, "%s/sub-24474", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
-//  std::string format = "csv";
-  sprintf(filename, "%s/sub-80289", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
+  sprintf(filename, "%s/sub-24474", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
   std::string format = "csv";
+//  sprintf(filename, "%s/sub-80289", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
+//  std::string format = "csv";
 //  sprintf(filename, "%s/256", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
 //  std::string format = "cosmo";
 

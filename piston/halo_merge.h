@@ -108,7 +108,7 @@ public:
 
 			neighborsOfCubes.clear();
 
-			std::cout << "-- localStep done" << std::endl;
+			std::cout << "-- localStep done" << std::endl << std::endl;
 
 			gettimeofday(&mid4, 0);
 			globalStep();
@@ -133,7 +133,7 @@ public:
 			tmpNxt.clear();
 			tmpFree.clear();
 
-			std::cout << "-- globalStep done" << std::endl;
+			std::cout << "-- globalStep done" << std::endl << std::endl;
 
 			timersub(&mid1, &begin, &diff1);
 			float seconds1 = diff1.tv_sec + 1.0E-6*diff1.tv_usec;
@@ -628,9 +628,7 @@ public:
     std::cout << "Time elapsed5: " << seconds4 << " s for getSubMergeTreePerCube"<< std::endl << std::flush;
     timersub(&end, &mid5, &diff5);
     float seconds5 = diff5.tv_sec + 1.0E-6*diff5.tv_usec;
-    std::cout << "Time elapsed6: " << seconds5 << " s for getEdgesPerCube - Across"<< std::endl << std::flush;
-    std::cout << std::endl;
-
+    std::cout << "Time elapsed6: " << seconds5 << " s for getEdgesPerCube - Across"<< std::endl << std::flush;    
 	}
 
 	// for each cube, init arrays needed for storing edges
