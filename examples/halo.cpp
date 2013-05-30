@@ -33,7 +33,7 @@ struct compare
 		if(a[i] != b[i])
 		{
 			c[i] = 1;
-			std::cout << i << " " << a[i] << " " << b[i] << ", ";
+		//	std::cout << i << " " << a[i] << " " << b[i] << ", ";
 		}
 	}
 };
@@ -47,12 +47,9 @@ bool compareResults(thrust::device_vector<int> a, thrust::device_vector<int> b, 
 			compare(thrust::raw_pointer_cast(&*a.begin()), thrust::raw_pointer_cast(&*b.begin()), thrust::raw_pointer_cast(&*c.begin())));
 	int result = thrust::reduce(c.begin(), c.begin() + numOfParticles);
 
-	if(result==0)
-		return true;
+	if(result==0)	return true;
 
-	std::cout << result << std::endl;
-
-//  std::cout << "c "; thrust::copy(c.begin(), c.begin()+numOfParticles, std::ostream_iterator<int>(std::cout, " "));   std::cout << std::endl << std::endl;
+	std::cout << " count " << result << std::endl;
 
 	return false;
 }
@@ -66,12 +63,12 @@ int main(int argc, char* argv[])
   int   particleSize, rL, np, n;
 
   max_linkLength = 1.5;
-  min_linkLength = 0;
+  min_linkLength = 1;
   linkLength     = 1.5;
   particleSize   = 100;
   np = 256;
   rL = 64;
-  n  = 1; //16, 8, 4, 3, 2, 1 //if you want a fraction of the file to load, use this.. 1/n
+  n  = 1; //if you want a fraction of the file to load, use this.. 1/n
 
   char filename[1024];
 // sprintf(filename, "%s/sub-8435", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
