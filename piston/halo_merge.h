@@ -56,9 +56,14 @@ public:
   int numOfEdges;                   // total number of edges in space
 	int numOfCubes;					   	 			// total number of cubes in space
 	int cubesInX, cubesInY, cubesInZ; // number of cubes in each dimension
+
+	int nonEmptyCubeCount, emptyCubeCount;
+	int side, size, ite;
 	
   thrust::device_vector<int>   particleId; // for each particle, particle id
   thrust::device_vector<int>   cubeId;     // for each particle, cube id
+
+  thrust::device_vector<int>   nonEmptyCubes;
 
 	thrust::device_vector<int>   particleSizeOfCubes; 	// number of particles in cubes
 	thrust::device_vector<int>   particleStartOfCubes;	// stratInd of cubes  (within particleId)
@@ -200,7 +205,7 @@ public:
 						      linkLength, particleSize));
 	}
 
-	// for a given node, set its halo id at the given link length, for particles in filtered halos (by particle size) id is set to -1
+	// for a given node set its halo id, for particles in filtered halos set id to -1
 	struct setHaloId : public thrust::unary_function<int, void>
 	{
 		Node  *nodes;
@@ -223,8 +228,7 @@ public:
 			while(n->parent!=NULL && n->parent->value <= linkLength)
 			  n = n->parent;
 
-			if(n->nodeId!= nodes[i].nodeId)
-				nodes[i].parentSuper = n;
+			nodes[i].parentSuper = n;
 
       haloIndex[i] = (n->count >= particleSize) ? n->haloId : -1;
 		}
@@ -264,7 +268,7 @@ public:
 		mergetreeSize += numOfParticles;
 	}
 
-	// get the particles of valid halos & get the number of halo particles *************************
+	// get particles of valid halos & get number of halo particles *************************
 	void getHaloParticles()
 	{
 /*
@@ -734,44 +738,81 @@ public:
 		edgeSizeOfCubes.resize(numOfCubes);
 		edgeStartOfCubes.resize(numOfCubes);
 
-		double len = std::ceil(max_ll/cubeLen);
+		side = (1 + std::ceil(max_ll/cubeLen)*2);
+		size = side*side*side;
+		ite = (size-1)/2;
 
-		int side = (1 + len*2);
-		int size = side*side*side;
+		std::cout << std::endl;
+		std::cout << "side " << side << " cubeSize " << size << " ite " << ite << std::endl;
 
-		thrust::fill(edgeSizeOfCubes.begin(), edgeSizeOfCubes.begin()+numOfCubes, (size-1)/2);
+		emptyCubeCount    = thrust::count(particleSizeOfCubes.begin(), particleSizeOfCubes.end(), 0);
+		nonEmptyCubeCount = numOfCubes - emptyCubeCount;
+
+		std::cout << emptyCubeCount << " of " << numOfCubes << " cubes are empty. (" << (((double)nonEmptyCubeCount*100)/(double)numOfCubes) << "%)" << std::endl;
+
+		nonEmptyCubes.resize(nonEmptyCubeCount);
+		thrust::copy_if(CountingIterator(0), CountingIterator(0)+numOfCubes,
+					nonEmptyCubes.begin(),
+					getNonEmptyCubes(thrust::raw_pointer_cast(&*particleSizeOfCubes.begin())));
+
+		thrust::fill(edgeSizeOfCubes.begin(), edgeSizeOfCubes.begin()+numOfCubes, 0);
+		thrust::for_each(CountingIterator(0), CountingIterator(0)+nonEmptyCubeCount,
+					setEdgeSize(thrust::raw_pointer_cast(&*nonEmptyCubes.begin()),
+											thrust::raw_pointer_cast(&*edgeSizeOfCubes.begin()),
+											ite));
+
 		thrust::exclusive_scan(edgeSizeOfCubes.begin(), edgeSizeOfCubes.begin()+numOfCubes, edgeStartOfCubes.begin());
 
 		numOfEdges = edgeStartOfCubes[numOfCubes-1] + edgeSizeOfCubes[numOfCubes-1];
 
+		std::cout << std::endl;
 		std::cout << "numOfEdges before " << numOfEdges << std::endl;
 
 		// init edge arrays
 		edges.resize(numOfEdges);
 	}
 
+	struct getNonEmptyCubes : public thrust::unary_function<int, bool>
+	{
+		int *particleSizeOfCubes;
+
+		__host__ __device__
+		getNonEmptyCubes(int *particleSizeOfCubes) : particleSizeOfCubes(particleSizeOfCubes) {}
+	
+		__host__ __device__
+		bool operator()(int i)
+		{
+			return (particleSizeOfCubes[i]>0);
+		}	
+	};
+
+	struct setEdgeSize : public thrust::unary_function<int, void>
+	{
+		int *nonEmptyCubes, *edgeSizeOfCubes;
+		int  size;
+
+		__host__ __device__
+		setEdgeSize(int *nonEmptyCubes, int *edgeSizeOfCubes, int size) : 
+			nonEmptyCubes(nonEmptyCubes), edgeSizeOfCubes(edgeSizeOfCubes), size(size) {}
+	
+		__host__ __device__
+		void operator()(int i)
+		{
+			edgeSizeOfCubes[nonEmptyCubes[i]] = size;
+		}	
+	};
+
 	// for each cube, get the set of edges
 	void getEdgesPerCube()
 	{	
 		thrust::fill(edgeSizeOfCubes.begin(), edgeSizeOfCubes.begin()+numOfCubes,0);
 
-		double len = std::ceil(max_ll/cubeLen);
-
-		int side = (1 + len*2);
-		int size = side*side*side;
-
-		std::cout << "side " << side << " cubeSize " << size << " ite " << (size-1)/2 << std::endl;
-
-		int count = thrust::count(particleSizeOfCubes.begin(), particleSizeOfCubes.end(), 0);
-		std::cout << count << std::endl;
-
-		for(int i=0; i<(size-1)/2; i++)
+		for(int i=0; i<ite; i++)
 		{
-		  struct timeval begin, end, diff;
-		  gettimeofday(&begin, 0);
-			thrust::for_each(CountingIterator(0), CountingIterator(0)+numOfCubes,
+			thrust::for_each(CountingIterator(0), CountingIterator(0)+nonEmptyCubeCount,
 					getEdges(thrust::raw_pointer_cast(&*particleStartOfCubes.begin()),
 									 thrust::raw_pointer_cast(&*particleSizeOfCubes.begin()),
+									 thrust::raw_pointer_cast(&*nonEmptyCubes.begin()),
 									 thrust::raw_pointer_cast(&*inputX.begin()),
 									 thrust::raw_pointer_cast(&*inputY.begin()),
 									 thrust::raw_pointer_cast(&*inputZ.begin()),
@@ -779,11 +820,7 @@ public:
 									 max_ll, min_ll, i, cubesInX, cubesInY, cubesInZ, side,
 									 thrust::raw_pointer_cast(&*edges.begin()),
 									 thrust::raw_pointer_cast(&*edgeSizeOfCubes.begin()),
-									 thrust::raw_pointer_cast(&*edgeStartOfCubes.begin())));			
-	    gettimeofday(&end, 0);
-		  timersub(&end, &begin, &diff);
-		  float seconds = diff.tv_sec + 1.0E-6*diff.tv_usec;
-		  std::cout << "Time elapsed: " << seconds << " s" << std::endl << std::flush;
+									 thrust::raw_pointer_cast(&*edgeStartOfCubes.begin())));		
 		}		
 
 		numOfEdges = thrust::reduce(edgeSizeOfCubes.begin(), edgeSizeOfCubes.begin()+numOfCubes);
@@ -798,6 +835,7 @@ public:
 		float  max_ll, min_ll;
 		float *inputX, *inputY, *inputZ;
 
+		int   *nonEmptyCubes;
 		int   *particleId, *particleStartOfCubes, *particleSizeOfCubes;
 
 		int    side;
@@ -808,12 +846,12 @@ public:
 
 		__host__ __device__
 		getEdges(int *particleStartOfCubes, int *particleSizeOfCubes, 
-				float *inputX, float *inputY, float *inputZ,
+				int *nonEmptyCubes, float *inputX, float *inputY, float *inputZ,
 				int *particleId, float max_ll, float min_ll, int num,
 				int cubesInX, int cubesInY, int cubesInZ, int side, 
 				Edge *edges, int *edgeSizeOfCubes, int *edgeStartOfCubes) :
  				particleStartOfCubes(particleStartOfCubes), particleSizeOfCubes(particleSizeOfCubes),
-				inputX(inputX), inputY(inputY), inputZ(inputZ),
+				nonEmptyCubes(nonEmptyCubes), inputX(inputX), inputY(inputY), inputZ(inputZ),
 				particleId(particleId), max_ll(max_ll), min_ll(min_ll), num(num), 
 				cubesInX(cubesInX), cubesInY(cubesInY), cubesInZ(cubesInZ), side(side),
 				edges(edges), edgeSizeOfCubes(edgeSizeOfCubes), edgeStartOfCubes(edgeStartOfCubes) {}
@@ -821,6 +859,8 @@ public:
 		__host__ __device__
 		void operator()(int i)
 		{			
+			i = nonEmptyCubes[i];
+
 			// get x,y,z coordinates for the cube
 			int tmp = i % (cubesInX*cubesInY);
 			int z = i / (cubesInX*cubesInY);
@@ -910,6 +950,8 @@ public:
 		numOfCubes = (int)std::ceil(((double)numOfCubes/2));
 
 		std::cout << std::endl;
+
+		if(numOfEdges==0) return;
 	
 		while(numOfCubes!=numOfCubesOld && numOfCubes>0)
 		{
