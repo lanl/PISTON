@@ -62,10 +62,10 @@ int main(int argc, char* argv[])
   float linkLength, max_linkLength, min_linkLength;
   int   particleSize, rL, np, n;
 
-  max_linkLength = 1.5;
+  max_linkLength = 2;
   min_linkLength = 1;
-  linkLength     = 1.5;
-  particleSize   = 100;
+  linkLength     = 2;
+  particleSize   = 1;
   np = 256;
   rL = 64;
   n  = 1; //if you want a fraction of the file to load, use this.. 1/n
