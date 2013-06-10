@@ -80,6 +80,9 @@ int main(int argc, char* argv[])
 //  sprintf(filename, "%s/256", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
 //  std::string format = "cosmo";
 
+//  sprintf(filename, "%s/19988-sameCube", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
+//  std::string format = "csv";
+
   std::cout << "min_linkLength " << min_linkLength << std::endl;
   std::cout << "max_linkLength " << max_linkLength << std::endl;
   std::cout << "linkLength " << linkLength << std::endl;
