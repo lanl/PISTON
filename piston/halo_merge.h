@@ -16,20 +16,22 @@ class halo_merge : public halo
 public:
 	struct Node
 	{
-		int   nodeId;// particle Id
-    int   haloId;// halo Id, store the min particle id of the particles in this halo
+		int   nodeId; // particle Id
+    int   haloId; // halo Id, store the min particle id of the particles in this halo
 
-		int   count; // store number of particles in the halo at this level
-		float value; // weight value of this node
+		int   count;  // store number of particles in the halo at this level
+		float value;  // weight value of this node
 
-		Node *parent;       // pointer to my parent
-		Node *parentSuper;  // pointer to my super parent
+		Node *parent; // pointer to my parent
+		Node *childE, *childS, *sibling; 
 
-		Node *childE, *childS; 
-		Node *sibling;       
+		Node *parentSuper; // pointer to my super parent
+		Node *childSuperE, *childSuperS, *siblingSuper; 
 
 		__host__ __device__
-		Node() { nodeId=-1; value=0.0f; haloId=-1; count=0;	parent=NULL; parentSuper=NULL; childS=NULL; childE=NULL; sibling=NULL; }
+		Node() { nodeId=-1; value=0.0f; haloId=-1; count=0;	
+						 parent=NULL; childS=NULL; childE=NULL; sibling=NULL; 
+						 parentSuper=NULL; childSuperS=NULL; childSuperE=NULL; siblingSuper=NULL;}
 
 		__host__ __device__
 		Node(int nodeId, float value, int haloId, int count, Node *parent, Node *parentSuper) :
@@ -76,9 +78,12 @@ public:
 	thrust::device_vector<Edge>  edges;
 	thrust::device_vector<int>   edgeSizeOfCubes;
 	thrust::device_vector<int>   edgeStartOfCubes;
+
+	thrust::device_vector<int>	 tmpNxt, tmpFree;
 	
+	thrust::device_vector<Edge>   tmpEdgeArray1;
 	thrust::device_vector<double> tmpDoubleArray1;
-	thrust::device_vector<int>    tmpIntArray1, tmpNxt, tmpFree;
+	thrust::device_vector<int>    tmpIntArray1;
 
 	halo_merge(float min_linkLength, float max_linkLength, std::string filename="", std::string format=".cosmo",
 						 int n = 1, int np=1, float rL=-1, bool periodic=false) : halo(filename, format, n, np, rL, periodic)
@@ -282,28 +287,6 @@ public:
 */
 	}
 
-	// clear super parents of all nodes
-	void clearSuperParents()
-	{
-		thrust::for_each(CountingIterator(0), CountingIterator(0)+numOfParticles,
-				clearParentSuper(thrust::raw_pointer_cast(&*nodes.begin())));
-	}
-
-	// for a given node, set its super parent to null
-	struct clearParentSuper : public thrust::unary_function<int, void>
-	{
-		Node  *nodes;
-
-		__host__ __device__
-		clearParentSuper(Node *nodes) : nodes(nodes) {}
-
-		__host__ __device__
-		void operator()(int i)
-		{			
-      nodes[i].parentSuper = NULL;
-		}
-	};
-
 	void checkValidMergeTree()
 	{
 		bool invalid = false;
@@ -313,16 +296,10 @@ public:
 
 			int count = 0;
 			while(n && n->value <= min_ll)
-			{
-				count++;
-				n = n->parent;
-			}
+			{ n = n->parent;	count++; }
 
 			if(count > 1)
-			{
-				invalid = true; 
-				break;
-			}
+			{ invalid = true; 	break; }
 		}	
 
 		std::cout << std::endl;	
@@ -579,7 +556,7 @@ public:
 		nodes.resize(numOfParticles);
 		nodesTmp1.resize(numOfParticles);
 
-    struct timeval begin, mid1, mid2, mid3, mid4, end, diff1, diff2, diff3, diff4, diff5;
+    struct timeval begin, mid1, mid2, mid3, mid4, mid5, mid6, end, diff1, diff2, diff3, diff4, diff5, diff6, diff7;
     gettimeofday(&begin, 0);
 		thrust::for_each(CountingIterator(0), CountingIterator(0)+numOfParticles,
 				initNodes(thrust::raw_pointer_cast(&*nodes.begin()),
@@ -607,6 +584,10 @@ public:
 		initEdgeArrays();  		// init arrays needed for storing edges
 		gettimeofday(&mid4, 0);
 		getEdgesPerCube(); 		// for each cube, get the set of edges
+		gettimeofday(&mid5, 0);
+		removeEmptyEdgesPerCube();
+		gettimeofday(&mid6, 0);
+		sortEdgesPerCube();
     gettimeofday(&end, 0);
 
 		#ifdef TEST
@@ -628,9 +609,15 @@ public:
 		timersub(&mid4, &mid3, &diff4);
     float seconds4 = diff4.tv_sec + 1.0E-6*diff4.tv_usec;
     std::cout << "Time elapsed3: " << seconds4 << " s for initEdgeArrays " << std::endl << std::flush;
-		timersub(&end, &mid4, &diff5);
+		timersub(&mid5, &mid4, &diff5);
     float seconds5 = diff5.tv_sec + 1.0E-6*diff5.tv_usec;
     std::cout << "Time elapsed3: " << seconds5 << " s for getEdgesPerCube " << std::endl << std::flush;
+		timersub(&mid6, &mid5, &diff6);
+    float seconds6 = diff6.tv_sec + 1.0E-6*diff6.tv_usec;
+    std::cout << "Time elapsed3: " << seconds6 << " s for removeEmptyEdgesPerCube " << std::endl << std::flush;
+		timersub(&end, &mid6, &diff7);
+    float seconds7 = diff7.tv_sec + 1.0E-6*diff7.tv_usec;
+    std::cout << "Time elapsed3: " << seconds7 << " s for sortEdgesPerCube " << std::endl << std::flush;
 	}
 
 	// init the nodes array with node id, halo id, count & set its initial nxt free id
@@ -639,7 +626,7 @@ public:
 		Node *nodes, *nodesTmp1;
 		int  *tmpFree;
 
-		int numOfParticles;
+		int   numOfParticles;
 
 		__host__ __device__
 		initNodes(Node *nodes, Node *nodesTmp1, int *tmpFree, int numOfParticles) : 
@@ -690,8 +677,8 @@ public:
   {
 		Node *nodes, *nodesTmp1;
 
-		int *particleSizeOfCubes, *particleStartOfCubes, *particleId;
-		int *tmpNxt, *tmpFree;
+		int  *particleSizeOfCubes, *particleStartOfCubes, *particleId;
+		int  *tmpNxt, *tmpFree;
 
 	  float min_ll;
 
@@ -722,7 +709,7 @@ public:
 				tmp->parent = n;
 				
 				if(!n->childS) {	n->childS = tmp;	n->childE = tmp; }
-				else {	 n->childE->sibling = tmp;	n->childE = tmp; }
+				else  {	 n->childE->sibling = tmp;	n->childE = tmp; }
 
 				minValue = (minValue==-1) ? tmp->haloId : (minValue<tmp->haloId ? minValue : tmp->haloId);
 			}
@@ -897,6 +884,67 @@ public:
 		}
 	};
 
+	void removeEmptyEdgesPerCube()
+	{
+		tmpEdgeArray1.resize(numOfEdges);
+
+		int size = 0;
+		for(int i=0; i<nonEmptyCubeCount; i++) // copy the new set of edges, per cube
+		{
+			int a = edgeStartOfCubes[i];
+			int b = edgeSizeOfCubes[i];
+			thrust::copy(edges.begin()+a, edges.begin()+a+b, tmpEdgeArray1.begin()+size);
+
+			edgeStartOfCubes[i] = size;
+			size += b; // for each cube, get new start of edges
+		}
+
+		thrust::copy(tmpEdgeArray1.begin(), tmpEdgeArray1.begin()+numOfEdges, edges.begin());
+
+		tmpEdgeArray1.clear();
+	}
+
+  // for each cube, sort the edges by weight
+  void sortEdgesPerCube()
+  {
+    tmpDoubleArray1.resize(numOfEdges); // stores the keys
+
+    thrust::for_each(CountingIterator(0), CountingIterator(0)+nonEmptyCubeCount,
+        setKeys(thrust::raw_pointer_cast(&*edges.begin()),
+                 thrust::raw_pointer_cast(&*edgeSizeOfCubes.begin()),
+                 thrust::raw_pointer_cast(&*edgeStartOfCubes.begin()),
+                 max_ll,
+                 thrust::raw_pointer_cast(&*tmpDoubleArray1.begin())));
+
+    thrust::stable_sort_by_key(tmpDoubleArray1.begin(), tmpDoubleArray1.end(), edges.begin());
+
+    tmpDoubleArray1.clear();
+  }
+
+  // set values & keys arrays needed for edge sorting
+  struct setKeys : public thrust::unary_function<int, void>
+  {
+    float max_ll;
+
+    double *keys;
+
+    Edge *edges;
+    int  *edgeSizeOfCubes, *edgeStartOfCubes;
+
+    __host__ __device__
+    setKeys(Edge *edges, int *edgeSizeOfCubes,int *edgeStartOfCubes,
+        float max_ll, double *keys) :
+        edges(edges), edgeSizeOfCubes(edgeSizeOfCubes), edgeStartOfCubes(edgeStartOfCubes),
+        max_ll(max_ll), keys(keys) {}
+
+    __host__ __device__
+    void operator()(int i)
+    {
+      for(int j=edgeStartOfCubes[i]; j<edgeStartOfCubes[i]+edgeSizeOfCubes[i]; j++)
+        keys[j]   = (double)(edges[j].weight + (double)2*i*max_ll); 
+    }
+  };
+
 
 
 	//---------------- METHOD - Global functions
@@ -914,7 +962,11 @@ public:
 		std::cout << std::endl;
 
 		if(numOfEdges==0) return;
+
+//		std::cout << "cubeMapping "; thrust::copy(cubeMapping.begin(), cubeMapping.begin()+numOfCubesOri, std::ostream_iterator<int>(std::cout, " ")); std::cout << std::endl << std::endl;
+//		std::cout << "edgeSizeOfCubes "; thrust::copy(edgeSizeOfCubes.begin(), edgeSizeOfCubes.begin()+numOfCubesOri, std::ostream_iterator<int>(std::cout, " ")); std::cout << std::endl << std::endl;
 	
+		tmpEdgeArray1.resize(numOfEdges);
 		while(nonEmptyCubeCount!=numOfCubesOld && nonEmptyCubeCount>0)
 		{
 	    struct timeval begin, end, diff;
@@ -923,11 +975,17 @@ public:
 				combineFreeLists(thrust::raw_pointer_cast(&*tmpNxt.begin()),
 												 thrust::raw_pointer_cast(&*tmpFree.begin()),
 												 sizeP, numOfCubesOri));
+
 			thrust::for_each(CountingIterator(0), CountingIterator(0)+nonEmptyCubeCount,
-				combineMergeTrees(thrust::raw_pointer_cast(&*particleId.begin()),
-													thrust::raw_pointer_cast(&*particleSizeOfCubes.begin()),
-													thrust::raw_pointer_cast(&*particleStartOfCubes.begin()),
-													thrust::raw_pointer_cast(&*cubeMapping.begin()),
+				mergeEdges(thrust::raw_pointer_cast(&*edges.begin()),
+									 thrust::raw_pointer_cast(&*edgeStartOfCubes.begin()),
+									 thrust::raw_pointer_cast(&*edgeSizeOfCubes.begin()),
+									 thrust::raw_pointer_cast(&*tmpEdgeArray1.begin()),
+									 sizeP, numOfCubesOri));
+			thrust::copy(tmpEdgeArray1.begin(), tmpEdgeArray1.end(), edges.begin());
+
+			thrust::for_each(CountingIterator(0), CountingIterator(0)+nonEmptyCubeCount,
+				combineMergeTrees(thrust::raw_pointer_cast(&*cubeMapping.begin()),
 												  thrust::raw_pointer_cast(&*inputX.begin()),
 												  thrust::raw_pointer_cast(&*inputY.begin()),
 												  thrust::raw_pointer_cast(&*inputZ.begin()),
@@ -939,15 +997,22 @@ public:
 													thrust::raw_pointer_cast(&*edges.begin()),
 													thrust::raw_pointer_cast(&*edgeStartOfCubes.begin()),
 													thrust::raw_pointer_cast(&*edgeSizeOfCubes.begin()),
-													min_ll, max_ll, sizeP, numOfCubesOri, numOfParticles));
+													min_ll, sizeP, numOfCubesOri, numOfParticles));
+			
+			clearSuperParents();
 			gettimeofday(&end, 0);
-
+			
       timersub(&end, &begin, &diff);
       float seconds = diff.tv_sec + 1.0E-6*diff.tv_usec;
-      std::cout << "Time elapsed: " << seconds << " s for nonEmptyCubes " << nonEmptyCubeCount << std::endl;
+      std::cout << "Time elapsed: " << seconds << " s for nonEmptyCubes " << nonEmptyCubeCount;
 
-			numOfEdges = thrust::reduce(edgeSizeOfCubes.begin(), edgeSizeOfCubes.begin()+numOfCubesOri);
-			std::cout << "numOfEdges after " << numOfEdges << std::endl;
+			numOfEdges = 0;
+			for(int i=0; i<nonEmptyCubeCount; i++)
+				numOfEdges += edgeSizeOfCubes[sizeP*i];
+//			numOfEdges = thrust::reduce(edgeSizeOfCubes.begin(), edgeSizeOfCubes.begin()+numOfCubesOri);
+			std::cout << " & edgesLeft " << numOfEdges;
+
+			std::cout << std::endl;
 
 			// set new number of cubes & sizeP
 			sizeP *= 2;
@@ -997,37 +1062,76 @@ public:
 		}
 	};
 
+	struct mergeEdges : public thrust::unary_function<int, void>
+  {
+		Edge *edges, *tmpEdgeArray1;
+
+		int  *edgeStartOfCubes, *edgeSizeOfCubes;
+
+		int  sizeP, numOfCubesOri;
+
+		__host__ __device__
+    mergeEdges(Edge *edges, int *edgeStartOfCubes, int *edgeSizeOfCubes, 
+				Edge *tmpEdgeArray1, int sizeP, int numOfCubesOri) : edges(edges), 
+				edgeStartOfCubes(edgeStartOfCubes), edgeSizeOfCubes(edgeSizeOfCubes), 
+				tmpEdgeArray1(tmpEdgeArray1), sizeP(sizeP), numOfCubesOri(numOfCubesOri) {}
+
+    __host__ __device__
+    void operator()(int i)
+    {	
+			int cubeStart = sizeP*i;
+			int cubeEnd   = (sizeP*i+sizeP/2<=numOfCubesOri) ? sizeP*i+sizeP/2 : numOfCubesOri;
+
+			int a = edgeStartOfCubes[cubeStart];
+			int b = (cubeEnd!=numOfCubesOri) ? edgeStartOfCubes[cubeEnd] : 0;
+
+			int c = edgeSizeOfCubes[cubeStart];
+			int d = (cubeEnd!=numOfCubesOri) ? edgeSizeOfCubes[cubeEnd] : 0;
+
+			int j = a, k = b, l = a;
+		  while(j < a+c && k < b+d)
+		  {
+	      if(edges[j].weight < edges[k].weight)
+	      {  tmpEdgeArray1[l] = edges[j]; j++;	}
+	      else			
+			  {	 tmpEdgeArray1[l] = edges[k];	k++;	}
+	      l++;
+		  }
+
+		  while(j < a+c)
+		  {	tmpEdgeArray1[l] = edges[j];	j++;	l++; }
+
+		  while(k < b+d)
+		  { tmpEdgeArray1[l] = edges[k];	k++;	l++; }
+
+			edgeSizeOfCubes[cubeStart] = c+d;
+		}
+	};
+
 	// combine two local merge trees
 	struct combineMergeTrees : public thrust::unary_function<int, void>
   {		
-    float  min_ll, max_ll;
+    float  min_ll;
 		int    sizeP, numOfCubesOri, numOfParticles;
 
-    int   *cubeId;
+    int   *cubeId, *cubeMapping;
 		int   *tmpNxt, *tmpFree;
-
-    int   *particleId;
-    int   *particleStartOfCubes, *particleSizeOfCubes;
-		int   *cubeMapping;
-
 		float *inputX, *inputY, *inputZ;
 
-		Edge *edges;
-		int  *edgeStartOfCubes, *edgeSizeOfCubes;
+		Edge  *edges;
+		int   *edgeStartOfCubes, *edgeSizeOfCubes;
 
     Node  *nodes, *nodesTmp1;
 
     __host__ __device__
-    combineMergeTrees(int *particleId, int *particleSizeOfCubes, int *particleStartOfCubes, 
-				int *cubeMapping, float *inputX, float *inputY, float *inputZ,
+    combineMergeTrees(int *cubeMapping, float *inputX, float *inputY, float *inputZ,
         int *cubeId, Node *nodesTmp1, Node *nodes, int *tmpNxt, int *tmpFree, 
 				Edge *edges, int *edgeStartOfCubes, int *edgeSizeOfCubes,
-				float min_ll, float max_ll, int sizeP, int numOfCubesOri, int numOfParticles) :
-        particleId(particleId), particleSizeOfCubes(particleSizeOfCubes), particleStartOfCubes(particleStartOfCubes), 
-				cubeMapping(cubeMapping), inputX(inputX), inputY(inputY), inputZ(inputZ),
+				float min_ll, int sizeP, int numOfCubesOri, int numOfParticles) :
+        cubeMapping(cubeMapping), inputX(inputX), inputY(inputY), inputZ(inputZ),
         cubeId(cubeId), nodesTmp1(nodesTmp1), nodes(nodes),	tmpNxt(tmpNxt), tmpFree(tmpFree), 
 				edges(edges), edgeStartOfCubes(edgeStartOfCubes), edgeSizeOfCubes(edgeSizeOfCubes),
-				min_ll(min_ll), max_ll(max_ll), sizeP(sizeP), numOfCubesOri(numOfCubesOri), numOfParticles(numOfParticles) {}
+				min_ll(min_ll), sizeP(sizeP), numOfCubesOri(numOfCubesOri), numOfParticles(numOfParticles) {}
 
     __host__ __device__
     void operator()(int i)
@@ -1035,338 +1139,415 @@ public:
 			int cubeStart = sizeP*i;
 			int cubeEnd   = (sizeP*(i+1)<=numOfCubesOri) ? sizeP*(i+1) : numOfCubesOri;
 
+			int cubeStartM = cubeMapping[cubeStart];
+			int cubeEndM   = cubeMapping[cubeEnd-1];
+
 			// get the edges
-			for(int k=cubeStart; k<cubeEnd; k++)
+			//for(int k=cubeStart; k<cubeEnd; k++)
+			int k=cubeStart;
 			{	
 				int size = 0;
 				for(int j=edgeStartOfCubes[k]; j<edgeStartOfCubes[k]+edgeSizeOfCubes[k]; j++)
 				{
 					Edge e = ((Edge)edges[j]);
 
-					if(!(cubeId[e.srcId]>=cubeMapping[cubeStart] && cubeId[e.srcId]<=cubeMapping[cubeEnd-1]) || 
-						 !(cubeId[e.desId]>=cubeMapping[cubeStart] && cubeId[e.desId]<=cubeMapping[cubeEnd-1]))
+					if(!(cubeId[e.srcId]>=cubeStartM && cubeId[e.srcId]<=cubeEndM) || 
+						 !(cubeId[e.desId]>=cubeStartM && cubeId[e.desId]<=cubeEndM))
 					{
 						edges[edgeStartOfCubes[k] + size++] = e;
 						continue;
 					}
 
-// use this edge (e), to combine the merge trees
-//-----------------------------------------------------
+					// use this edge (e), to combine the merge trees
+					//-----------------------------------------------------
 
-Node *src = &nodes[e.srcId];
-Node *des = &nodes[e.desId];
+					Node *src = &nodes[e.srcId];
+					Node *des = &nodes[e.desId];
 
-float weight = (e.weight < min_ll) ? min_ll : e.weight; 
+					src = (src->parentSuper==NULL) ? src : src->parentSuper;
+					des = (des->parentSuper==NULL) ? des : des->parentSuper;
 
-// find the src & des nodes just below the required weight
-while(src->parent!=NULL && src->parent->value <= weight)	src = src->parent;
-while(des->parent!=NULL && des->parent->value <= weight)	des = des->parent;
+//if(e.srcId==83 || e.desId==83)
+//std::cout << e.srcId << " " << e.desId << " " << e.weight << " - " << src->value << " " << des->value << " - " << sizeP << " - ";
 
-// if src & des already have the same halo id, do NOT do anything
-if(src->haloId==des->haloId) continue;
+					float weight = (e.weight < min_ll) ? min_ll : e.weight; 
 
-int srcCount = src->count;
-int desCount = des->count;
+					// find the src & des nodes just below the required weight
+					while(src->parent!=NULL && src->parent->value <= weight)	src = src->parent;
+					while(des->parent!=NULL && des->parent->value <= weight)	des = des->parent;
 
-// get the original parents of src & des nodes
-Node *srcTmp = (src->parent!=NULL) ? src->parent : NULL;
-Node *desTmp = (des->parent!=NULL) ? des->parent : NULL;
+//if(e.srcId==83 || e.desId==83)
+//std::cout << src->value << " " << des->value << " " << src->haloId << " " << des->haloId << " " << src->nodeId << " " << des->nodeId << " " << std::endl;
 
-// remove the src & des from the child list of their parents
-if(srcTmp)
-{
-	Node *child = srcTmp->childS;
-	if(child && child->value==src->value && child->haloId==src->haloId) srcTmp->childS = child->sibling;
-	else
-	{
-		while(child && child->sibling)
-		{
-			if(child->sibling->value==src->value && child->sibling->haloId==src->haloId)
-			{ child->sibling = child->sibling->sibling;	break; }
-			child = child->sibling;
-		}
+					// if src & des already have the same halo id, do NOT do anything
+					if(src->haloId==des->haloId) continue;
 
-		if(child && !child->sibling) srcTmp->childE = child;
-	}
+					int srcCount = src->count;
+					int desCount = des->count;
 
-	if(!srcTmp->childS) srcTmp->childE = NULL;
-}
-src->parent =NULL;	src->sibling=NULL;
+					// get the original parents of src & des nodes
+					Node *srcTmp = (src->parent!=NULL) ? src->parent : NULL;
+					Node *desTmp = (des->parent!=NULL) ? des->parent : NULL;
 
-if(desTmp)
-{
-	Node *child = desTmp->childS;
-	if(child && child->value==des->value && child->haloId==des->haloId)
-		desTmp->childS = child->sibling;
-	else
-	{
-		while(child && child->sibling)
-		{
-			if(child->sibling->value==des->value && child->sibling->haloId==des->haloId)
-			{ child->sibling = child->sibling->sibling;	break; }
-			child = child->sibling;
-		}
-
-		if(child && !child->sibling) desTmp->childE = child;
-	}
-
-	if(!desTmp->childS) desTmp->childE = NULL;
-}
-des->parent =NULL;	des->sibling=NULL;
-
-
-// set n node
-Node *n;
-bool freeDes=false;
-if(src->value==weight && des->value==weight) // merge src & des, free des node, set n to src, then connect their children & fix the loop
-{ 
-	n = src;					
-	Node *child = des->childS;
-	while(child!=NULL) { child->parent = n;	child = child->sibling;	}
-	if(n->childE)  n->childE->sibling = des->childS;
-	else  n->childS = des->childS;
-	n->childE = des->childE;	
-	freeDes = true;
-}
-else if(src->value==weight) // set des node's parent to be src, set n to src, then fix the loop
-{ 
-	n = src;	n->childE->sibling = des;		n->childE = des;		des->parent = n; 	
-}
-else if(des->value==weight) // set src node's parent to be des, set n to des, then fix the loop
-{ 
-	n = des;	n->childE->sibling = src;		n->childE = src;		src->parent = n;
-}
-else if(src->value!=weight && des->value!=weight) // create a new node, set this as parent of both src & des, then fix the loop
-{ 
-	if(tmpNxt[cubeStart]!=-1)
-	{
-		n = &nodesTmp1[tmpNxt[cubeStart]];
-		int tmpVal = tmpFree[tmpNxt[cubeStart]];
-		tmpFree[tmpNxt[cubeStart]] = -2;
-		tmpNxt[cubeStart] = tmpVal;
-
-		n->childS = src;	n->childE = des;						
-		src->parent = n; 	des->parent = n;
-		src->sibling = des;
-	}
-	else
-		std::cout << "***no Free item .... this shouldnt happen*** " << cubeStart << " " << e.weight << " " << min_ll << " " << std::endl;
-}
-n->value  = weight;
-n->count  = src->count + des->count;
-n->haloId = (src->haloId < des->haloId) ? src->haloId : des->haloId;
-
-if(freeDes && des->nodeId>=numOfParticles)
-{
-	// free des node
-	int tmpVal = tmpNxt[cubeStart];
-	tmpNxt[cubeStart] = des->nodeId-numOfParticles;
-	tmpFree[tmpNxt[cubeStart]] = tmpVal;
-
-	des->nodeId = des->nodeId;
-	des->haloId = -1;
-	des->value  = 0.0f;
-	des->count  = 0;
-	des->parent = NULL;
-	des->parentSuper = NULL;
-	des->childS = NULL;
-	des->childE = NULL;
-	des->sibling = NULL;
-}
-
-
-
-
-bool done = false;
-while(srcTmp!=NULL && desTmp!=NULL)
-{
-	if(srcTmp->value < desTmp->value)
-	{
-		n->parent = srcTmp;
-		if(srcTmp->childE)  srcTmp->childE->sibling = n;
-		else  srcTmp->childS = n;
-		srcTmp->childE = n;
-		srcTmp->haloId = (srcTmp->haloId < n->haloId) ? srcTmp->haloId : n->haloId;
-		srcCount = srcTmp->count;
-		srcTmp->count += desCount;
-
-		n = srcTmp;
-		srcTmp = srcTmp->parent;
-
-		if(srcTmp)
-		{
-			Node *child = srcTmp->childS;
-			if(child && child->value==n->value && child->haloId==n->haloId)
-				srcTmp->childS = child->sibling;
-			else
-			{
-				while(child && child->sibling)
-				{
-					if(child->sibling->value==n->value && child->sibling->haloId==n->haloId)
-					{ child->sibling = child->sibling->sibling;	break; }
-					child = child->sibling;
-				}
-
-				if(child && !child->sibling) srcTmp->childE = child;
-			}
-
-			if(!srcTmp->childS) srcTmp->childE = NULL;
-		}
-		n->parent  = NULL;	n->sibling = NULL;
-	}
-	else if(srcTmp->value > desTmp->value)
-	{
-		n->parent = desTmp;
-		if(desTmp->childE)  desTmp->childE->sibling = n;
-		else  desTmp->childS = n;
-		desTmp->childE = n;
-		desTmp->haloId = (desTmp->haloId < n->haloId) ? desTmp->haloId : n->haloId;
-		desCount = desTmp->count;
-		desTmp->count += srcCount;
-
-		n = desTmp;
-		desTmp = desTmp->parent;
-
-		if(desTmp)
-		{
-			Node *child = desTmp->childS;
-			if(child && child->value==n->value && child->haloId==n->haloId)
-				desTmp->childS = child->sibling;
-			else
-			{
-				while(child && child->sibling)
-				{
-					if(child->sibling->value==n->value && child->sibling->haloId==n->haloId)
-					{ child->sibling = child->sibling->sibling;	break; }
-					child = child->sibling;
-				}
-
-				if(child && !child->sibling) desTmp->childE = child;
-			}
-
-			if(!desTmp->childS) desTmp->childE = NULL;
-		}
-		n->parent  = NULL;	n->sibling = NULL;
-	}
-	else if(srcTmp->value == desTmp->value)
-	{
-		if(srcTmp->haloId != desTmp->haloId) // combine srcTmp & desTmp			
-		{	
-			Node *child = desTmp->childS;
-			while(child!=NULL) { child->parent = srcTmp;  child = child->sibling; }
-			if(srcTmp->childE)  srcTmp->childE->sibling = desTmp->childS;
-			else  srcTmp->childS = desTmp->childS;
-			srcTmp->childE = desTmp->childE;
-			srcTmp->haloId = (srcTmp->haloId < desTmp->haloId) ? srcTmp->haloId : desTmp->haloId;
-			srcTmp->count += desTmp->count;
-		}
-
-		if(!srcTmp->childS && !srcTmp->childE)
-		{
-			if(srcTmp->parent)
-			{
-				Node *child = srcTmp->parent->childS;
-				if(child && child->value==srcTmp->value && child->haloId==srcTmp->haloId)
-					srcTmp->parent->childS = child->sibling;
-				else
-				{
-					while(child && child->sibling)
+					// remove the src & des from the child list of their parents
+					if(srcTmp)
 					{
-						if(child->sibling->value==srcTmp->value && child->sibling->haloId==srcTmp->haloId)
-						{ child->sibling = child->sibling->sibling;	break; }
-						child = child->sibling;
+						Node *child = srcTmp->childS;
+						if(child && child->value==src->value && child->haloId==src->haloId) srcTmp->childS = child->sibling;
+						else
+						{
+							while(child && child->sibling)
+							{
+								if(child->sibling->value==src->value && child->sibling->haloId==src->haloId)
+								{ child->sibling = child->sibling->sibling;	break; }
+								child = child->sibling;
+							}
+
+							if(child && !child->sibling) srcTmp->childE = child;
+						}
+
+						if(!srcTmp->childS) srcTmp->childE = NULL;
+					}
+					src->parent =NULL;	src->sibling=NULL;
+
+					if(desTmp)
+					{
+						Node *child = desTmp->childS;
+						if(child && child->value==des->value && child->haloId==des->haloId)
+							desTmp->childS = child->sibling;
+						else
+						{
+							while(child && child->sibling)
+							{
+								if(child->sibling->value==des->value && child->sibling->haloId==des->haloId)
+								{ child->sibling = child->sibling->sibling;	break; }
+								child = child->sibling;
+							}
+
+							if(child && !child->sibling) desTmp->childE = child;
+						}
+
+						if(!desTmp->childS) desTmp->childE = NULL;
+					}
+					des->parent =NULL;	des->sibling=NULL;
+
+
+					// set n node
+					Node *n;
+					bool freeDes=false;
+					if(src->value==weight && des->value==weight) // merge src & des, free des node, set n to src, then connect their children & fix the loop
+					{ 
+						n = src;					
+						Node *child = des->childS;
+						while(child!=NULL) { child->parent = n;	child = child->sibling;	}
+						if(n->childE)  n->childE->sibling = des->childS;
+						else  n->childS = des->childS;
+						n->childE = des->childE;	
+						freeDes = true;
+					}
+					else if(src->value==weight) // set des node's parent to be src, set n to src, then fix the loop
+					{ 
+						n = src;	n->childE->sibling = des;		n->childE = des;		des->parent = n; 	
+					}
+					else if(des->value==weight) // set src node's parent to be des, set n to des, then fix the loop
+					{ 
+						n = des;	n->childE->sibling = src;		n->childE = src;		src->parent = n;
+					}
+					else if(src->value!=weight && des->value!=weight) // create a new node, set this as parent of both src & des, then fix the loop
+					{ 
+						if(tmpNxt[cubeStart]!=-1)
+						{
+							n = &nodesTmp1[tmpNxt[cubeStart]];
+							int tmpVal = tmpFree[tmpNxt[cubeStart]];
+							tmpFree[tmpNxt[cubeStart]] = -2;
+							tmpNxt[cubeStart] = tmpVal;
+
+							n->childS = src;	n->childE = des;						
+							src->parent = n; 	des->parent = n;
+							src->sibling = des;
+						}
+						else
+							std::cout << "***no Free item .... this shouldnt happen*** " << cubeStart << " " << e.weight << " " << min_ll << " " << std::endl;
+					}
+					n->value  = weight;
+					n->count  = src->count + des->count;
+					n->haloId = (src->haloId < des->haloId) ? src->haloId : des->haloId;
+
+					(&nodes[e.srcId])->parentSuper = n;
+					(&nodes[e.desId])->parentSuper = n;
+					(&nodes[e.srcId])->siblingSuper = &nodes[e.desId];
+					if(n->childSuperE)  n->childSuperE->siblingSuper = &nodes[e.srcId];
+					else  n->childSuperS = &nodes[e.srcId]; 					
+					n->childSuperE  = &nodes[e.desId];
+
+
+					if(freeDes && des->nodeId>=numOfParticles)
+					{
+						// free des node
+						int tmpVal = tmpNxt[cubeStart];
+						tmpNxt[cubeStart] = des->nodeId-numOfParticles;
+						tmpFree[tmpNxt[cubeStart]] = tmpVal;
+
+						des->nodeId = des->nodeId;
+						des->haloId = -1;
+						des->value  = 0.0f;
+						des->count  = 0;
+						des->parent = NULL;
+						des->childS = NULL;
+						des->childE = NULL;
+						des->sibling = NULL;
+
+						Node *tmp = des->childSuperS;
+						while(tmp)
+						{
+							Node *tmp1 = tmp->siblingSuper;
+							tmp->parentSuper  = NULL;	
+							tmp->siblingSuper = NULL;
+							tmp = tmp1;
+						}
+						des->parentSuper = NULL;
+						des->childSuperS = NULL;
+						des->childSuperE = NULL;
+						des->siblingSuper = NULL;
 					}
 
-					if(child && !child->sibling)  srcTmp->parent->childE = child;
-				}
-
-				if(!srcTmp->parent->childS) srcTmp->parent->childE=NULL;
-			}
-
-			Node *tmp = srcTmp->parent;
-			if(srcTmp->nodeId>=numOfParticles)
-			{
-				int tmpVal = tmpNxt[cubeStart];
-				tmpNxt[cubeStart] = srcTmp->nodeId-numOfParticles;
-				tmpFree[tmpNxt[cubeStart]] = tmpVal;
-
-				srcTmp->nodeId = srcTmp->nodeId;
-				srcTmp->haloId = -1;
-				srcTmp->value  = 0.0f;
-				srcTmp->count  = 0;
-				srcTmp->parent = NULL;
-				srcTmp->parentSuper = NULL;
-				srcTmp->childS = NULL;
-				srcTmp->childE = NULL;
-				srcTmp->sibling = NULL;
-			}
-			srcTmp = tmp;
-		}
-
-		if(srcTmp)
-		{
-			n->parent = srcTmp;
-			if(srcTmp->childE)  srcTmp->childE->sibling = n;
-			else  srcTmp->childS = n;
-			srcTmp->childE = n;
-			srcTmp->haloId = (srcTmp->haloId < n->haloId) ? srcTmp->haloId : n->haloId;
-		}
-		else	n->parent =NULL;
-
-		done = true;
-		break;
-	}
-}
 
 
 
-if(!done && srcTmp!=NULL)
-{
-	n->parent = srcTmp;
-	if(srcTmp->childE)  srcTmp->childE->sibling = n;
-	else  srcTmp->childS = n;
-	srcTmp->childE = n;
-	srcTmp->haloId = (srcTmp->haloId < n->haloId) ? srcTmp->haloId : n->haloId;
-	srcCount = srcTmp->count;
-	srcTmp->count += desCount;
+					bool done = false;
+					while(srcTmp!=NULL && desTmp!=NULL)
+					{
+						if(srcTmp->value < desTmp->value)
+						{
+							n->parent = srcTmp;
+							if(srcTmp->childE)  srcTmp->childE->sibling = n;
+							else  srcTmp->childS = n;
+							srcTmp->childE = n;
+							srcTmp->haloId = (srcTmp->haloId < n->haloId) ? srcTmp->haloId : n->haloId;
+							srcCount = srcTmp->count;
+							srcTmp->count += desCount;
 
-	n = srcTmp;
-	srcTmp = srcTmp->parent;
-}
-while(!done && srcTmp!=NULL)
-{
-	srcTmp->haloId = (srcTmp->haloId < n->haloId) ? srcTmp->haloId : n->haloId;
-	srcCount = srcTmp->count;
-	srcTmp->count += desCount;
+							n = srcTmp;
+							srcTmp = srcTmp->parent;
 
-	n = srcTmp;
-	srcTmp = srcTmp->parent;
-}
+							if(srcTmp)
+							{
+								Node *child = srcTmp->childS;
+								if(child && child->value==n->value && child->haloId==n->haloId)
+									srcTmp->childS = child->sibling;
+								else
+								{
+									while(child && child->sibling)
+									{
+										if(child->sibling->value==n->value && child->sibling->haloId==n->haloId)
+										{ child->sibling = child->sibling->sibling;	break; }
+										child = child->sibling;
+									}
 
-if(!done && desTmp!=NULL)
-{		
-	n->parent = desTmp;
-	if(desTmp->childE)  desTmp->childE->sibling = n;
-	else  desTmp->childS = n;
-	desTmp->childE = n;
-	desTmp->haloId = (desTmp->haloId < n->haloId) ? desTmp->haloId : n->haloId;
-	desCount = desTmp->count;
-	desTmp->count += srcCount;
+									if(child && !child->sibling) srcTmp->childE = child;
+								}
 
-	n = desTmp;
-	desTmp = desTmp->parent;
-}
-while(!done && desTmp!=NULL)
-{
-	desTmp->haloId = (desTmp->haloId < n->haloId) ? desTmp->haloId : n->haloId;
-	desCount = desTmp->count;
-	desTmp->count += srcCount;
+								if(!srcTmp->childS) srcTmp->childE = NULL;
+							}
+							n->parent  = NULL;	n->sibling = NULL;
+						}
+						else if(srcTmp->value > desTmp->value)
+						{
+							n->parent = desTmp;
+							if(desTmp->childE)  desTmp->childE->sibling = n;
+							else  desTmp->childS = n;
+							desTmp->childE = n;
+							desTmp->haloId = (desTmp->haloId < n->haloId) ? desTmp->haloId : n->haloId;
+							desCount = desTmp->count;
+							desTmp->count += srcCount;
 
-	n = desTmp;
-	desTmp = desTmp->parent;
-}
+							n = desTmp;
+							desTmp = desTmp->parent;
 
-//-----------------------------------------------------
+							if(desTmp)
+							{
+								Node *child = desTmp->childS;
+								if(child && child->value==n->value && child->haloId==n->haloId)
+									desTmp->childS = child->sibling;
+								else
+								{
+									while(child && child->sibling)
+									{
+										if(child->sibling->value==n->value && child->sibling->haloId==n->haloId)
+										{ child->sibling = child->sibling->sibling;	break; }
+										child = child->sibling;
+									}
+
+									if(child && !child->sibling) desTmp->childE = child;
+								}
+
+								if(!desTmp->childS) desTmp->childE = NULL;
+							}
+							n->parent  = NULL;	n->sibling = NULL;
+						}
+						else if(srcTmp->value == desTmp->value)
+						{
+							if(srcTmp->haloId != desTmp->haloId) // combine srcTmp & desTmp			
+							{	
+								Node *child = desTmp->childS;
+								while(child!=NULL) { child->parent = srcTmp;  child = child->sibling; }
+								if(srcTmp->childE)  srcTmp->childE->sibling = desTmp->childS;
+								else  srcTmp->childS = desTmp->childS;
+								srcTmp->childE = desTmp->childE;
+								srcTmp->haloId = (srcTmp->haloId < desTmp->haloId) ? srcTmp->haloId : desTmp->haloId;
+								srcTmp->count += desTmp->count;
+
+								if(freeDes && desTmp->nodeId>=numOfParticles)
+								{
+									// free desTmp node
+									int tmpVal = tmpNxt[cubeStart];
+									tmpNxt[cubeStart] = desTmp->nodeId-numOfParticles;
+									tmpFree[tmpNxt[cubeStart]] = tmpVal;
+
+									desTmp->nodeId = des->nodeId;
+									desTmp->haloId = -1;
+									desTmp->value  = 0.0f;
+									desTmp->count  = 0;
+									desTmp->parent = NULL;
+									desTmp->childS = NULL;
+									desTmp->childE = NULL;
+									desTmp->sibling = NULL;
+
+									Node *tmp = desTmp->childSuperS;
+									while(tmp)
+									{
+										Node *tmp1 = tmp->siblingSuper;
+										tmp->parentSuper  = NULL;	
+										tmp->siblingSuper = NULL;
+										tmp = tmp1;
+									}
+									desTmp->parentSuper = NULL;
+									desTmp->childSuperS = NULL;
+									desTmp->childSuperE = NULL;
+									desTmp->siblingSuper = NULL;
+								}
+
+							}
+
+							if(!srcTmp->childS && !srcTmp->childE)
+							{
+								if(srcTmp->parent)
+								{
+									Node *child = srcTmp->parent->childS;
+									if(child && child->value==srcTmp->value && child->haloId==srcTmp->haloId)
+										srcTmp->parent->childS = child->sibling;
+									else
+									{
+										while(child && child->sibling)
+										{
+											if(child->sibling->value==srcTmp->value && child->sibling->haloId==srcTmp->haloId)
+											{ child->sibling = child->sibling->sibling;	break; }
+											child = child->sibling;
+										}
+
+										if(child && !child->sibling)  srcTmp->parent->childE = child;
+									}
+
+									if(!srcTmp->parent->childS) srcTmp->parent->childE=NULL;
+								}
+
+								Node *tmp = srcTmp->parent;
+								if(srcTmp->nodeId>=numOfParticles)
+								{
+									// free srcTmp node
+									int tmpVal = tmpNxt[cubeStart];
+									tmpNxt[cubeStart] = srcTmp->nodeId-numOfParticles;
+									tmpFree[tmpNxt[cubeStart]] = tmpVal;
+
+									srcTmp->nodeId = srcTmp->nodeId;
+									srcTmp->haloId = -1;
+									srcTmp->value  = 0.0f;
+									srcTmp->count  = 0;
+									srcTmp->parent = NULL;
+									srcTmp->childS = NULL;
+									srcTmp->childE = NULL;
+									srcTmp->sibling = NULL;
+
+									Node *tmp = srcTmp->childSuperS;
+									while(tmp)
+									{
+										Node *tmp1 = tmp->siblingSuper;
+										tmp->parentSuper  = NULL;	
+										tmp->siblingSuper = NULL;
+										tmp = tmp1;
+									}
+									srcTmp->parentSuper = NULL;
+									srcTmp->childSuperS = NULL;
+									srcTmp->childSuperE = NULL;
+									srcTmp->siblingSuper = NULL;
+								}
+								srcTmp = tmp;
+							}
+
+							if(srcTmp)
+							{
+								n->parent = srcTmp;
+								if(srcTmp->childE)  srcTmp->childE->sibling = n;
+								else  srcTmp->childS = n;
+								srcTmp->childE = n;
+								srcTmp->haloId = (srcTmp->haloId < n->haloId) ? srcTmp->haloId : n->haloId;
+							}
+							else	n->parent =NULL;
+
+							done = true;
+							break;
+						}
+					}
+
+
+
+					if(!done && srcTmp!=NULL)
+					{
+						n->parent = srcTmp;
+						if(srcTmp->childE)  srcTmp->childE->sibling = n;
+						else  srcTmp->childS = n;
+						srcTmp->childE = n;
+						srcTmp->haloId = (srcTmp->haloId < n->haloId) ? srcTmp->haloId : n->haloId;
+						srcCount = srcTmp->count;
+						srcTmp->count += desCount;
+
+						n = srcTmp;
+						srcTmp = srcTmp->parent;
+					}
+					while(!done && srcTmp!=NULL)
+					{
+						srcTmp->haloId = (srcTmp->haloId < n->haloId) ? srcTmp->haloId : n->haloId;
+						srcCount = srcTmp->count;
+						srcTmp->count += desCount;
+
+						n = srcTmp;
+						srcTmp = srcTmp->parent;
+					}
+
+					if(!done && desTmp!=NULL)
+					{		
+						n->parent = desTmp;
+						if(desTmp->childE)  desTmp->childE->sibling = n;
+						else  desTmp->childS = n;
+						desTmp->childE = n;
+						desTmp->haloId = (desTmp->haloId < n->haloId) ? desTmp->haloId : n->haloId;
+						desCount = desTmp->count;
+						desTmp->count += srcCount;
+
+						n = desTmp;
+						desTmp = desTmp->parent;
+					}
+					while(!done && desTmp!=NULL)
+					{
+						desTmp->haloId = (desTmp->haloId < n->haloId) ? desTmp->haloId : n->haloId;
+						desCount = desTmp->count;
+						desTmp->count += srcCount;
+
+						n = desTmp;
+						desTmp = desTmp->parent;
+					}
+
+					//-----------------------------------------------------
 
 				}
 
@@ -1374,6 +1555,40 @@ while(!done && desTmp!=NULL)
 			}
 		}		
 	};	
+
+	// clear super parents of all nodes
+	void clearSuperParents()
+	{
+		thrust::for_each(CountingIterator(0), CountingIterator(0)+numOfParticles,
+				clearParentSuper(thrust::raw_pointer_cast(&*nodes.begin()),
+												 thrust::raw_pointer_cast(&*nodesTmp1.begin())));
+	}
+
+	// for a given node, set its super parent to null
+	struct clearParentSuper : public thrust::unary_function<int, void>
+	{
+		Node *nodes, *nodesTmp1;
+
+		__host__ __device__
+		clearParentSuper(Node *nodes, Node *nodesTmp1) : nodes(nodes), nodesTmp1(nodesTmp1) {}
+
+		__host__ __device__
+		void operator()(int i)
+		{			
+if(nodesTmp1[i].nodeId==3164) std::cout << "-- " << nodesTmp1[i].haloId << " " << nodesTmp1[i].value << std::endl;
+
+      nodes[i].parentSuper = NULL;
+			nodes[i].childSuperS = NULL;
+			nodes[i].childSuperE = NULL;
+      nodes[i].siblingSuper = NULL;
+
+      nodesTmp1[i].parentSuper = NULL;
+			nodesTmp1[i].childSuperS = NULL;
+			nodesTmp1[i].childSuperE = NULL;
+      nodesTmp1[i].siblingSuper = NULL;
+		}
+	};
+
 };
 
 }

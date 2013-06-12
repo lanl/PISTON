@@ -44,6 +44,8 @@ public:
     int levels;
     KDTree* ktree;
 
+		double totalTime;
+
     thrust::device_vector<KDtreeNode> kd_tree;
 
     //union find data structure
@@ -96,6 +98,8 @@ public:
 			timersub(&end, &mid2, &diff2);
 			float seconds2 = diff2.tv_sec + 1.0E-6*diff2.tv_usec;
 			std::cout << "Time elapsed: " << seconds2 << " s for computing bounds"<< std::endl << std::flush;
+
+			totalTime = seconds1 + seconds2;
         }
     }
 
@@ -145,6 +149,9 @@ public:
         timersub(&end, &mid, &diff2);
         float seconds2 = diff2.tv_sec + 1.0E-6*diff2.tv_usec;
         std::cout << "Time elapsed: " << seconds2 << " s for finding valid halos"<< std::endl << std::flush;
+
+				totalTime += (seconds1 + seconds2);
+				std::cout << "Total time elapsed: " << totalTime << " s" << std::endl << std::endl;
 
         setColors(); // set colors to halos
         std::cout << "Number of Particles : " << numOfParticles <<  " Number of Halos found : " << numOfHalos << std::endl << std::endl;
