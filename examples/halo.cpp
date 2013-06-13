@@ -68,7 +68,7 @@ int main(int argc, char* argv[])
   particleSize   = 1;//100;
   np = 256;
   rL = 64;
-  n  = 10; //if you want a fraction of the file to load, use this.. 1/n
+  n  = 1; //if you want a fraction of the file to load, use this.. 1/n
 
   char filename[1024];
 // sprintf(filename, "%s/sub-8435", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
