@@ -114,6 +114,32 @@ public:
 
         if(!readFile(filename, rL, np, n, format))
         {
+					int n = 28; //30 not working
+					numOfParticles = n*n*n;
+					inputX = thrust::host_vector<float>(numOfParticles);
+					inputY = thrust::host_vector<float>(numOfParticles);
+					inputZ = thrust::host_vector<float>(numOfParticles);
+
+					double startX=0.1, startY=0.1, startZ=0.1; 
+					double step=0.1;
+
+					int i = 0;
+					for(int x=0; x<n; x++)
+					{
+						for(int y=0; y<n; y++)
+						{
+							for(int z=0; z<n; z++)
+							{
+								inputX[i] = (double)(startX+step*x);	
+								inputY[i] = (double)(startY+step*y);	
+								inputZ[i] = (double)(startZ+step*z);
+
+								i++;
+							}
+						}
+					}
+
+/*
 					numOfParticles = 8;
 					inputX = thrust::host_vector<float>(numOfParticles);
 					inputY = thrust::host_vector<float>(numOfParticles);
@@ -127,7 +153,7 @@ public:
 					inputX[5] = 5.0;	inputY[5] = 5.0;	inputZ[5] = 0.0;
 					inputX[6] = 3.0;	inputY[6] = 4.0;	inputZ[6] = 0.0;
 					inputX[7] = 3.5;	inputY[7] = 4.5;	inputZ[7] = 0.0;
-
+*/
 					std::cout << "Test data loaded \n";
         }
 

@@ -103,6 +103,9 @@ public:
 
 			initDetails();
 
+			std::cout << "lBoundS " << lBoundS.x << " " << lBoundS.y << " " << lBoundS.z << std::endl;
+			std::cout << "uBoundS " << uBoundS.x << " " << uBoundS.y << " " << lBoundS.z << std::endl;
+
 			//---- divide space into cubes
 			gettimeofday(&begin, 0);
 			divideIntoCubes();
@@ -285,17 +288,19 @@ public:
 
 	void checkValidMergeTree()
 	{
+		Node *nodesTmp = thrust::raw_pointer_cast(&*nodes.begin());
+	
 		bool invalid = false;
 		for(int i=0; i<numOfParticles; i++)
 		{
-			Node *n = thrust::raw_pointer_cast(&*nodes.begin());
+			Node *n = &nodesTmp[i];
 
 			int count = 0;
 			while(n && n->value <= min_ll)
 			{ n = n->parent;	count++; }
 
-			if(count > 1)
-			{ invalid = true; 	break; }
+			if(count > 2)
+			{ invalid = true; 	std::cout << i << " " << count << std::endl; break; }
 		}	
 
 		std::cout << std::endl;	
@@ -566,6 +571,10 @@ public:
 								thrust::raw_pointer_cast(&*tmpNxt.begin()),
 								thrust::raw_pointer_cast(&*tmpFree.begin()),
 								numOfCubes, numOfParticles));
+/*
+std::cout << "tmpNxt "; thrust::copy(tmpNxt.begin(), tmpNxt.begin()+numOfCubes, std::ostream_iterator<int>(std::cout, " ")); std::cout << std::endl << std::endl;
+std::cout << "tmpFree "; thrust::copy(tmpFree.begin(), tmpFree.begin()+numOfParticles, std::ostream_iterator<int>(std::cout, " ")); std::cout << std::endl << std::endl;
+*/
     gettimeofday(&mid2, 0);
 		thrust::for_each(CountingIterator(0), CountingIterator(0)+nonEmptyCubeCount,
 				createSubMergeTree(thrust::raw_pointer_cast(&*nodes.begin()),
@@ -964,10 +973,21 @@ public:
 		{
 	    struct timeval begin, end, diff;
 	    gettimeofday(&begin, 0);
+/*
+std::cout << "before" << std::endl;
+std::cout << "tmpNxt "; thrust::copy(tmpNxt.begin(), tmpNxt.begin()+numOfCubes, std::ostream_iterator<int>(std::cout, " ")); std::cout << std::endl << std::endl;
+std::cout << "tmpFree "; thrust::copy(tmpFree.begin(), tmpFree.begin()+numOfParticles, std::ostream_iterator<int>(std::cout, " ")); std::cout << std::endl << std::endl;
+*/
 			thrust::for_each(CountingIterator(0), CountingIterator(0)+nonEmptyCubeCount, 
 				combineFreeLists(thrust::raw_pointer_cast(&*tmpNxt.begin()),
 												 thrust::raw_pointer_cast(&*tmpFree.begin()),
 												 sizeP, numOfCubesOri));
+/*
+std::cout << "after" << std::endl;
+std::cout << "tmpNxt "; thrust::copy(tmpNxt.begin(), tmpNxt.begin()+numOfCubes, std::ostream_iterator<int>(std::cout, " ")); std::cout << std::endl << std::endl;
+std::cout << "tmpFree "; thrust::copy(tmpFree.begin(), tmpFree.begin()+numOfParticles, std::ostream_iterator<int>(std::cout, " ")); std::cout << std::endl << std::endl;
+*/
+
 /*
 			thrust::for_each(CountingIterator(0), CountingIterator(0)+nonEmptyCubeCount,
 				mergeEdges(thrust::raw_pointer_cast(&*edges.begin()),
@@ -1139,7 +1159,6 @@ public:
 
 			// get the edges
 			for(int k=cubeStart; k<cubeEnd; k++)
-			//int k = cubeStart;
 			{	
 				int size = 0;
 				for(int j=edgeStartOfCubes[k]; j<edgeStartOfCubes[k]+edgeSizeOfCubes[k]; j++)
@@ -1168,6 +1187,8 @@ public:
 					// if src & des already have the same halo id, do NOT do anything
 					if(src->haloId==des->haloId) continue;
 
+
+
 					int srcCount = src->count;
 					int desCount = des->count;
 
@@ -1179,7 +1200,8 @@ public:
 					if(srcTmp)
 					{
 						Node *child = srcTmp->childS;
-						if(child && child->value==src->value && child->haloId==src->haloId) srcTmp->childS = child->sibling;
+						if(child && child->value==src->value && child->haloId==src->haloId) 
+							srcTmp->childS = child->sibling;
 						else
 						{
 							while(child && child->sibling)
@@ -1369,7 +1391,7 @@ public:
 									tmpNxt[cubeStart] = desTmp->nodeId-numOfParticles;
 									tmpFree[tmpNxt[cubeStart]] = tmpVal;
 
-									desTmp->nodeId = des->nodeId;
+									desTmp->nodeId = desTmp->nodeId;
 									desTmp->haloId = -1;
 									desTmp->value  = 0.0f;
 									desTmp->count  = 0;
@@ -1523,3 +1545,4 @@ public:
 }
 
 #endif
+
