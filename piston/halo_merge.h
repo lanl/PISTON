@@ -3,8 +3,6 @@
 
 #include <piston/halo.h>
 
- #include <thrust/set_operations.h>
-
 // When TEST is defined, output all results
 //#define TEST
 
@@ -364,6 +362,9 @@ public:
 
 		lBoundS = Point(*result1.first,  *result2.first,  *result3.first);
 		uBoundS = Point(*result1.second, *result2.second, *result3.second);
+
+//		lBoundS = Point(61.784, 67.68, 19.45);
+//		uBoundS = Point(161.868, 223.996, 142.876);
 	}
 
 	// get total number of cubes
@@ -400,7 +401,7 @@ public:
     std::cout << "Time elapsed1: " << seconds1 << " s for sortParticlesByCubeID"<< std::endl << std::flush;
     timersub(&end, &mid2, &diff2);
     float seconds2 = diff2.tv_sec + 1.0E-6*diff2.tv_usec;
-    std::cout << "Time elapsed3: " << seconds2 << " s for getSizeAndStartOfCubes"<< std::endl << std::flush;
+    std::cout << "Time elapsed2: " << seconds2 << " s for getSizeAndStartOfCubes"<< std::endl << std::flush;
 	}
 
 	// set cube ids of particles
@@ -599,7 +600,7 @@ public:
 		nodes.resize(numOfParticles);
 		nodesTmp1.resize(numOfParticles);
 
-    struct timeval begin, mid1, mid2, mid3, mid4, end, diff1, diff2, diff3, diff4, diff5;
+    struct timeval begin, mid1, mid2, mid3, mid4, mid5, end, diff1, diff2, diff3, diff4, diff5, diff6;
     gettimeofday(&begin, 0);
 		thrust::for_each(CountingIterator(0), CountingIterator(0)+numOfParticles,
 				initNodes(thrust::raw_pointer_cast(&*nodes.begin()),
@@ -627,9 +628,9 @@ public:
 		initEdgeArrays();  		// init arrays needed for storing edges
 		gettimeofday(&mid4, 0);
 		getEdgesPerCube(); 		// for each cube, get the set of edges
-    gettimeofday(&end, 0);
-
+		gettimeofday(&mid5, 0);
 		sortCubeIDByParticles();
+    gettimeofday(&end, 0);
 
 		#ifdef TEST
 			outputMergeTreeDetails("The local merge trees.."); // output merge tree details
@@ -650,9 +651,12 @@ public:
 		timersub(&mid4, &mid3, &diff4);
     float seconds4 = diff4.tv_sec + 1.0E-6*diff4.tv_usec;
     std::cout << "Time elapsed3: " << seconds4 << " s for initEdgeArrays " << std::endl << std::flush;
-		timersub(&end, &mid4, &diff5);
+		timersub(&mid5, &mid4, &diff5);
     float seconds5 = diff5.tv_sec + 1.0E-6*diff5.tv_usec;
-    std::cout << "Time elapsed3: " << seconds5 << " s for getEdgesPerCube " << std::endl << std::flush;
+    std::cout << "Time elapsed4: " << seconds5 << " s for getEdgesPerCube " << std::endl << std::flush;
+		timersub(&end, &mid5, &diff6);
+    float seconds6 = diff6.tv_sec + 1.0E-6*diff6.tv_usec;
+    std::cout << "Time elapsed5: " << seconds6 << " s for sortCubeIDByParticles " << std::endl << std::flush;
 	}
 
 	// init the nodes array with node id, halo id, count & set its initial nxt free id

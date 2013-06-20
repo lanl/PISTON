@@ -20,6 +20,7 @@
 #include <thrust/binary_search.h>
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
+#include <thrust/set_operations.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/constant_iterator.h>
@@ -114,15 +115,23 @@ public:
 
         if(!readFile(filename, rL, np, n, format))
         {
-					int n = 56;
-					int nX=n, nY=n, nZ=n;
+					Point lBoundS = Point(0.1, 0.1, 0.1);
+					Point uBoundS = Point(11.2, 11.2, 11.2);
+
+					int nX=32, nY=32, nZ=32;
+
 					numOfParticles = nX*nY*nZ;
 					inputX = thrust::host_vector<float>(numOfParticles);
 					inputY = thrust::host_vector<float>(numOfParticles);
 					inputZ = thrust::host_vector<float>(numOfParticles);
 
-					double startX=0.1, startY=0.1, startZ=0.1; 
-					double step=0.35;
+					double startX=lBoundS.x;
+					double startY=lBoundS.y;
+					double startZ=lBoundS.z; 
+					
+					double stepX=(uBoundS.x-lBoundS.x)/(nX-1);
+					double stepY=(uBoundS.y-lBoundS.y)/(nY-1);
+					double stepZ=(uBoundS.z-lBoundS.z)/(nZ-1);
 
 					int i = 0;
 					for(int x=0; x<nX; x++)
@@ -131,13 +140,14 @@ public:
 						{
 							for(int z=0; z<nZ; z++)
 							{
-								inputX[i] = (double)(startX+step*x);	
-								inputY[i] = (double)(startY+step*y);	
-								inputZ[i] = (double)(startZ+step*z);
+								inputX[i] = (double)(startX+stepX*x);	
+								inputY[i] = (double)(startY+stepY*y);	
+								inputZ[i] = (double)(startZ+stepZ*z);
 								i++;
 							}
 						}
 					}
+
 /*
 					numOfParticles = 8;
 					inputX = thrust::host_vector<float>(numOfParticles);
