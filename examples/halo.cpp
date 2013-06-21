@@ -73,15 +73,27 @@ int main(int argc, char* argv[])
   char filename[1024];
 // sprintf(filename, "%s/sub-8435", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
 // std::string format = "csv";
-  sprintf(filename, "%s/sub-24474", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
-  std::string format = "csv";
+//  sprintf(filename, "%s/sub-24474", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
+//  std::string format = "csv";
 //  sprintf(filename, "%s/sub-80289", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
 //  std::string format = "csv";
 //  sprintf(filename, "%s/256", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
 //  std::string format = "cosmo";
 
+//  sprintf(filename, "%s/5005-sameCube", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
+//  std::string format = "csv";
+//  sprintf(filename, "%s/10003-sameCube", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
+//  std::string format = "csv";
+//  sprintf(filename, "%s/15020-sameCube", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
+//  std::string format = "csv";
 //  sprintf(filename, "%s/19988-sameCube", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
 //  std::string format = "csv";
+//  sprintf(filename, "%s/25096-sameCube", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
+//  std::string format = "csv";
+//  sprintf(filename, "%s/30019-sameCube", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
+//  std::string format = "csv";
+  sprintf(filename, "%s/35015-sameCube", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
+  std::string format = "csv";
 
   std::cout << "min_linkLength " << min_linkLength << std::endl;
   std::cout << "max_linkLength " << max_linkLength << std::endl;
@@ -112,7 +124,7 @@ int main(int argc, char* argv[])
 
   std::cout << "Merge tree based result" << std::endl;
 
-  halo = new halo_merge(min_linkLength, max_linkLength, true, filename, format, n, np, rL);
+  halo = new halo_merge(min_linkLength, max_linkLength, false, filename, format, n, np, rL);
   (*halo)(linkLength, particleSize);
   thrust::device_vector<int> d = halo->getHalos();
 

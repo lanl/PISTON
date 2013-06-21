@@ -115,38 +115,9 @@ public:
 
         if(!readFile(filename, rL, np, n, format))
         {
-					Point lBoundS = Point(0.1, 0.1, 0.1);
-					Point uBoundS = Point(11.2, 11.2, 11.2);
-
-					int nX=32, nY=32, nZ=32;
-
-					numOfParticles = nX*nY*nZ;
-					inputX = thrust::host_vector<float>(numOfParticles);
-					inputY = thrust::host_vector<float>(numOfParticles);
-					inputZ = thrust::host_vector<float>(numOfParticles);
-
-					double startX=lBoundS.x;
-					double startY=lBoundS.y;
-					double startZ=lBoundS.z; 
+					generateUniformData();
 					
-					double stepX=(uBoundS.x-lBoundS.x)/(nX-1);
-					double stepY=(uBoundS.y-lBoundS.y)/(nY-1);
-					double stepZ=(uBoundS.z-lBoundS.z)/(nZ-1);
-
-					int i = 0;
-					for(int x=0; x<nX; x++)
-					{
-						for(int y=0; y<nY; y++)
-						{
-							for(int z=0; z<nZ; z++)
-							{
-								inputX[i] = (double)(startX+stepX*x);	
-								inputY[i] = (double)(startY+stepY*y);	
-								inputZ[i] = (double)(startZ+stepZ*z);
-								i++;
-							}
-						}
-					}
+//					generateNonUniformData();
 
 /*
 					numOfParticles = 8;
@@ -163,6 +134,7 @@ public:
 					inputX[6] = 3.0;	inputY[6] = 4.0;	inputZ[6] = 0.0;
 					inputX[7] = 3.5;	inputY[7] = 4.5;	inputZ[7] = 0.0;
 */
+
 					std::cout << "Test data loaded \n";
         }
 
@@ -175,6 +147,45 @@ public:
 
     virtual void operator()(float linkLength , int  particleSize) {}
 
+		void generateUniformData()
+		{
+			Point lBoundS = Point(0.1, 0.1, 0.1);
+			Point uBoundS = Point(11.2, 11.2, 11.2);
+
+			int nX=16, nY=16, nZ=16;
+
+			numOfParticles = nX*nY*nZ;
+			inputX = thrust::host_vector<float>(numOfParticles);
+			inputY = thrust::host_vector<float>(numOfParticles);
+			inputZ = thrust::host_vector<float>(numOfParticles);
+
+			double startX=lBoundS.x;
+			double startY=lBoundS.y;
+			double startZ=lBoundS.z; 
+			
+			double stepX=(uBoundS.x-lBoundS.x)/(nX-1);
+			double stepY=(uBoundS.y-lBoundS.y)/(nY-1);
+			double stepZ=(uBoundS.z-lBoundS.z)/(nZ-1);
+
+			int i = 0;
+			for(int x=0; x<nX; x++)
+			{
+				for(int y=0; y<nY; y++)
+				{
+					for(int z=0; z<nZ; z++)
+					{
+						inputX[i] = (double)(startX+stepX*x);	
+						inputY[i] = (double)(startY+stepY*y);	
+						inputZ[i] = (double)(startZ+stepZ*z);
+						i++;
+					}
+				}
+			}		
+		}
+
+		void generateNonUniformData()
+		{
+		}
 
     // get start of vertices
     Float3zipIterator vertices_begin()
@@ -237,12 +248,11 @@ public:
 			// compute the number of particles
 			myfile->seekg(0L, std::ios::end);
 			numOfParticles = myfile->tellg() / 32;  // get particle size in file
-			numOfParticles = numOfParticles / n;    // get the fraction wanted
 
 			 // resize inputX, inputY, inputZ temp vectors
-			thrust::host_vector<float> inputXHost(numOfParticles);
-			thrust::host_vector<float> inputYHost(numOfParticles);
-			thrust::host_vector<float> inputZHost(numOfParticles);
+			thrust::device_vector<float> inputXtmp(numOfParticles);
+			thrust::device_vector<float> inputYtmp(numOfParticles);
+			thrust::device_vector<float> inputZtmp(numOfParticles);
 
 			// scale amount for particles
 			float xscal;
@@ -284,16 +294,22 @@ public:
 					exit (-1);
 				}
 */
-				inputXHost[i] = fBlock[0] / xscal;
-				inputYHost[i] = fBlock[2] / xscal;
-				inputZHost[i] = fBlock[4] / xscal;
+				inputXtmp[i] = fBlock[0] / xscal;
+				inputXtmp[i] = fBlock[2] / xscal;
+				inputXtmp[i] = fBlock[4] / xscal;
 
 				//std::cout << inputXHost[i] << " " << inputYHost[i] << " " << inputZHost[i] << "\n";
 			}
 
-			inputX = inputXHost;
-			inputY = inputYHost;
-			inputZ = inputZHost;
+			numOfParticles = numOfParticles / n;    // get the fraction wanted
+
+			inputX.resize(numOfParticles);
+			inputY.resize(numOfParticles);
+			inputZ.resize(numOfParticles);
+			
+			thrust::copy(inputXtmp.begin(), inputXtmp.begin()+numOfParticles, inputX.begin());
+			thrust::copy(inputYtmp.begin(), inputYtmp.begin()+numOfParticles, inputY.begin());
+			thrust::copy(inputZtmp.begin(), inputZtmp.begin()+numOfParticles, inputZ.begin());
 
 			return true;
 		}
@@ -331,10 +347,9 @@ public:
 
       numOfParticles = vec.size() / n;
 
-      // resize inputX, inputY, inputZ temp vectors
-      thrust::host_vector<float> inputXHost(numOfParticles);
-      thrust::host_vector<float> inputYHost(numOfParticles);
-      thrust::host_vector<float> inputZHost(numOfParticles);
+			inputX.resize(numOfParticles);
+			inputY.resize(numOfParticles);
+			inputZ.resize(numOfParticles);
 
       // scale amount for particles
       float xscal;
@@ -348,16 +363,12 @@ public:
 				// sanity check
 //				if (!(rL==-1 && xscal==1) && (p.x > rL || p. y > rL || p.z > rL)) {   std::cout << "rL is too small \n"; exit (-1); }
 
-				inputXHost[i] = p.x / xscal;
-				inputYHost[i] = p.y / xscal;
-				inputZHost[i] = p.z / xscal;
+				inputX[i] = p.x / xscal;
+				inputY[i] = p.y / xscal;
+				inputZ[i] = p.z / xscal;
       }
 
       vec.clear();
-
-      inputX = inputXHost;
-      inputY = inputYHost;
-      inputZ = inputZHost;
 
       return true;
     }
