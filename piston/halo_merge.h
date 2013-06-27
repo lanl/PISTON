@@ -47,8 +47,7 @@ public:
 
 	float cubeLen;					// length of the cube
 	float max_ll, min_ll;   // maximum & minimum linking length
-	Point lBoundS, uBoundS; // lower & upper bounds of the entire space
-
+	
 	float totalTime; // total time taken fopr execution
 
 	int mergetreeSize;                // total size of the global merge tree
@@ -341,7 +340,6 @@ public:
 	void initDetails()
 	{
 		initParticleIds();	// set particle ids
-		getBounds();		    // get bounds of the entire space
 		setNumberOfCubes();	// get total number of cubes
 	}
 
@@ -350,22 +348,6 @@ public:
 	{
 		particleId.resize(numOfParticles);
 		thrust::sequence(particleId.begin(), particleId.end());
-	}
-
-	// get lower & upper bounds of the entire space
-	void getBounds()
-	{
-		typedef thrust::pair<thrust::device_vector<float>::iterator, thrust::device_vector<float>::iterator> result_type;
-		result_type result1 = thrust::minmax_element(inputX.begin(), inputX.end());
-		result_type result2 = thrust::minmax_element(inputY.begin(), inputY.end());
-		result_type result3 = thrust::minmax_element(inputZ.begin(), inputZ.end());
-
-		lBoundS = Point(*result1.first,  *result2.first,  *result3.first);
-		uBoundS = Point(*result1.second, *result2.second, *result3.second);
-
-//		lBoundS = Point(61.784, 67.68, 19.45);
-//		uBoundS = Point(161.868, 223.996, 142.876);
-
 	}
 
 	// get total number of cubes
@@ -467,6 +449,7 @@ public:
 		tmpIntArray1.resize(numOfCubes);
 
 		thrust::pair<thrust::device_vector<int>::iterator, thrust::device_vector<int>::iterator> new_end;
+
 		new_end = thrust::reduce_by_key(cubeId.begin(), cubeId.end(), ConstantIterator(1), cubeMapping.begin(), tmpIntArray1.begin());
 
 		cubesNonEmpty = thrust::get<0>(new_end) - cubeMapping.begin();

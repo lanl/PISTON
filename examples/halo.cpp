@@ -56,11 +56,37 @@ bool compareResults(thrust::device_vector<int> a, thrust::device_vector<int> b, 
 
 int main(int argc, char* argv[])
 {
+/*
+  thrust::default_random_engine rng;
+  thrust::uniform_real_distribution<float> u01;
+
+	int N = 100000;
+	float max = 1000.0f;
+	float min = 0.0f;
+
+	u01 = thrust::uniform_real_distribution<float>(min, max);
+
+	thrust::host_vector<int>   tmp1(N);
+	thrust::host_vector<int>   tmp2(N);
+	thrust::host_vector<int>   tmp3(N);
+  for(size_t i = 0; i < N; i++) tmp1[i] = u01(rng)*(max-min) + min;
+	
+	thrust::stable_sort_by_key(tmp1.begin(), tmp1.end(), tmp2.begin());
+
+	struct timeval begin, end, diff;
+  gettimeofday(&begin, 0);
+	thrust::reduce_by_key(tmp2.begin(), tmp2.end(), thrust::constant_iterator<int>(1), tmp1.begin(), tmp3.begin());
+	gettimeofday(&end, 0);
+  timersub(&end, &begin, &diff);
+  float seconds = diff.tv_sec + 1.0E-6*diff.tv_usec;
+  std::cout << "Time elapsed0: " << seconds << std::endl << std::flush;
+*/
+//--------------------------
 
   halo *halo;
 
-  float linkLength, max_linkLength, min_linkLength;
-  int   particleSize, rL, np, n;
+  float linkLength, max_linkLength, min_linkLength, rL;
+  int   particleSize, np, n;
 
   max_linkLength = 2;
   min_linkLength = 1;
@@ -87,13 +113,18 @@ int main(int argc, char* argv[])
 //  sprintf(filename, "%s/15020-sameCube", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
 //  std::string format = "csv";
 //  sprintf(filename, "%s/19988-sameCube", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
-//  std::string format = "csv";
+//  st::string format = "csv";
 //  sprintf(filename, "%s/25096-sameCube", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
 //  std::string format = "csv";
 //  sprintf(filename, "%s/30019-sameCube", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
 //  std::string format = "csv";
-  sprintf(filename, "%s/35015-sameCube", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
+//  sprintf(filename, "%s/35015-sameCube", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
+//  std::string format = "csv";
+
+  sprintf(filename, "/home/wathsy/Cosmo/35015-sameCube", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
   std::string format = "csv";
+//	sprintf(filename, "/home/wathsy/Cosmo/256", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
+//  std::string format = "cosmo";
 
   std::cout << "min_linkLength " << min_linkLength << std::endl;
   std::cout << "max_linkLength " << max_linkLength << std::endl;
@@ -115,16 +146,16 @@ int main(int argc, char* argv[])
 //  halo = new halo_vtk(filename, format, n, np, rL);
 //  (*halo)(linkLength, particleSize);
 //  thrust::device_vector<int> b = halo->getHalos();
-
+//
   std::cout << "Kdtree based result" << std::endl;
 
   halo = new halo_kd(filename, format, n, np, rL);
-   (*halo)(linkLength, particleSize);
+  (*halo)(linkLength, particleSize);
   thrust::device_vector<int> c = halo->getHalos();
 
   std::cout << "Merge tree based result" << std::endl;
 
-  halo = new halo_merge(min_linkLength, max_linkLength, false, filename, format, n, np, rL);
+  halo = new halo_merge(min_linkLength, max_linkLength, true, filename, format, n, np, rL);
   (*halo)(linkLength, particleSize);
   thrust::device_vector<int> d = halo->getHalos();
 

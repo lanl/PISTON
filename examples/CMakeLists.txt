@@ -84,7 +84,7 @@ set_target_properties(haloMergeTreeOMP PROPERTIES COMPILE_FLAGS "-fopenmp -DHALO
 target_link_libraries(haloMergeTreeOMP GLEW pthread gomp ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES} ${QT_LIBRARIES})
 
 add_executable(haloTestOMP halo.cpp)
-set_target_properties(haloTestOMP PROPERTIES COMPILE_FLAGS "-g -fopenmp -DTHRUST_DEVICE_BACKEND=THRUST_DEVICE_BACKEND_OMP -DDATA_DIRECTORY=${DATA_DIR}")
+set_target_properties(haloTestOMP PROPERTIES COMPILE_FLAGS "-g -fopenmp -std=c++11 -DTHRUST_DEVICE_BACKEND=THRUST_DEVICE_BACKEND_OMP -DDATA_DIRECTORY=${DATA_DIR}")
 target_link_libraries(haloTestOMP pthread gomp)
 
 
