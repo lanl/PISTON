@@ -64,6 +64,8 @@ public:
 
   thrust::device_vector<int>   cubeMapping, cubeMappingInv;
 
+  thrust::device_vector<int>   startOfChunks,sizeOfChunks;
+
 	thrust::device_vector<int>   particleSizeOfCubes; 	// number of particles in cubes
 	thrust::device_vector<int>   particleStartOfCubes;	// stratInd of cubes  (within particleId)
 
@@ -779,11 +781,49 @@ public:
 	{	
 		int cubes = ignoreEmptyCubes ? cubesNonEmpty : numOfCubes;
 
+		thrust::device_vector<int>::iterator maxSize = thrust::max_element(particleSizeOfCubes.begin(), particleSizeOfCubes.begin()+cubes);
+
+		startOfChunks.resize(cubes);
+		sizeOfChunks.resize(cubes);
+
+		thrust::fill(startOfChunks.begin(), startOfChunks.begin()+cubes, -1);
+		thrust::inclusive_scan(particleSizeOfCubes.begin(), particleSizeOfCubes.begin()+cubes, sizeOfChunks.begin());
+/*
+		std::cout << "particleSizeOfCubes	 "; thrust::copy(particleSizeOfCubes.begin(), particleSizeOfCubes.begin()+100, std::ostream_iterator<int>(std::cout, " ")); std::cout << std::endl << std::endl;
+		std::cout << "inclusive_scan	 "; thrust::copy(sizeOfChunks.begin(), sizeOfChunks.begin()+100, std::ostream_iterator<int>(std::cout, " ")); std::cout << std::endl << std::endl;
+*/
+		thrust::copy_if(CountingIterator(0), CountingIterator(0)+cubes, startOfChunks.begin(),
+				isStartOfChunks(thrust::raw_pointer_cast(&*particleSizeOfCubes.begin()),
+												thrust::raw_pointer_cast(&*sizeOfChunks.begin()),
+										 		*maxSize, cubes));	
+		int chunks = cubes - thrust::count(startOfChunks.begin(), startOfChunks.begin()+cubes, -1);
+		thrust::for_each(CountingIterator(0), CountingIterator(0)+chunks,
+				setSizeOfChunks(thrust::raw_pointer_cast(&*startOfChunks.begin()),
+												thrust::raw_pointer_cast(&*sizeOfChunks.begin()),
+												chunks, cubes));
+
+		std::cout << "maxSize " << *maxSize << " chunks " << chunks << std::endl;
+/*
+		std::cout << "startOfChunks	 "; thrust::copy(startOfChunks.begin(), startOfChunks.begin()+100, std::ostream_iterator<int>(std::cout, " ")); std::cout << std::endl << std::endl;
+		std::cout << "sizeOfChunks	 "; thrust::copy(sizeOfChunks.begin(), sizeOfChunks.begin()+100, std::ostream_iterator<int>(std::cout, " ")); std::cout << std::endl << std::endl;
+
+		std::cout << "amountOfChunks	 ";
+		for(int i=0; i<100; i++)
+		{
+			int count = 0;
+			for(int j=startOfChunks[i]; j<startOfChunks[i]+sizeOfChunks[i]; j++)
+				count += particleSizeOfCubes[j];
+			std::cout << count << " ";
+		}
+		std::cout << std::endl << std::endl;
+*/
 		thrust::fill(edgeSizeOfCubes.begin(), edgeSizeOfCubes.begin()+cubes,0);		
 		
-		thrust::for_each(CountingIterator(0), CountingIterator(0)+cubes,
+		thrust::for_each(CountingIterator(0), CountingIterator(0)+chunks,
 				getEdges(thrust::raw_pointer_cast(&*particleStartOfCubes.begin()),
 								 thrust::raw_pointer_cast(&*particleSizeOfCubes.begin()),
+								 thrust::raw_pointer_cast(&*startOfChunks.begin()),
+								 thrust::raw_pointer_cast(&*sizeOfChunks.begin()),
 								 thrust::raw_pointer_cast(&*cubeMapping.begin()),
 								 thrust::raw_pointer_cast(&*cubeMappingInv.begin()),
 								 thrust::raw_pointer_cast(&*inputX.begin()),
@@ -800,6 +840,55 @@ public:
 		std::cout << "numOfEdges after " << numOfEdges << std::endl;
 	}
 
+	// check whether this cube is the start of a chunk
+  struct isStartOfChunks : public thrust::unary_function<int, void>
+  {
+		int size, max;	
+		int *sizeOfChunks, *particleSizeOfCubes;
+
+		__host__ __device__
+		isStartOfChunks(int *particleSizeOfCubes, int *sizeOfChunks, int max, int size) : 
+			particleSizeOfCubes(particleSizeOfCubes), sizeOfChunks(sizeOfChunks), 
+			max(max), size(size) {}
+
+    __host__ __device__
+    bool operator()(int i)
+    {
+			if(i==0) return true;
+	
+			int a = sizeOfChunks[i]   / max;
+			int b = sizeOfChunks[i-1] / max;
+			int c = sizeOfChunks[i+1] / max;		
+
+			int d = sizeOfChunks[i]   % max;
+			int e = sizeOfChunks[i-1] % max;
+			int f = sizeOfChunks[i+1] % max;
+
+			if((a!=b && d!=0) || (a==b && e==0)) return true;
+
+			return false;
+    }
+ 	};
+
+  struct setSizeOfChunks : public thrust::unary_function<int, void>
+  {
+		int chunks, cubes;	
+		int *startOfChunks, *sizeOfChunks;
+
+		__host__ __device__
+		setSizeOfChunks(int *startOfChunks, int *sizeOfChunks, int chunks, int cubes) : 
+			startOfChunks(startOfChunks), sizeOfChunks(sizeOfChunks), chunks(chunks), cubes(cubes) {}
+
+    __host__ __device__
+    bool operator()(int i)
+    {
+			if(i==chunks-1) 
+				sizeOfChunks[i] = cubes - startOfChunks[i];
+			else 
+				sizeOfChunks[i] = startOfChunks[i+1] - startOfChunks[i];
+    }
+ 	};
+
 	// for each cube, get the set of edges after comparing
 	struct getEdges : public thrust::unary_function<int, void>
 	{
@@ -807,6 +896,7 @@ public:
 		float  max_ll, min_ll;
 		float *inputX, *inputY, *inputZ;
 
+		int   *startOfChunks, *sizeOfChunks;
 		int   *cubeMapping, *cubeMappingInv;
 		int   *particleId, *particleStartOfCubes, *particleSizeOfCubes;
 
@@ -818,12 +908,14 @@ public:
 
 		__host__ __device__
 		getEdges(int *particleStartOfCubes, int *particleSizeOfCubes, 
+				int *startOfChunks, int *sizeOfChunks,
 				int *cubeMapping, int *cubeMappingInv,
 				float *inputX, float *inputY, float *inputZ,
 				int *particleId, float max_ll, float min_ll, int ite,
 				int cubesInX, int cubesInY, int cubesInZ, int side, 
 				Edge *edges, int *edgeSizeOfCubes, int *edgeStartOfCubes) :
  				particleStartOfCubes(particleStartOfCubes), particleSizeOfCubes(particleSizeOfCubes),
+				startOfChunks(startOfChunks), sizeOfChunks(sizeOfChunks),
 				cubeMapping(cubeMapping), cubeMappingInv(cubeMappingInv), 
 			 	inputX(inputX), inputY(inputY), inputZ(inputZ),
 				particleId(particleId), max_ll(max_ll), min_ll(min_ll), ite(ite), 
@@ -832,8 +924,11 @@ public:
 
 		__host__ __device__
 		void operator()(int i)
-		{			
-			int i_mapped = cubeMapping[i];
+		{	
+
+for(int l=startOfChunks[i]; l<startOfChunks[i]+sizeOfChunks[i]; l++)
+{		
+			int i_mapped = cubeMapping[l];
 
 			// get x,y,z coordinates for the cube
 			int tmp = i_mapped % (cubesInX*cubesInY);
@@ -868,7 +963,7 @@ public:
 				float dist_min = max_ll+1;					
 
 				// for each particle in this cube
-				for(int j=particleStartOfCubes[i]; j<particleStartOfCubes[i]+particleSizeOfCubes[i]; j++)
+				for(int j=particleStartOfCubes[l]; j<particleStartOfCubes[l]+particleSizeOfCubes[l]; j++)
 				{
 					int pId_j = particleId[j];
 
@@ -904,10 +999,11 @@ public:
 				loop:
 				if(dist_min < max_ll+1)
 				{
-					edges[edgeStartOfCubes[i] + edgeSizeOfCubes[i]] = e;
-					edgeSizeOfCubes[i]++;
+					edges[edgeStartOfCubes[l] + edgeSizeOfCubes[l]] = e;
+					edgeSizeOfCubes[l]++;
 				}
 			}
+}
 		}
 	};
 

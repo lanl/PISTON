@@ -147,11 +147,11 @@ int main(int argc, char* argv[])
 //  (*halo)(linkLength, particleSize);
 //  thrust::device_vector<int> b = halo->getHalos();
 //
-  std::cout << "Kdtree based result" << std::endl;
-
-  halo = new halo_kd(filename, format, n, np, rL);
-  (*halo)(linkLength, particleSize);
-  thrust::device_vector<int> c = halo->getHalos();
+//  std::cout << "Kdtree based result" << std::endl;
+//
+//  halo = new halo_kd(filename, format, n, np, rL);
+//  (*halo)(linkLength, particleSize);
+//  thrust::device_vector<int> c = halo->getHalos();
 
   std::cout << "Merge tree based result" << std::endl;
 
@@ -161,14 +161,14 @@ int main(int argc, char* argv[])
 
   //----------------------------
 
-  std::cout << "Comparing results" << std::endl;
+//  std::cout << "Comparing results" << std::endl;
 //  std::string output1 = (compareResults(a, c, halo->numOfParticles)==true) ? "Naive vs Kdtree     - Result is the same" : "Naive vs Kdtree        - Result is NOT the same";
 //  std::cout << output1 << std::endl;
 //  std::string output2 = (compareResults(b, c, halo->numOfParticles)==true) ? "Vtk vs Kdtree     - Result is the same" : "Vtk vs Kdtree     - Result is NOT the same";
 //  std::cout << output2 << std::endl;
-  std::string output3 = (compareResults(c, d, halo->numOfParticles)==true) ? "Kdtree vs Mergetree - Result is the same" : "Kdtree vs Mergetree - Result is NOT the same";
-  std::cout << output3 << std::endl;
-  std::cout << "--------------------" << std::endl;
+//  std::string output3 = (compareResults(c, d, halo->numOfParticles)==true) ? "Kdtree vs Mergetree - Result is the same" : "Kdtree vs Mergetree - Result is NOT the same";
+//  std::cout << output3 << std::endl;
+//  std::cout << "--------------------" << std::endl;
 
 //	std::cout << "a "; thrust::copy(a.begin(), a.begin()+halo->numOfParticles, std::ostream_iterator<int>(std::cout, " "));   std::cout << std::endl << std::endl;
 //  std::cout << "c "; thrust::copy(c.begin(), c.begin()+halo->numOfParticles, std::ostream_iterator<int>(std::cout, " "));   std::cout << std::endl << std::endl;

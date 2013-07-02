@@ -27,6 +27,7 @@
 
 #include <piston/kd.h>
 
+#include <sstream>
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -124,7 +125,7 @@ public:
       {
 //				generateUniformData();				
 //				generateNonUniformData1(); // using normal dist
-				generateNonUniformData2();
+				generateNonUniformData2(); // generate nearby points
 
 /*
 				numOfParticles = 8;
@@ -159,7 +160,7 @@ public:
 		lBoundS = Point(0.1, 0.1, 0.1);
 		uBoundS = Point(11.2, 11.2, 11.2);
 
-		int nX=16, nY=16, nZ=16;
+		int nX=64, nY=64, nZ=64;
 
 		numOfParticles = nX*nY*nZ;
 		inputX = thrust::host_vector<float>(numOfParticles);
@@ -285,11 +286,11 @@ public:
 		thrust::uniform_real_distribution<float> u;
 
 		//readFile("/home/wathsala/PISTONSampleData/256", 1, 256, 64.0f, "cosmo");	
-		readFile("/home/wathsala/PISTONSampleData/sub-24474", 1, 256, 64.0f, "csv");	
+		//readFile("/home/wathsala/PISTONSampleData/sub-24474", 1, 256, 64.0f, "csv");	
 
-		//readFile("/home/wathsy/Cosmo/PISTONSampleData/sub-24474", 1, 256, 64.0f, "csv");	
+		readFile("/home/wathsy/Cosmo/PISTONSampleData/sub-24474", 1, 256, 64.0f, "csv");	
 
-		int n = 16;
+		int n = 1;
 
 		inputX.resize(numOfParticles*n);
 		inputY.resize(numOfParticles*n);
@@ -315,11 +316,27 @@ public:
 		}
 		
 		numOfParticles *= n;
-/*
-		std::cout << "inputX		"; thrust::copy(inputX.begin(), inputX.begin()+numOfParticles, std::ostream_iterator<float>(std::cout, " "));   std::cout << std::endl << std::endl;
-		std::cout << "inputY		"; thrust::copy(inputY.begin(), inputY.begin()+numOfParticles, std::ostream_iterator<float>(std::cout, " "));   std::cout << std::endl << std::endl;
-		std::cout << "inputZ		"; thrust::copy(inputZ.begin(), inputZ.begin()+numOfParticles, std::ostream_iterator<float>(std::cout, " "));   std::cout << std::endl << std::endl;
-*/
+
+		writeData();
+	}
+
+	void writeData()
+	{
+		string filename = convertInt(numOfParticles) + ".txt";
+		ofstream out(filename);	
+		for(int i=0; i<numOfParticles; i++)
+		{
+			out << inputX[i] << " " << inputY[i] << " " << inputZ[i] << std::endl;
+		}
+		out.close();
+
+	}
+
+	string convertInt(int number)
+	{
+		 stringstream ss;//create a stringstream
+		 ss << number;//add number to the stream
+		 return ss.str();//return a string with the contents of the stream
 	}
 
 	// get lower & upper bounds of the entire space
@@ -403,9 +420,9 @@ public:
 		thrust::device_vector<float> inputZtmp(numOfParticles);
 
 		// scale amount for particles
-		float xscal;
-		if(rL==-1) xscal = 1;
-		else       xscal = rL / (1.0*np);
+    float xscal;
+    if(rL==-1) xscal = 1;
+    else       xscal = rL / (1.0*np);
 
 		// rewind file to beginning for particle reads
 		myfile->seekg(0L, std::ios::beg);
@@ -530,6 +547,7 @@ public:
     numOfParticles = vec.size() / n;
 
 		inputX.resize(numOfParticles);
+
 		inputY.resize(numOfParticles);
 		inputZ.resize(numOfParticles);
 
