@@ -88,9 +88,9 @@ int main(int argc, char* argv[])
   float linkLength, max_linkLength, min_linkLength, rL;
   int   particleSize, np, n;
 
-  max_linkLength = 2;
-  min_linkLength = 1;
-  linkLength     = 2;
+  max_linkLength = 1;
+  min_linkLength = 0.5;
+  linkLength     = 1;
   particleSize   = 1;//100;
   np = 256;
   rL = 64;
@@ -173,6 +173,44 @@ int main(int argc, char* argv[])
 //	std::cout << "a "; thrust::copy(a.begin(), a.begin()+halo->numOfParticles, std::ostream_iterator<int>(std::cout, " "));   std::cout << std::endl << std::endl;
 //  std::cout << "c "; thrust::copy(c.begin(), c.begin()+halo->numOfParticles, std::ostream_iterator<int>(std::cout, " "));   std::cout << std::endl << std::endl;
 //  std::cout << "d "; thrust::copy(d.begin(), d.begin()+halo->numOfParticles, std::ostream_iterator<int>(std::cout, " "));   std::cout << std::endl << std::endl;
+
+//----------
+
+int num = 0;
+std::string line;
+thrust::device_vector<int> items(halo->numOfParticles);
+
+std::ifstream *myfile = new std::ifstream("/home/wathsy/Cosmo/PISTONSampleData/35015Results2/1120480_Vtk.txt", std::ios::in);
+std::cout << "file reading started "<< std::endl;
+while(!myfile->eof())
+{
+	getline(*myfile,line);
+
+	if(line=="") continue;
+
+	if(num<halo->numOfParticles)
+		items[num++] = atof(strtok((char*)line.c_str(), " "));
+
+	for(int i=1; i<15; i++)
+	{
+		if(num<halo->numOfParticles)
+			items[num++] = atof(strtok(NULL, " "));
+	}
+}
+
+std::cout << "file read "<< std::endl;
+int count = 0;
+for(int i=0; i<halo->numOfParticles; i++)
+{
+	if(d[i] != items[i])
+	{ 
+		//std::cout << d[i] << " " << items[i] << std::endl;
+		count++;
+	}
+}
+std::cout << "count " << count << std::endl;
+
+//----------
 
   return 0;
 }

@@ -46,15 +46,15 @@ public:
 	struct DataItem
 	{
 		float xx;  float yy;  float zz;
-		  float vx;  float vy;  float vz;
-		  float ms;  int   pt;
+	  float vx;  float vy;  float vz;
+	  float ms;  int   pt;
 
-		  __host__ __device__
-		  DataItem(){}
+	  __host__ __device__
+	  DataItem(){}
 
-		  __host__ __device__
-		  DataItem(float xx, float vx, float yy, float vy, float zz, float vz, float ms, int pt) :
-			   xx(xx), vx(vx), yy(yy), vy(vy), zz(zz), vz(vz), ms(ms), pt(pt) {}
+	  __host__ __device__
+	  DataItem(float xx, float vx, float yy, float vy, float zz, float vz, float ms, int pt) :
+		   xx(xx), vx(vx), yy(yy), vy(vy), zz(zz), vz(vz), ms(ms), pt(pt) {}
 	};
 
 	struct Point
@@ -104,11 +104,6 @@ public:
 
 	Point lBoundS, uBoundS; // lower & upper bounds of the entire space
 
-	// variables needed for normal distribution
-	double meanX, meanY, meanZ;
-	double stdevX, stdevY, stdevZ;
-	Point  lBoundCosmo, uBoundCosmo;
-
   // variables needed to create random numbers
   thrust::default_random_engine rng;
   thrust::uniform_real_distribution<float> u01;
@@ -121,11 +116,11 @@ public:
       np       = np;
       periodic = periodic;
 
-      if(!readFile(filename, n, np, rL, format))
+      if(!readHaloFile(filename, n, np, rL, format))
       {
-//				generateUniformData();				
-//				generateNonUniformData1(); // using normal dist
-				generateNonUniformData2(); // generate nearby points
+				readData(); // read in a txt data file
+//				generateUniformData();		// generate uniformly spaced points		
+//			  generateNonUniformData(); // generate nearby points to real data
 
 /*
 				numOfParticles = 8;
@@ -152,15 +147,87 @@ public:
       std::cout << "numOfParticles : " << numOfParticles << " \n";
   }
 
-
   virtual void operator()(float linkLength , int  particleSize) {}
+
+	void readData()
+	{
+		std::cout << "readData \n";
+
+    // open input file
+    std::ifstream *myfile = new std::ifstream("/home/wathsy/Cosmo/PISTONSampleData/35015Results2/1120480.txt", std::ios::in);
+    if (!myfile->is_open()) {   std::cout << "File cannot be opened \n"; return; }
+
+    std::vector<Point> vec;
+    float x, y, z;
+
+    std::string line;
+
+		double minX, minY, minZ;
+		double maxX, maxY, maxZ;
+
+    while(!myfile->eof())
+    {
+			getline(*myfile,line);
+			if(line=="") continue; 
+
+			x = atof(strtok((char*)line.c_str(), " "));
+			y = atof(strtok(NULL, " "));
+			z = atof(strtok(NULL, " "));
+			
+			if(vec.size()==0)
+			{
+				minX = x; minY = y; minZ = z;
+				maxX = x; maxY = y; maxZ = z;
+			}
+			else
+			{		
+				minX = (x<minX) ? x : minX; 	maxX = (x>maxX) ? x : maxX; 
+				minY = (y<minY) ? y : minY;		maxY = (y>maxY) ? y : maxY;
+				minZ = (z<minZ) ? z : minZ;		maxZ = (z>maxZ) ? z : maxZ;
+			}
+
+			vec.push_back(Point(x,y,z));
+    }
+
+		// set bounds
+		lBoundS = Point(minX, minY, minZ);
+		uBoundS = Point(maxX, maxY, maxZ);
+
+    numOfParticles = vec.size();
+
+		inputX.resize(numOfParticles);
+		inputY.resize(numOfParticles);
+		inputZ.resize(numOfParticles);
+
+		for (int i=0; i<numOfParticles; i++)
+    {
+			Point p = vec.at(i);
+
+			inputX[i] = p.x;
+			inputY[i] = p.y;
+			inputZ[i] = p.z;
+    }
+
+    vec.clear();
+	}
+
+	void writeData()
+	{
+		string filename = convertInt(numOfParticles) + ".txt";
+		ofstream out(filename);	
+		for(int i=0; i<numOfParticles; i++)
+		{
+			out << inputX[i] << " " << inputY[i] << " " << inputZ[i] << std::endl;
+		}
+		out.close();
+	}
 
 	void generateUniformData()
 	{
 		lBoundS = Point(0.1, 0.1, 0.1);
 		uBoundS = Point(11.2, 11.2, 11.2);
 
-		int nX=64, nY=64, nZ=64;
+		int nX=16, nY=16, nZ=16;
 
 		numOfParticles = nX*nY*nZ;
 		inputX = thrust::host_vector<float>(numOfParticles);
@@ -193,102 +260,17 @@ public:
 		std::cout << "UniformData loaded \n";
 	}
 
-	void generateNonUniformData1()
-	{
-		// find normal dist parameters	
-		findNormalDist("/home/wathsala/PISTONSampleData/256", 1, 256, 64.0f, "cosmo");	
-		//findNormalDist("/home/wathsala/PISTONSampleData/5005-sameCube", 1, 256, 64.0f, "csv");	
-
-		// generate data from the normal dist
-		lBoundS = Point(0.1, 0.1, 0.1);
-		uBoundS = Point(11.2, 11.2, 11.2);
-		
-		int nX=16, nY=16, nZ=16;
-
-		numOfParticles = nX*nY*nZ;
-		inputX = thrust::host_vector<float>(numOfParticles);
-		inputY = thrust::host_vector<float>(numOfParticles);
-		inputZ = thrust::host_vector<float>(numOfParticles);
-
-		std::default_random_engine rngX, rngY, rngZ;
- 	  std::normal_distribution<double> distX(meanX, stdevX);
- 	  std::normal_distribution<double> distY(meanY, stdevY);
- 	  std::normal_distribution<double> distZ(meanZ, stdevZ);
-
-		std::cout << meanX << " " << meanY << " " << meanZ << " " << stdevX << " " << stdevY << " " << stdevZ << " " << std::endl;
-
-		for(int i=0; i<numOfParticles; )
-		{
-			// generate random number & remap to this range
-			double x = ((distX(rngX)-lBoundCosmo.x)*(uBoundS.x-lBoundS.x))/(uBoundCosmo.x-lBoundCosmo.x) + lBoundS.x;
-			double y = ((distY(rngY)-lBoundCosmo.y)*(uBoundS.y-lBoundS.y))/(uBoundCosmo.y-lBoundCosmo.y) + lBoundS.y;
-			double z = ((distZ(rngZ)-lBoundCosmo.z)*(uBoundS.z-lBoundS.z))/(uBoundCosmo.z-lBoundCosmo.z) + lBoundS.z;
-
-			if((x>=lBoundS.x && x<=uBoundS.x) && (y>=lBoundS.y && y<=uBoundS.y) && (z>=lBoundS.z && z<=uBoundS.z))
-			{
-				inputX[i] = x;	
-				inputY[i] = y;	
-				inputZ[i] = z;
-
-				i++;
-			}
-		}
-
-		std::cout << "NonUniformData loaded \n";
-	}
-
-	void findNormalDist(std::string filename, int n, int np, float rL, std::string format)
-	{
-		readFile(filename, n, np, rL, format);
-
-		lBoundCosmo = lBoundS;
-		uBoundCosmo = uBoundS;
-
-		thrust::device_vector<double> tmp(numOfParticles);
-
-		// find means
-		thrust::inclusive_scan(inputX.begin(), inputX.begin()+numOfParticles, tmp.begin());
-		meanX = tmp[numOfParticles-1]/numOfParticles;
-
-		thrust::inclusive_scan(inputY.begin(), inputY.begin()+numOfParticles, tmp.begin());
-		meanY = tmp[numOfParticles-1]/numOfParticles;
-
-		thrust::inclusive_scan(inputZ.begin(), inputZ.begin()+numOfParticles, tmp.begin());
-		meanZ = tmp[numOfParticles-1]/numOfParticles;
-
-		// find std dev
-		thrust::transform(inputX.begin(), inputX.begin()+numOfParticles, inputX.begin(), substractAndSquare(meanX));
-		thrust::transform(inputY.begin(), inputY.begin()+numOfParticles, inputY.begin(), substractAndSquare(meanY));
-		thrust::transform(inputZ.begin(), inputZ.begin()+numOfParticles, inputZ.begin(), substractAndSquare(meanZ));
-
-		thrust::inclusive_scan(inputX.begin(), inputX.begin()+numOfParticles, inputX.begin());
-		thrust::inclusive_scan(inputY.begin(), inputY.begin()+numOfParticles, inputY.begin());
-		thrust::inclusive_scan(inputZ.begin(), inputZ.begin()+numOfParticles, inputZ.begin());
-
-		stdevX = std::sqrt(inputX[numOfParticles-1]/(numOfParticles-1));
-		stdevY = std::sqrt(inputY[numOfParticles-1]/(numOfParticles-1));
-		stdevZ = std::sqrt(inputZ[numOfParticles-1]/(numOfParticles-1));
-	}
-	
-  struct substractAndSquare
-  {
-      double value;
-      substractAndSquare(double value) : value(value) {}
-
-      __host__ __device__
-      double operator()(const double i) { return (i-value)*(i-value); }
-  };
-
-	void generateNonUniformData2()
+	void generateNonUniformData()
 	{
 		 // variables needed to create random numbers
 		thrust::default_random_engine rng;
 		thrust::uniform_real_distribution<float> u;
 
-		//readFile("/home/wathsala/PISTONSampleData/256", 1, 256, 64.0f, "cosmo");	
-		//readFile("/home/wathsala/PISTONSampleData/sub-24474", 1, 256, 64.0f, "csv");	
+		//readHaloFile("/home/wathsala/PISTONSampleData/256", 1, 256, 64.0f, "cosmo");	
+		readHaloFile("/home/wathsala/PISTONSampleData/sub-24474", 1, 256, 64.0f, "csv");	
 
-		readFile("/home/wathsy/Cosmo/PISTONSampleData/sub-24474", 1, 256, 64.0f, "csv");	
+		//readHaloFile("/home/wathsy/Cosmo/PISTONSampleData/sub-24474", 1, 256, 64.0f, "csv");
+		//readHaloFile("/home/wathsy/Cosmo/PISTONSampleData/35015-sameCube", 1, 256, 64.0f, "csv");	
 
 		int n = 1;
 
@@ -307,30 +289,18 @@ public:
 
 				while(x<lBoundS.x || x>uBoundS.x) x = inputX[i] + u(rng);
 				while(y<lBoundS.y || y>uBoundS.y) y = inputY[i] + u(rng);
-				while(z<lBoundS.z || z>uBoundS.z) z = inputZ[i] + u(rng);
+				while(z<lBoundS.z || z>uBoundS.z) z = inputZ[i] + u(rng);		
 
 				inputX[numOfParticles + i*(n-1) + (j-1)] = x;
 				inputY[numOfParticles + i*(n-1) + (j-1)] = y;
-				inputZ[numOfParticles + i*(n-1) + (j-1)] = z;
+				inputZ[numOfParticles + i*(n-1) + (j-1)] = z;				
 			}
 		}
-		
+
 		numOfParticles *= n;
 
 		writeData();
-	}
-
-	void writeData()
-	{
-		string filename = convertInt(numOfParticles) + ".txt";
-		ofstream out(filename);	
-		for(int i=0; i<numOfParticles; i++)
-		{
-			out << inputX[i] << " " << inputY[i] << " " << inputZ[i] << std::endl;
-		}
-		out.close();
-
-	}
+	}	
 
 	string convertInt(int number)
 	{
@@ -392,7 +362,7 @@ public:
 
   // read input file - currently can read a .cosmo file or a .csv file
   // .csv file usage - when you have a big data file and you want a piece of it, load it in VTK and slice it and save it as .csv file
-  bool readFile(std::string filename, float n, int np, float rL, std::string format)
+  bool readHaloFile(std::string filename, float n, int np, float rL, std::string format)
   {
       // check filename
       if(filename == "") { std::cout << "no input file specified \n"; return false; }
@@ -462,8 +432,6 @@ public:
 			inputXtmp[i] = fBlock[0] / xscal;
 			inputYtmp[i] = fBlock[2] / xscal;
 			inputZtmp[i] = fBlock[4] / xscal;
-
-			//std::cout << inputXHost[i] << " " << inputYHost[i] << " " << inputZHost[i] << "\n";
 		}
 
 		// get bounds of the space
@@ -547,7 +515,6 @@ public:
     numOfParticles = vec.size() / n;
 
 		inputX.resize(numOfParticles);
-
 		inputY.resize(numOfParticles);
 		inputZ.resize(numOfParticles);
 

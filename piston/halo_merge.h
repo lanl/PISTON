@@ -194,6 +194,29 @@ public:
 		getHaloParticles(); // get the halo particles & set numOfHaloParticles
 		setColors();        // set colors to halos
 
+//-----------
+thrust::device_vector<int> a,b;
+		
+a.resize(numOfParticles);		
+b.resize(numOfParticles);	
+thrust::copy(haloIndex.begin(), haloIndex.end(), a.begin());
+thrust::sequence(b.begin(), b.end());
+
+//thrust::stable_sort_by_key(a.begin(), a.end(), b.begin());
+/*
+std::cout << "a	"; thrust::copy(a.begin(), a.begin()+numOfParticles, std::ostream_iterator<int>(std::cout, " "));   std::cout << std::endl << std::endl;
+std::cout << "b	"; thrust::copy(b.begin(), b.begin()+numOfParticles, std::ostream_iterator<int>(std::cout, " "));   std::cout << std::endl << std::endl;
+*/
+string filename = convertInt(numOfParticles) + "_MTree.txt";
+ofstream out(filename);	
+for(int i=0; i<numOfParticles; i++)
+{
+	if(i%15==0) out << "\n";
+	out << a[i] << " ";
+}
+out.close();
+//-----------
+
 		std::cout << "Number of Particles : " << numOfParticles << std::endl;
 		std::cout << "Number of Halos found : " << numOfHalos << std::endl << std::endl;
 		std::cout << "Merge tree size : " << mergetreeSize << std::endl;
@@ -405,7 +428,6 @@ public:
 	struct setCubeIdOfParticle : public thrust::unary_function<int, void>
 	{
 		float  cubeLen;
-
 		Point  lBoundS;
 		int    cubesInX, cubesInY, cubesInZ;
 
@@ -864,7 +886,7 @@ public:
 			int e = sizeOfChunks[i-1] % max;
 			int f = sizeOfChunks[i+1] % max;
 
-			if((a!=b && d!=0) || (a==b && e==0)) return true;
+			if((a!=b && d==0 && e==0) ||(a!=b && d!=0) || (a==b && e==0)) return true;
 
 			return false;
     }
@@ -925,85 +947,84 @@ public:
 		__host__ __device__
 		void operator()(int i)
 		{	
+			for(int l=startOfChunks[i]; l<startOfChunks[i]+sizeOfChunks[i]; l++)
+			{		
+				int i_mapped = cubeMapping[l];
 
-for(int l=startOfChunks[i]; l<startOfChunks[i]+sizeOfChunks[i]; l++)
-{		
-			int i_mapped = cubeMapping[l];
+				// get x,y,z coordinates for the cube
+				int tmp = i_mapped % (cubesInX*cubesInY);
+				int z = i_mapped / (cubesInX*cubesInY);
+				int y = tmp / cubesInX;
+				int x = tmp % cubesInX;
 
-			// get x,y,z coordinates for the cube
-			int tmp = i_mapped % (cubesInX*cubesInY);
-			int z = i_mapped / (cubesInX*cubesInY);
-			int y = tmp / cubesInX;
-			int x = tmp % cubesInX;
+				int len = (side-1)/2;
 
-			int len = (side-1)/2;
-
-			for(int num=0; num<ite; num++)
-			{
-				int tmp1 = num % (side*side);
-				int z1 = num / (side*side);
-				int y1 = tmp1 / side;
-				int x1 = tmp1 % side;		
-
-				// get x,y,z coordinates for the current cube 
-				int currentX = x - len + x1;
-				int currentY = y - len + y1;
-				int currentZ = z - len + z1;
-
-				int cube_mapped = -1, cube = -1;
-				if((currentX>=0 && currentX<cubesInX) && (currentY>=0 && currentY<cubesInY) && (currentZ>=0 && currentZ<cubesInZ))
+				for(int num=0; num<ite; num++)
 				{
-					cube_mapped = (currentZ*(cubesInY*cubesInX) + currentY*cubesInX + currentX);
-					cube = cubeMappingInv[cube_mapped];
-				}
+					int tmp1 = num % (side*side);
+					int z1 = num / (side*side);
+					int y1 = tmp1 / side;
+					int x1 = tmp1 % side;		
 
-				if(cube_mapped==-1 || particleSizeOfCubes[i]==0 || particleSizeOfCubes[cube]==0) continue;
+					// get x,y,z coordinates for the current cube 
+					int currentX = x - len + x1;
+					int currentY = y - len + y1;
+					int currentZ = z - len + z1;
 
-				Edge  e;
-				float dist_min = max_ll+1;					
-
-				// for each particle in this cube
-				for(int j=particleStartOfCubes[l]; j<particleStartOfCubes[l]+particleSizeOfCubes[l]; j++)
-				{
-					int pId_j = particleId[j];
-
-					// compare with particles in neighboring cube
-					for(int k=particleStartOfCubes[cube]; k<particleStartOfCubes[cube]+particleSizeOfCubes[cube]; k++)
+					int cube_mapped = -1, cube = -1;
+					if((currentX>=0 && currentX<cubesInX) && (currentY>=0 && currentY<cubesInY) && (currentZ>=0 && currentZ<cubesInZ))
 					{
-						int pId_k = particleId[k];
+						cube_mapped = (currentZ*(cubesInY*cubesInX) + currentY*cubesInX + currentX);
+						cube = cubeMappingInv[cube_mapped];
+					}
 
-						float xd, yd, zd;
-						xd = (inputX[pId_j]-inputX[pId_k]);  if (xd < 0.0f) xd = -xd;
-						yd = (inputY[pId_j]-inputY[pId_k]);  if (yd < 0.0f) yd = -yd;
-						zd = (inputZ[pId_j]-inputZ[pId_k]);  if (zd < 0.0f) zd = -zd;
-																		                                                                                                                     						
-						if(xd<=max_ll && yd<=max_ll && zd<=max_ll)
+					if(cube_mapped==-1 || particleSizeOfCubes[i]==0 || particleSizeOfCubes[cube]==0) continue;
+
+					Edge  e;
+					float dist_min = max_ll+1;					
+
+					// for each particle in this cube
+					for(int j=particleStartOfCubes[l]; j<particleStartOfCubes[l]+particleSizeOfCubes[l]; j++)
+					{
+						int pId_j = particleId[j];
+
+						// compare with particles in neighboring cube
+						for(int k=particleStartOfCubes[cube]; k<particleStartOfCubes[cube]+particleSizeOfCubes[cube]; k++)
 						{
-							float dist = (float)std::sqrt(xd*xd + yd*yd + zd*zd);
+							int pId_k = particleId[k];
 
-							if(dist <= max_ll && dist < dist_min)
+							float xd, yd, zd;
+							xd = (inputX[pId_j]-inputX[pId_k]);  if (xd < 0.0f) xd = -xd;
+							yd = (inputY[pId_j]-inputY[pId_k]);  if (yd < 0.0f) yd = -yd;
+							zd = (inputZ[pId_j]-inputZ[pId_k]);  if (zd < 0.0f) zd = -zd;
+																				                                                                                                                   						
+							if(xd<=max_ll && yd<=max_ll && zd<=max_ll)
 							{
-								int srcV = (pId_j <= pId_k) ? pId_j : pId_k;
-								int desV = (srcV == pId_k)  ? pId_j : pId_k;							
+								float dist = (float)std::sqrt(xd*xd + yd*yd + zd*zd);
 
-								dist_min = dist;		
-								e = Edge(srcV, desV, dist);		
+								if(dist <= max_ll && dist < dist_min)
+								{
+									int srcV = (pId_j <= pId_k) ? pId_j : pId_k;
+									int desV = (srcV == pId_k)  ? pId_j : pId_k;							
 
-								if(dist_min <= min_ll) goto loop;
-							}							
-						}			
+									dist_min = dist;		
+									e = Edge(srcV, desV, dist);		
+
+									if(dist_min <= min_ll) goto loop;
+								}							
+							}			
+						}
+					}
+
+					// add edge
+					loop:
+					if(dist_min < max_ll+1)
+					{
+						edges[edgeStartOfCubes[l] + edgeSizeOfCubes[l]] = e;
+						edgeSizeOfCubes[l]++;
 					}
 				}
-
-				// add edge
-				loop:
-				if(dist_min < max_ll+1)
-				{
-					edges[edgeStartOfCubes[l] + edgeSizeOfCubes[l]] = e;
-					edgeSizeOfCubes[l]++;
-				}
 			}
-}
 		}
 	};
 
