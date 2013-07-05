@@ -35,49 +35,49 @@ public:
 
 	struct Edge
 	{
-		int srcId, desId, tmp;
+		int srcId, desId;
 		float weight;
 
 		__host__ __device__
-		Edge() { srcId=-1; desId=-1; weight=-1; tmp=-1; }
+		Edge() { srcId=-1; desId=-1; weight=-1; }
 		
 		__host__ __device__
-		Edge(int srcId, int desId, float weight, int tmp=-1) : srcId(srcId), desId(desId), weight(weight), tmp(tmp) {}
+		Edge(int srcId, int desId, float weight) : srcId(srcId), desId(desId), weight(weight) {}
 	};
 
 	float cubeLen;					// length of the cube
-	float max_ll, min_ll;   // maximum & minimum linking length
+	float max_ll, min_ll;   // maximum & minimum linking lengths
 	
-	float totalTime; // total time taken fopr execution
+	float totalTime; 				// total time taken for halo finding
 
-	int mergetreeSize;                // total size of the global merge tree
-  int numOfEdges;                   // total number of edges in space
+	int mergetreeSize;      // total size of the global merge tree
+  int numOfEdges;         // total number of edges in space
+
+	int  side, size, ite; 	// variable needed to determine the neighborhood cubes
+
+	bool ignoreEmptyCubes;						// flag to whether or not to ignore empty cubes in local step
 	int numOfCubes;					   	 			// total number of cubes in space
+	int  cubesNonEmpty, cubesEmpty;		// total number of nonempty & empty cubes in space
 	int cubesInX, cubesInY, cubesInZ; // number of cubes in each dimension
-
-  bool ignoreEmptyCubes;
-	int  cubesNonEmpty, cubesEmpty;
-	int  side, size, ite;
 	
   thrust::device_vector<int>   particleId; // for each particle, particle id
-  thrust::device_vector<int>   cubeId;     // for each particle, cube id
-
-  thrust::device_vector<int>   cubeMapping, cubeMappingInv;
-
-  thrust::device_vector<int>   startOfChunks,sizeOfChunks;
-
 	thrust::device_vector<int>   particleSizeOfCubes; 	// number of particles in cubes
 	thrust::device_vector<int>   particleStartOfCubes;	// stratInd of cubes  (within particleId)
 
-	thrust::device_vector<Node>  nodes;
-  thrust::device_vector<Node>  nodesTmp1;
+  thrust::device_vector<int>   cubeId;     // for each particle, cube id
+  thrust::device_vector<int>   cubeMapping, cubeMappingInv; // mapping which seperates empty & nonempty cubes
+  thrust::device_vector<int>   sizeOfChunks;  // size of each chunk of cubes
+  thrust::device_vector<int>   startOfChunks; // start of each chunk of cubes
 
-	thrust::device_vector<Edge>  edges;
-	thrust::device_vector<int>   edgeSizeOfCubes;
-	thrust::device_vector<int>   edgeStartOfCubes;
+	thrust::device_vector<Node>  nodes; 		// leaf nodes of merge tree
+  thrust::device_vector<Node>  nodesTmp1; // parent nodes of merge tree
+
+	thrust::device_vector<Edge>  edges;							// edge of cubes
+	thrust::device_vector<int>   edgeSizeOfCubes;   // size of edges in cubes
+	thrust::device_vector<int>   edgeStartOfCubes;  // start of edges in cubes
 	
-	thrust::device_vector<int>   tmpIntArray1;
-	thrust::device_vector<int>   tmpNxt, tmpFree;
+	thrust::device_vector<int>   tmpIntArray1;		// temperary array used
+	thrust::device_vector<int>   tmpNxt, tmpFree; // stores details of free items for the merge tree
 
 	halo_merge(float min_linkLength, float max_linkLength, bool ignore, std::string filename="", std::string format=".cosmo",
 						 int n = 1, int np=1, float rL=-1, bool periodic=false) : halo(filename, format, n, np, rL, periodic)
@@ -90,13 +90,7 @@ public:
 
 			min_ll  = min_linkLength; // get min_linkinglength
 			max_ll  = max_linkLength; // get max_linkinglength
-			cubeLen = std::sqrt((min_ll*min_ll)/2); // min_ll^2 = cubeLen^2 + cubeLen^2	
-
-/*
-			cubeLen = min_linkLength; // get min_linkinglength
-			max_ll  = max_linkLength; // get max_linkinglength
-			min_ll  = std::sqrt(cubeLen*cubeLen*2);
-*/
+			cubeLen = std::sqrt((min_ll*min_ll)/2); // min_ll^2 = cubeLen^2 + cubeLen^2
 
 			ignoreEmptyCubes = ignore;
 
@@ -119,8 +113,8 @@ public:
 			#endif
 
 			//------- METHOD :
-	    // parallel for each cube, get the set of edges & create the local merge tree.
-			// globally combine the local merge trees, two cubes at a time by considering the edges
+	    // parallel for each cube, create the local merge tree & get the set of edges.
+			// globally combine the cubes, two cubes at a time by considering the edges
 
 			gettimeofday(&mid2, 0);
 			localStep();
@@ -138,10 +132,15 @@ public:
 
 			clearSuperParents();
 
-			cubeId.clear();
 			particleId.clear();
       particleSizeOfCubes.clear();
       particleStartOfCubes.clear();
+
+			cubeId.clear();
+			cubeMapping.clear();
+			cubeMappingInv.clear();
+			sizeOfChunks.clear();
+			startOfChunks.clear();
 
 			edges.clear();
 			edgeSizeOfCubes.clear();
@@ -173,7 +172,7 @@ public:
 		linkLength   = linkLength;
 		particleSize = particleSize;
 
-		// no valid particles, return
+		// if no valid particles, return
 		if(numOfParticles==0) return;
 
 		struct timeval begin, end, diff;
@@ -189,33 +188,11 @@ public:
 		std::cout << "Time elapsed: " << seconds << " s for finding halos at linking length " << linkLength << " and has particle size >= " << particleSize << std::endl << std::flush;
 		std::cout << "Total time elapsed: " << totalTime << " s" << std::endl << std::endl;
 
-		getSizeOfMeregeTree();
-		getNumOfHalos();    // get the unique halo ids & set numOfHalos
-		getHaloParticles(); // get the halo particles & set numOfHaloParticles
-		setColors();        // set colors to halos
-
-//-----------
-thrust::device_vector<int> a,b;
-		
-a.resize(numOfParticles);		
-b.resize(numOfParticles);	
-thrust::copy(haloIndex.begin(), haloIndex.end(), a.begin());
-thrust::sequence(b.begin(), b.end());
-
-//thrust::stable_sort_by_key(a.begin(), a.end(), b.begin());
-/*
-std::cout << "a	"; thrust::copy(a.begin(), a.begin()+numOfParticles, std::ostream_iterator<int>(std::cout, " "));   std::cout << std::endl << std::endl;
-std::cout << "b	"; thrust::copy(b.begin(), b.begin()+numOfParticles, std::ostream_iterator<int>(std::cout, " "));   std::cout << std::endl << std::endl;
-*/
-string filename = convertInt(numOfParticles) + "_MTree.txt";
-ofstream out(filename);	
-for(int i=0; i<numOfParticles; i++)
-{
-	if(i%15==0) out << "\n";
-	out << a[i] << " ";
-}
-out.close();
-//-----------
+		getSizeOfMergeTree(); // get the size of merge tree
+		getNumOfHalos();      // get the unique halo ids & set numOfHalos
+		getHaloParticles();   // get the halo particles & set numOfHaloParticles
+		setColors();          // set colors to halos
+		writeHaloResults();	  // write halo results
 
 		std::cout << "Number of Particles : " << numOfParticles << std::endl;
 		std::cout << "Number of Halos found : " << numOfHalos << std::endl << std::endl;
@@ -276,7 +253,7 @@ out.close();
 	}
 
 	// get the size of the merge tree
-	void getSizeOfMeregeTree()
+	void getSizeOfMergeTree()
 	{
 		Node *nodesTmp = thrust::raw_pointer_cast(&*nodes.begin());
 
@@ -299,19 +276,40 @@ out.close();
 	// get particles of valid halos & get number of halo particles *************************
 	void getHaloParticles()
 	{
-/*
 	  thrust::device_vector<int>::iterator new_end;
 
 	  tmpIntArray1.resize(numOfParticles);
-	  new_end = thrust::remove_copy(haloIndex.begin(), haloIndex.end(), tmpIntArray1.begin(), -1);
+		thrust::sequence(tmpIntArray1.begin(), tmpIntArray1.begin()+numOfParticles);
+
+	  new_end = thrust::remove_if(tmpIntArray1.begin(), tmpIntArray1.begin()+numOfParticles,
+				invalidHalo(thrust::raw_pointer_cast(&*haloIndex.begin())));
 
 	  numOfHaloParticles = new_end - tmpIntArray1.begin();
 
+		haloIndex_f.resize(numOfHaloParticles);
 	  inputX_f.resize(numOfHaloParticles);
     inputY_f.resize(numOfHaloParticles);
     inputZ_f.resize(numOfHaloParticles);
-*/
+
+		thrust::gather(tmpIntArray1.begin(), tmpIntArray1.begin()+numOfHaloParticles, haloIndex.begin(), haloIndex_f.begin());
+		thrust::gather(tmpIntArray1.begin(), tmpIntArray1.begin()+numOfHaloParticles, inputX.begin(), inputX_f.begin());
+		thrust::gather(tmpIntArray1.begin(), tmpIntArray1.begin()+numOfHaloParticles, inputY.begin(), inputY_f.begin());
+		thrust::gather(tmpIntArray1.begin(), tmpIntArray1.begin()+numOfHaloParticles, inputZ.begin(), inputZ_f.begin());
 	}
+
+	struct invalidHalo : public thrust::unary_function<int, bool>
+	{
+		int  *haloIndex;
+
+		__host__ __device__
+		invalidHalo(int *haloIndex) : haloIndex(haloIndex) {}
+
+		__host__ __device__
+		bool operator()(int i)
+		{			
+      return (haloIndex[i]==-1);
+		}
+	};
 
 	// clear super parents of all nodes
 	void clearSuperParents()
@@ -461,7 +459,7 @@ out.close();
     thrust::stable_sort_by_key(cubeId.begin(), cubeId.end(), particleId.begin());
 	}
 		
-	//*** for each cube, get the size & start of cube particles (in particleId array)
+	// for each cube, get the size & start of cube particles (in particleId array)
 	void getSizeAndStartOfCubes()
 	{
 		cubeMapping.resize(numOfCubes);
@@ -575,15 +573,6 @@ out.close();
 				n = *(n.parentSuper);
 				std::cout << " - parentSuper (" << n.value << "," << n.nodeId << "," << n.haloId << ")";
 			}
-/*
-			n = ((Node)nodes[i]);
-			std::cout << " - sibling ";
-			while(n.sibling!=NULL)
-			{
-				n = *(n.sibling);
-				std::cout << "(" << n.value << "," << n.nodeId << "," << n.haloId << ")";
-			}
-*/
 			std::cout << std::endl;
 		}
 
@@ -904,10 +893,8 @@ out.close();
     __host__ __device__
     bool operator()(int i)
     {
-			if(i==chunks-1) 
-				sizeOfChunks[i] = cubes - startOfChunks[i];
-			else 
-				sizeOfChunks[i] = startOfChunks[i+1] - startOfChunks[i];
+			if(i==chunks-1) sizeOfChunks[i] = cubes - startOfChunks[i];
+			else sizeOfChunks[i] = startOfChunks[i+1] - startOfChunks[i];
     }
  	};
 
@@ -1315,7 +1302,6 @@ out.close();
 						des->childE = NULL;
 						des->sibling = NULL;
 					}
-
 
 
 

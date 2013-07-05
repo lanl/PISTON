@@ -50,7 +50,8 @@ Author: Christopher Sewell, csewell@lanl.gov
 #define INPUT_SIZE 24474 //524288
 
 // Typedefs for convenience
-typedef typename thrust::counting_iterator<int>	CountingIterator;
+//typedef typename thrust::counting_iterator<int>	CountingIterator;
+typedef thrust::counting_iterator<int>	CountingIterator;
 
 
 //===========================================================================

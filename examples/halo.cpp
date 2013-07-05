@@ -166,7 +166,7 @@ int main(int argc, char* argv[])
   (*halo)(linkLength, particleSize);
   thrust::device_vector<int> d = halo->getHalos();
 
-	compareWithVtk("/home/wathsy/Cosmo/PISTONSampleData/35015Results2/35015_Vtk.txt", halo->numOfParticles, d);
+	compareWithVtk("/home/wathsy/Cosmo/PISTONSampleData/35015Results2/140060_Vtk.txt", halo->numOfParticles, d);
 
   //----------------------------
 
