@@ -154,7 +154,7 @@ public:
 		std::cout << "readData \n";
 
     // open input file
-    std::ifstream *myfile = new std::ifstream("/home/wathsy/Cosmo/PISTONSampleData/35015Results2/1120480.txt", std::ios::in);
+    std::ifstream *myfile = new std::ifstream("/home/wathsy/Cosmo/PISTONSampleData/35015Results2/35015.txt", std::ios::in);
     if (!myfile->is_open()) {   std::cout << "File cannot be opened \n"; return; }
 
     std::vector<Point> vec;

@@ -54,35 +54,42 @@ bool compareResults(thrust::device_vector<int> a, thrust::device_vector<int> b, 
 	return false;
 }
 
+bool compareWithVtk(string filename, int numOfParticles, thrust::device_vector<int> d)
+{
+	int num = 0;
+	std::string line;
+	thrust::device_vector<int> items(numOfParticles);
+
+	std::ifstream *myfile = new std::ifstream(filename.c_str(), std::ios::in);
+	while(!myfile->eof())
+	{
+		getline(*myfile,line);
+
+		if(line=="") continue;
+
+		if(num<numOfParticles)
+			items[num++] = atof(strtok((char*)line.c_str(), " "));
+
+		for(int i=1; i<15; i++)
+		{
+			if(num<numOfParticles)
+				items[num++] = atof(strtok(NULL, " "));
+		}
+	}
+
+	int count = 0;
+	for(int i=0; i<numOfParticles; i++)
+	{
+		if(d[i] != items[i])
+			count++;
+	}
+
+	std::string output = (count==0) ? "Vtk vs Mergetree - Result is the same" : "Vtk vs Mergetree - Result is NOT the same";
+	std::cout << output << std::endl << std::endl;
+}
+
 int main(int argc, char* argv[])
 {
-/*
-  thrust::default_random_engine rng;
-  thrust::uniform_real_distribution<float> u01;
-
-	int N = 100000;
-	float max = 1000.0f;
-	float min = 0.0f;
-
-	u01 = thrust::uniform_real_distribution<float>(min, max);
-
-	thrust::host_vector<int>   tmp1(N);
-	thrust::host_vector<int>   tmp2(N);
-	thrust::host_vector<int>   tmp3(N);
-  for(size_t i = 0; i < N; i++) tmp1[i] = u01(rng)*(max-min) + min;
-	
-	thrust::stable_sort_by_key(tmp1.begin(), tmp1.end(), tmp2.begin());
-
-	struct timeval begin, end, diff;
-  gettimeofday(&begin, 0);
-	thrust::reduce_by_key(tmp2.begin(), tmp2.end(), thrust::constant_iterator<int>(1), tmp1.begin(), tmp3.begin());
-	gettimeofday(&end, 0);
-  timersub(&end, &begin, &diff);
-  float seconds = diff.tv_sec + 1.0E-6*diff.tv_usec;
-  std::cout << "Time elapsed0: " << seconds << std::endl << std::flush;
-*/
-//--------------------------
-
   halo *halo;
 
   float linkLength, max_linkLength, min_linkLength, rL;
@@ -159,6 +166,8 @@ int main(int argc, char* argv[])
   (*halo)(linkLength, particleSize);
   thrust::device_vector<int> d = halo->getHalos();
 
+	compareWithVtk("/home/wathsy/Cosmo/PISTONSampleData/35015Results2/35015_Vtk.txt", halo->numOfParticles, d);
+
   //----------------------------
 
 //  std::cout << "Comparing results" << std::endl;
@@ -172,45 +181,7 @@ int main(int argc, char* argv[])
 
 //	std::cout << "a "; thrust::copy(a.begin(), a.begin()+halo->numOfParticles, std::ostream_iterator<int>(std::cout, " "));   std::cout << std::endl << std::endl;
 //  std::cout << "c "; thrust::copy(c.begin(), c.begin()+halo->numOfParticles, std::ostream_iterator<int>(std::cout, " "));   std::cout << std::endl << std::endl;
-//  std::cout << "d "; thrust::copy(d.begin(), d.begin()+halo->numOfParticles, std::ostream_iterator<int>(std::cout, " "));   std::cout << std::endl << std::endl;
-
-//----------
-
-int num = 0;
-std::string line;
-thrust::device_vector<int> items(halo->numOfParticles);
-
-std::ifstream *myfile = new std::ifstream("/home/wathsy/Cosmo/PISTONSampleData/35015Results2/1120480_Vtk.txt", std::ios::in);
-std::cout << "file reading started "<< std::endl;
-while(!myfile->eof())
-{
-	getline(*myfile,line);
-
-	if(line=="") continue;
-
-	if(num<halo->numOfParticles)
-		items[num++] = atof(strtok((char*)line.c_str(), " "));
-
-	for(int i=1; i<15; i++)
-	{
-		if(num<halo->numOfParticles)
-			items[num++] = atof(strtok(NULL, " "));
-	}
-}
-
-std::cout << "file read "<< std::endl;
-int count = 0;
-for(int i=0; i<halo->numOfParticles; i++)
-{
-	if(d[i] != items[i])
-	{ 
-		//std::cout << d[i] << " " << items[i] << std::endl;
-		count++;
-	}
-}
-std::cout << "count " << count << std::endl;
-
-//----------
+//  std::cout << "d "; thrust::copy(d.begin(), d.begin()+halo->numOfParticles, std::ostream_iterator<int>(std::cout, " "));   std::cout << std::endl << std::endl;	
 
   return 0;
 }
