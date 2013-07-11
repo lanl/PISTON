@@ -284,17 +284,23 @@ public:
 	  new_end = thrust::remove_if(tmpIntArray1.begin(), tmpIntArray1.begin()+numOfParticles,
 				invalidHalo(thrust::raw_pointer_cast(&*haloIndex.begin())));
 
-	  numOfHaloParticles = new_end - tmpIntArray1.begin();
+	  numOfHaloParticles_f = new_end - tmpIntArray1.begin();
 
-		haloIndex_f.resize(numOfHaloParticles);
-	  inputX_f.resize(numOfHaloParticles);
-    inputY_f.resize(numOfHaloParticles);
-    inputZ_f.resize(numOfHaloParticles);
+		haloIndex_f.resize(numOfHaloParticles_f);
+	  inputX_f.resize(numOfHaloParticles_f);
+    inputY_f.resize(numOfHaloParticles_f);
+    inputZ_f.resize(numOfHaloParticles_f);
 
-		thrust::gather(tmpIntArray1.begin(), tmpIntArray1.begin()+numOfHaloParticles, haloIndex.begin(), haloIndex_f.begin());
-		thrust::gather(tmpIntArray1.begin(), tmpIntArray1.begin()+numOfHaloParticles, inputX.begin(), inputX_f.begin());
-		thrust::gather(tmpIntArray1.begin(), tmpIntArray1.begin()+numOfHaloParticles, inputY.begin(), inputY_f.begin());
-		thrust::gather(tmpIntArray1.begin(), tmpIntArray1.begin()+numOfHaloParticles, inputZ.begin(), inputZ_f.begin());
+		thrust::gather(tmpIntArray1.begin(), tmpIntArray1.begin()+numOfHaloParticles_f, haloIndex.begin(), haloIndex_f.begin());
+		thrust::gather(tmpIntArray1.begin(), tmpIntArray1.begin()+numOfHaloParticles_f, inputX.begin(), inputX_f.begin());
+		thrust::gather(tmpIntArray1.begin(), tmpIntArray1.begin()+numOfHaloParticles_f, inputY.begin(), inputY_f.begin());
+		thrust::gather(tmpIntArray1.begin(), tmpIntArray1.begin()+numOfHaloParticles_f, inputZ.begin(), inputZ_f.begin());
+/*
+std::cout << "inputX_f		"; thrust::copy(inputX_f.begin(), inputX_f.begin()+numOfHaloParticles_f, std::ostream_iterator<float>(std::cout, " "));   std::cout << std::endl << std::endl;
+std::cout << "inputY_f		"; thrust::copy(inputY_f.begin(), inputY_f.begin()+numOfHaloParticles_f, std::ostream_iterator<float>(std::cout, " "));   std::cout << std::endl << std::endl;
+std::cout << "inputZ_f		"; thrust::copy(inputZ_f.begin(), inputZ_f.begin()+numOfHaloParticles_f, std::ostream_iterator<float>(std::cout, " "));   std::cout << std::endl << std::endl;
+std::cout << "haloIndex_f	"; thrust::copy(haloIndex_f.begin(), haloIndex_f.begin()+numOfHaloParticles_f, std::ostream_iterator<int>(std::cout, " "));   std::cout << std::endl << std::endl;
+*/
 	}
 
 	struct invalidHalo : public thrust::unary_function<int, bool>
@@ -507,7 +513,10 @@ public:
 	void outputCubeDetails(std::string title)
 	{
 		std::cout << title << std::endl << std::endl;
-
+std::cout << "inputX		"; thrust::copy(inputX.begin(), inputX.begin()+numOfParticles, std::ostream_iterator<float>(std::cout, " "));   std::cout << std::endl << std::endl;
+		std::cout << "inputY		"; thrust::copy(inputY.begin(), inputY.begin()+numOfParticles, std::ostream_iterator<float>(std::cout, " "));   std::cout << std::endl << std::endl;
+		std::cout << "inputZ		"; thrust::copy(inputZ.begin(), inputZ.begin()+numOfParticles, std::ostream_iterator<float>(std::cout, " "));   std::cout << std::endl << std::endl;
+		std::cout << "sizeOfCube	"; thrust::copy(particleSizeOfCubes.begin(), particleSizeOfCubes.begin()+numOfCubes, std::ostream_iterator<int>(std::cout, " "));   std::cout << std::endl << std::endl;
 		std::cout << std::endl << "-- Outputs------------" << std::endl << std::endl;
 
 		std::cout << "-- Dim    (" << lBoundS.x << "," << lBoundS.y << "," << lBoundS.z << "), (";
@@ -815,11 +824,11 @@ public:
 
 		std::cout << "maxSize " << *maxSize << " chunks " << chunks << std::endl;
 /*
-		std::cout << "startOfChunks	 "; thrust::copy(startOfChunks.begin(), startOfChunks.begin()+100, std::ostream_iterator<int>(std::cout, " ")); std::cout << std::endl << std::endl;
-		std::cout << "sizeOfChunks	 "; thrust::copy(sizeOfChunks.begin(), sizeOfChunks.begin()+100, std::ostream_iterator<int>(std::cout, " ")); std::cout << std::endl << std::endl;
+		std::cout << "startOfChunks	 "; thrust::copy(startOfChunks.begin(), startOfChunks.begin()+chunks, std::ostream_iterator<int>(std::cout, " ")); std::cout << std::endl << std::endl;
+		std::cout << "sizeOfChunks	 "; thrust::copy(sizeOfChunks.begin(), sizeOfChunks.begin()+chunks, std::ostream_iterator<int>(std::cout, " ")); std::cout << std::endl << std::endl;
 
 		std::cout << "amountOfChunks	 ";
-		for(int i=0; i<100; i++)
+		for(int i=0; i<chunks; i++)
 		{
 			int count = 0;
 			for(int j=startOfChunks[i]; j<startOfChunks[i]+sizeOfChunks[i]; j++)
@@ -845,7 +854,33 @@ public:
 								 thrust::raw_pointer_cast(&*edges.begin()),
 								 thrust::raw_pointer_cast(&*edgeSizeOfCubes.begin()),
 								 thrust::raw_pointer_cast(&*edgeStartOfCubes.begin())));		
+/*
+		for(int i=0; i<chunks; i++)
+		{
+	    struct timeval begin, end, diff;
+  		gettimeofday(&begin, 0);
+			thrust::for_each(CountingIterator(i), CountingIterator(i)+1,
+				getEdges(thrust::raw_pointer_cast(&*particleStartOfCubes.begin()),
+								 thrust::raw_pointer_cast(&*particleSizeOfCubes.begin()),
+								 thrust::raw_pointer_cast(&*startOfChunks.begin()),
+								 thrust::raw_pointer_cast(&*sizeOfChunks.begin()),
+								 thrust::raw_pointer_cast(&*cubeMapping.begin()),
+								 thrust::raw_pointer_cast(&*cubeMappingInv.begin()),
+								 thrust::raw_pointer_cast(&*inputX.begin()),
+								 thrust::raw_pointer_cast(&*inputY.begin()),
+								 thrust::raw_pointer_cast(&*inputZ.begin()),
+								 thrust::raw_pointer_cast(&*particleId.begin()),
+								 max_ll, min_ll, ite, cubesInX, cubesInY, cubesInZ, side,
+								 thrust::raw_pointer_cast(&*edges.begin()),
+								 thrust::raw_pointer_cast(&*edgeSizeOfCubes.begin()),
+								 thrust::raw_pointer_cast(&*edgeStartOfCubes.begin())));
+			gettimeofday(&end, 0);
 
+			timersub(&end, &begin, &diff);
+    float seconds = diff.tv_sec + 1.0E-6*diff.tv_usec;
+    std::cout << "Time elapsed....: " << seconds << " s for chunk " << i << std::endl << std::flush;		
+		}
+*/
 		numOfEdges = thrust::reduce(edgeSizeOfCubes.begin(), edgeSizeOfCubes.begin()+cubes);
 
 		std::cout << "numOfEdges after " << numOfEdges << std::endl;
@@ -934,6 +969,7 @@ public:
 		__host__ __device__
 		void operator()(int i)
 		{	
+//			int early=0;
 			for(int l=startOfChunks[i]; l<startOfChunks[i]+sizeOfChunks[i]; l++)
 			{		
 				int i_mapped = cubeMapping[l];
@@ -965,7 +1001,11 @@ public:
 						cube = cubeMappingInv[cube_mapped];
 					}
 
-					if(cube_mapped==-1 || particleSizeOfCubes[i]==0 || particleSizeOfCubes[cube]==0) continue;
+					if(cube_mapped==-1 || particleSizeOfCubes[i]==0 || particleSizeOfCubes[cube]==0)
+					{
+//						early++;
+						continue;
+					}
 
 					Edge  e;
 					float dist_min = max_ll+1;					
@@ -997,7 +1037,11 @@ public:
 									dist_min = dist;		
 									e = Edge(srcV, desV, dist);		
 
-									if(dist_min <= min_ll) goto loop;
+									if(dist_min <= min_ll)
+									{
+//										early++;
+										goto loop;
+									}
 								}							
 							}			
 						}
@@ -1012,6 +1056,8 @@ public:
 					}
 				}
 			}
+
+//			std::cout << "finished early count " << early << " of " << sizeOfChunks[i]*ite << " ";
 		}
 	};
 

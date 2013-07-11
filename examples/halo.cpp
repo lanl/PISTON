@@ -125,11 +125,11 @@ int main(int argc, char* argv[])
 //  std::string format = "csv";
 //  sprintf(filename, "%s/30019-sameCube", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
 //  std::string format = "csv";
-//  sprintf(filename, "%s/35015-sameCube", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
-//  std::string format = "csv";
-
-  sprintf(filename, "/home/wathsy/Cosmo/35015-sameCube", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
+  sprintf(filename, "%s/35015-sameCube", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
   std::string format = "csv";
+
+//  sprintf(filename, "/home/wathsy/Cosmo/35015-sameCube", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
+//  std::string format = "csv";
 //	sprintf(filename, "/home/wathsy/Cosmo/256", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
 //  std::string format = "cosmo";
 
@@ -166,7 +166,7 @@ int main(int argc, char* argv[])
   (*halo)(linkLength, particleSize);
   thrust::device_vector<int> d = halo->getHalos();
 
-	compareWithVtk("/home/wathsy/Cosmo/PISTONSampleData/35015Results2/140060_Vtk.txt", halo->numOfParticles, d);
+//	compareWithVtk("/home/wathsy/Cosmo/PISTONSampleData/35015Results2/140060_Vtk.txt", halo->numOfParticles, d);
 
   //----------------------------
 

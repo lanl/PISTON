@@ -160,9 +160,9 @@ void GLWindow::initializeGL()
     step = 0.05;
 
     max_linkLength = 2;
-    min_linkLength = 0;
-    linkLength   = 0.2;
-    particleSize = 100;
+    min_linkLength = 1;
+    linkLength     = 1;
+    particleSize   = 100;
     np = 256;
     rL = 64;
     n  = 1; //if you want a fraction of the file to load, use this.. 1/n
@@ -173,7 +173,7 @@ void GLWindow::initializeGL()
 //    sprintf(filename, "%s/256", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
 //    std::string format = "cosmo";
 
-    haloFinder = new halo_merge(min_linkLength, max_linkLength, filename, format, n, np, rL); // maxLL as a parameter
+    haloFinder = new halo_merge(min_linkLength, max_linkLength, true, filename, format, n, np, rL);
 
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_COLOR_ARRAY);
@@ -192,26 +192,19 @@ struct tuple2float3 : public thrust::unary_function<Float3, float3>
 
 struct setColor
 {
-  int *halos;
   float4 *color;
   float *R, *G, *B;
+	bool useF;
 
   __host__ __device__
-  setColor(int *halos, float4 *color,
-      float *R, float *G, float *B) :
-      halos(halos), color(color),
-      R(R), G(G), B(B) {}
+  setColor(float4 *color, float *R, float *G, float *B, bool useF=false) :
+      color(color), R(R), G(G), B(B), useF(useF) {}
 
   __host__ __device__
   void operator()(int i)
   {
-    if (halos[i]==-1)
-      color[i] = make_float4(0,0,0,1);
-    else
-    {
-      int haloIndU  = haloFinder->getHaloInd(i);
-      color[i] = make_float4(R[haloIndU],G[haloIndU],B[haloIndU],1);
-    }
+    int haloIndU  = haloFinder->getHaloInd(i, useF);
+    color[i] = make_float4(R[haloIndU],G[haloIndU],B[haloIndU],1);
   }
 };
 
@@ -236,23 +229,21 @@ void GLWindow::paintGL()
 
     glTranslatef(-(grid_size-1)/2, -(grid_size-1)/2, -(grid_size-1)/2);
 
-    //-----------------
-/*
 		if(haloFound && haloShow)
     {
-			vertices.resize(haloFinder->numOfHaloParticles);
-			colors.resize(haloFinder->numOfHaloParticles);
+			vertices.resize(haloFinder->numOfHaloParticles_f);
+			colors.resize(haloFinder->numOfHaloParticles_f);
 
 			thrust::copy(thrust::make_transform_iterator(haloFinder->vertices_begin_f(), tuple2float3()),
                  thrust::make_transform_iterator(haloFinder->vertices_end_f(),   tuple2float3()),
                  vertices.begin());
 
-      thrust::for_each(CountingIterator(0), CountingIterator(0)+haloFinder->numOfHaloParticles,
-          setColor(thrust::raw_pointer_cast(&*haloFinder->halos_begin_f()),
-                   thrust::raw_pointer_cast(&*colors.begin()),
+      thrust::for_each(CountingIterator(0), CountingIterator(0)+haloFinder->numOfHaloParticles_f,
+          setColor(thrust::raw_pointer_cast(&*colors.begin()),
                    thrust::raw_pointer_cast(&*haloFinder->haloColorsR.begin()),
                    thrust::raw_pointer_cast(&*haloFinder->haloColorsG.begin()),
-                   thrust::raw_pointer_cast(&*haloFinder->haloColorsB.begin())));
+                   thrust::raw_pointer_cast(&*haloFinder->haloColorsB.begin()),
+									 true));
     }
     else
     {
@@ -265,31 +256,6 @@ void GLWindow::paintGL()
 
       thrust::fill(colors.begin(), colors.end(), make_float4(1,0,0,1));
     }
-*/
-    //-----------------
-
-		vertices.resize(haloFinder->numOfParticles);
-    colors.resize(haloFinder->numOfParticles);
-
-    thrust::copy(thrust::make_transform_iterator(haloFinder->vertices_begin(), tuple2float3()),
-                 thrust::make_transform_iterator(haloFinder->vertices_end(),   tuple2float3()),
-                 vertices.begin());
-
-    if(haloFound && haloShow)
-    {
-      thrust::for_each(CountingIterator(0), CountingIterator(0)+haloFinder->numOfParticles,
-          setColor(thrust::raw_pointer_cast(&*haloFinder->halos_begin()),
-                   thrust::raw_pointer_cast(&*colors.begin()),
-                   thrust::raw_pointer_cast(&*haloFinder->haloColorsR.begin()),
-                   thrust::raw_pointer_cast(&*haloFinder->haloColorsG.begin()),
-                   thrust::raw_pointer_cast(&*haloFinder->haloColorsB.begin())));
-    }
-    else
-    {
-      thrust::fill(colors.begin(), colors.end(), make_float4(1,0,0,1));
-    }
-
-    //-----------------
 
     glColorPointer(4, GL_FLOAT, 0, &colors[0]);
     glVertexPointer(3, GL_FLOAT, 0, &vertices[0]);

@@ -100,6 +100,7 @@ public:
   thrust::device_vector<int>    haloIndexUnique;           // unique halo indexes
   thrust::device_vector<float>  haloColorsR, haloColorsG, haloColorsB; // colors for each halo
 
+	int numOfHaloParticles_f;
 	thrust::device_vector<int>    haloIndex_f;	  			      
   thrust::device_vector<float>  inputX_f, inputY_f, inputZ_f;    
 
@@ -214,8 +215,8 @@ public:
 
 	void writeData()
 	{
-		string filename = convertInt(numOfParticles) + ".txt";
-		ofstream out(filename.c_str(), std::ofstream::out);	
+		std::string filename = convertInt(numOfParticles) + ".txt";
+		std::ofstream out(filename.c_str(), std::ofstream::out);	
 		for(int i=0; i<numOfParticles; i++)
 			out << inputX[i] << " " << inputY[i] << " " << inputZ[i] << std::endl;
 		out.close();
@@ -301,9 +302,9 @@ public:
 		writeData();
 	}	
 
-	string convertInt(int number)
+	std::string convertInt(int number)
 	{
-		stringstream ss;//create a stringstream
+		std::stringstream ss;//create a stringstream
 		ss << number;//add number to the stream
 		return ss.str();//return a string with the contents of the stream
 	}
@@ -375,11 +376,10 @@ public:
   }
 
   // get the index in haloIndexUnique for a halo i
-  int getHaloInd(int i)
+  int getHaloInd(int i, bool useF=false)
   {
-    IntIterator ite = thrust::find(haloIndexUnique.begin(), haloIndexUnique.begin()+numOfHalos, haloIndex[i]);		inputX.resize(numOfParticles);
-		inputY.resize(numOfParticles);
-		inputZ.resize(numOfParticles);
+		int id = (useF) ? haloIndex_f[i] : haloIndex[i];
+    IntIterator ite = thrust::find(haloIndexUnique.begin(), haloIndexUnique.begin()+numOfHalos, id);		
     return (ite!=haloIndexUnique.begin()+numOfHalos) ? ite - haloIndexUnique.begin() : -1;
   }
 
@@ -568,8 +568,8 @@ public:
 		thrust::copy(haloIndex.begin(), haloIndex.end(), a.begin());
 		thrust::sequence(b.begin(), b.end());
 
-		string filename = convertInt(numOfParticles) + "_MTree.txt";
-		ofstream out(filename.c_str(), std::ofstream::out); 
+		std::string filename = convertInt(numOfParticles) + "_MTree.txt";
+		std::ofstream out(filename.c_str(), std::ofstream::out); 
 		for(int i=0; i<numOfParticles; i++)
 		{
 			if(i%15==0) out << "\n";
@@ -619,8 +619,7 @@ public:
   }
 
 
-  // get unique halo ids & numOfHalos, Right now the halo id is not set to the smallest partucle id in the halo
-  // there is a code you can comment out if you want to do that.
+  // get unique halo ids & numOfHalos
   void getUniqueHalos(int particleSize)
   {
     thrust::device_vector<int> haloUnique(numOfParticles);
@@ -646,7 +645,7 @@ public:
 		for(int i=0; i<numOfInvalidHalos; i++)
 			thrust::replace(haloIndex.begin(), haloIndex.end(), ((int)a[i]), -1);
 
-		// get the number of halid halos & their ids
+		// get the number of valid halos & their ids
 		new_end  = thrust::reduce_by_key(haloUnique.begin(), haloUnique.end(), haloSize.begin(), a.begin(), b.begin());
 		new_end1 = thrust::remove_if(a.begin(), thrust::get<0>(new_end), b.begin(), invalidHalo(particleSize));
 
