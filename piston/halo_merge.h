@@ -128,8 +128,8 @@ public:
 
 			std::cout << "-- globalStep done" << std::endl;
 
-			checkValidMergeTree();
-
+			checkValidMergeTree(); 
+			getSizeOfMergeTree(); 
 			clearSuperParents();
 
 			particleId.clear();
@@ -188,7 +188,6 @@ public:
 		std::cout << "Time elapsed: " << seconds << " s for finding halos at linking length " << linkLength << " and has particle size >= " << particleSize << std::endl << std::flush;
 		std::cout << "Total time elapsed: " << totalTime << " s" << std::endl << std::endl;
 
-		getSizeOfMergeTree(); // get the size of merge tree
 		getNumOfHalos();      // get the unique halo ids & set numOfHalos
 		getHaloParticles();   // get the halo particles & set numOfHaloParticles
 		setColors();          // set colors to halos
