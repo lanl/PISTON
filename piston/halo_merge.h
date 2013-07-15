@@ -198,6 +198,7 @@ public:
 		std::cout << "Merge tree size : " << mergetreeSize << std::endl;
     std::cout << "Min_ll  : " << min_ll  << std::endl;
     std::cout << "Max_ll  : " << max_ll << std::endl << std::endl;
+		std::cout << "-----------------------------" << std::endl << std::endl;
 	}
 
 	// find halo ids

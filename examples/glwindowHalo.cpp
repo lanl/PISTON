@@ -52,7 +52,7 @@ using namespace piston;
 #include <stdio.h>
 #include <math.h>
 
-#include "glwindow.h"
+#include "glwindowHalo.h"
 
 #define STRINGIZE(x) #x
 #define STRINGIZE_VALUE_OF(x) STRINGIZE(x)
@@ -66,11 +66,10 @@ halo *haloFinder;
 
 // parameters needed for the halo_finder (look at halo_finder.h for definitions)
 float linkLength, max_linkLength, min_linkLength;
-int   particleSize, rL, np, n;
+int   particleSize, max_particleSize, min_particleSize;
+int   rL, np, n;
 
 bool  haloFound, haloShow;
-bool  particleSizeSelected, linkLengthSelected;
-float step;
 
 typedef thrust::tuple<float, float, float> Float3;
 typedef thrust::device_vector<float>::iterator FloatIterator;
@@ -82,7 +81,7 @@ typedef thrust::device_vector<int>::iterator   IntIterator;
 thrust::host_vector<float3> vertices;
 thrust::host_vector<float4> colors;
 
-GLWindow::GLWindow(QWidget *parent) : QGLWidget(QGLFormat(QGL::SampleBuffers), parent)
+GLWindowHalo::GLWindowHalo(QWidget *parent) : QGLWidget(QGLFormat(QGL::SampleBuffers), parent)
 {
   setFocusPolicy(Qt::StrongFocus);
   timer = new QTimer(this);
@@ -90,30 +89,49 @@ GLWindow::GLWindow(QWidget *parent) : QGLWidget(QGLFormat(QGL::SampleBuffers), p
   timer->start(1);
 }
 
-
-GLWindow::~GLWindow()
+GLWindowHalo::~GLWindowHalo()
 {
 
 }
 
-QSize GLWindow::minimumSizeHint() const
+QSize GLWindowHalo::minimumSizeHint() const
 {
   return QSize(100, 100);
 }
 
-
-QSize GLWindow::sizeHint() const
+QSize GLWindowHalo::sizeHint() const
 {
   return QSize(1024, 1024);
 }
 
-
-bool GLWindow::initialize(int argc, char *argv[])
+bool GLWindowHalo::initialize(int argc, char *argv[])
 {
+  haloFound = haloShow = false;
+
+  max_linkLength = 2;
+  min_linkLength = 1;
+  linkLength     = min_linkLength;
+	
+	max_particleSize = 200;
+	min_particleSize = 1;
+  particleSize     = min_particleSize;	
+
+  np = 256;
+  rL = 64;
+  n  = 1; //if you want a fraction of the file to load, use this.. 1/n
+
+  char filename[1024];
+  sprintf(filename, "%s/sub-24474", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
+  std::string format = "csv";
+//    sprintf(filename, "%s/256", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
+//    std::string format = "cosmo";
+
+  haloFinder = new halo_merge(min_linkLength, max_linkLength, true, filename, format, n, np, rL);
+
   return true;
 }
 
-void GLWindow::initializeGL()
+void GLWindowHalo::initializeGL()
 {
   qrot.set(0,0,0,1);
 
@@ -149,26 +167,6 @@ void GLWindow::initializeGL()
             0.0, 0.0, 0.0,
             0.0, 1.0, 0.0);
 
-  particleSizeSelected = false;
-  linkLengthSelected   = true;
-  haloFound = haloShow = false;
-  step = 0.025;
-  max_linkLength = 2;
-  min_linkLength = 1;
-  linkLength     = 1;
-  particleSize   = 100;
-  np = 256;
-  rL = 64;
-  n  = 1; //if you want a fraction of the file to load, use this.. 1/n
-
-  char filename[1024];
-  sprintf(filename, "%s/sub-24474", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
-  std::string format = "csv";
-//    sprintf(filename, "%s/256", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
-//    std::string format = "cosmo";
-
-  haloFinder = new halo_merge(min_linkLength, max_linkLength, true, filename, format, n, np, rL);
-
   glEnableClientState(GL_VERTEX_ARRAY);
   glEnableClientState(GL_COLOR_ARRAY);
 }
@@ -202,7 +200,7 @@ struct setColor
   }
 };
 
-void GLWindow::paintGL()
+void GLWindowHalo::paintGL()
 {
   timer->stop();
 
@@ -272,19 +270,19 @@ void GLWindow::paintGL()
   timer->start(1);
 }
 
-void GLWindow::resizeGL(int width, int height)
+void GLWindowHalo::resizeGL(int width, int height)
 {
   glViewport(0, 0, width, height);
 }
 
 
-void GLWindow::mousePressEvent(QMouseEvent *event)
+void GLWindowHalo::mousePressEvent(QMouseEvent *event)
 {
   lastPos = event->pos();
 }
 
 
-void GLWindow::mouseMoveEvent(QMouseEvent *event)
+void GLWindowHalo::mouseMoveEvent(QMouseEvent *event)
 {
   int dx = event->x() - lastPos.x();
   int dy = event->y() - lastPos.y();
@@ -306,49 +304,64 @@ void GLWindow::mouseMoveEvent(QMouseEvent *event)
   lastPos = event->pos();
 }
 
-
-void GLWindow::keyPressEvent(QKeyEvent *event)
+void GLWindowHalo::setHaloShow(bool val)
 {
-  //toggle between showing halos
-  if ((event->key() == 'h') || (event->key() == 'H')) 
-  {
-    if (!haloShow && !haloFound)
-    {
-      (*haloFinder)(linkLength, particleSize);
-      haloFound = true;
-    }
-    haloShow = !haloShow;
-  }
+	haloShow = val;
 
-  //toggle between changing linkLength & particleSize
-  if ((event->key() == 't') || (event->key() == 'T')) 
-  {
-    particleSizeSelected = !particleSizeSelected;
-    linkLengthSelected   = !linkLengthSelected;
+	if(!haloFound)
+	{
+		setLinkLengthValue(QString::number(linkLength));
+		setParticleSizeValue(QString::number(particleSize));
 
-    std::cout << (linkLengthSelected ? "linkLength Selected": "particleSize Selected") << std::endl;
-  }
-
-  if ((event->key() == '+') || (event->key() == '='))
-  {
-    if (linkLengthSelected) linkLength += step;
-    else if (particleSizeSelected) particleSize += step;
-
-    std::cout << "new input..." << std::endl;
-    std::cout << "linkLength : " << linkLength << ", particleSize : " << particleSize << std::endl;
-
-    (*haloFinder)(linkLength, particleSize);
-  }
-  else if ((event->key() == '-') || (event->key() == '_'))
-  {
-    if (linkLengthSelected) linkLength -= step;
-    else if (particleSizeSelected) particleSize -= step;
-
-    std::cout << "new input..." << std::endl;
-    std::cout << "linkLength : " << linkLength << ", particleSize : " << particleSize << std::endl;
-
-    (*haloFinder)(linkLength, particleSize);
-  }
+		(*haloFinder)(linkLength, particleSize);
+		haloFound = true;		
+	}
+	
+	std::string str = "";
+	if(haloShow)
+	{
+		std::stringstream ss;
+		ss << haloFinder->numOfHalos;
+		str = "Halos Found : " + ss.str();		
+	}
+	setHaloInfo(QString(str.c_str()));
 }
+
+void GLWindowHalo::setLinkLength(int val)
+{
+	linkLength =  (max_linkLength-min_linkLength)*((float)val/99) + min_linkLength;
+
+	setLinkLengthValue(QString::number(linkLength));
+  (*haloFinder)(linkLength, particleSize);
+	haloFound = true;
+
+	std::string str = "";
+	if(haloShow)
+	{
+		std::stringstream ss;
+		ss << haloFinder->numOfHalos;
+		str = "Halos Found : " + ss.str();		
+	}
+	setHaloInfo(QString(str.c_str()));
+}
+
+void GLWindowHalo::setParticleSize(int val)
+{
+	particleSize = (max_particleSize-min_particleSize)*((float)val/99) + min_particleSize;
+
+	setParticleSizeValue(QString::number(particleSize));
+  (*haloFinder)(linkLength, particleSize);
+	haloFound = true;
+
+	std::string str = "";
+	if(haloShow)
+	{
+		std::stringstream ss;
+		ss << haloFinder->numOfHalos;
+		str = "Halos Found : " + ss.str();		
+	}
+	setHaloInfo(QString(str.c_str()));
+}
+
 
 

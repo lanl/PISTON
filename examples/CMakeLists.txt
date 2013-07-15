@@ -18,13 +18,17 @@ if (ENABLE_INTEROP)
   set(GPU_FLAGS "-DUSE_INTEROP")
 endif ()
 
-
 set(ex_HEADERS glwindow.h)
 set(ex_FORMS example.ui)
 set(ex_SOURCES example.cpp ${CMAKE_SOURCE_DIR}/piston/util/quaternion.cpp)
 QT4_WRAP_CPP(ex_HEADERS_MOC ${ex_HEADERS})
 QT4_WRAP_UI(ex_FORMS_HEADERS ${ex_FORMS})
 
+set(halo_HEADERS glwindowHalo.h)
+set(halo_FORMS exampleHalo.ui)
+set(halo_SOURCES exampleHalo.cpp ${CMAKE_SOURCE_DIR}/piston/util/quaternion.cpp)
+QT4_WRAP_CPP(halo_HEADERS_MOC ${halo_HEADERS})
+QT4_WRAP_UI(halo_FORMS_HEADERS ${halo_FORMS})
 
 if (USE_CUDA)
   cuda_add_executable(tangleGPU glwindow.cu ${ex_SOURCES} ${ex_HEADERS_MOC} ${ex_FORMS_HEADERS} OPTIONS "-DTANGLE" ${GPU_FLAGS})
@@ -39,7 +43,7 @@ if (USE_CUDA)
   cuda_add_executable(haloGPU halorender.cu ${ex_SOURCES} ${ex_HEADERS_MOC} ${ex_FORMS_HEADERS} OPTIONS "-DHALO" ${GPU_FLAGS} "-DDATA_DIRECTORY=${DATA_DIR}")
   target_link_libraries(haloGPU GLEW pthread ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES} ${QT_LIBRARIES})
 
-  cuda_add_executable(haloMergeTreeGPU glwindowHalo.cu ${ex_SOURCES} ${ex_HEADERS_MOC} ${ex_FORMS_HEADERS} OPTIONS "-DHALO" ${GPU_FLAGS} "-DDATA_DIRECTORY=${DATA_DIR}")
+  cuda_add_executable(haloMergeTreeGPU glwindowHalo.cu ${halo_SOURCES} ${halo_HEADERS_MOC} ${halo_FORMS_HEADERS} OPTIONS "-DHALO" ${GPU_FLAGS} "-DDATA_DIRECTORY=${DATA_DIR}")
   target_link_libraries(haloMergeTreeGPU GLEW pthread ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES} ${QT_LIBRARIES})
 
   cuda_add_executable(haloTestGPU halo.cu OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}")
@@ -79,7 +83,7 @@ add_executable(haloOMP halorender.cpp ${ex_SOURCES} ${ex_HEADERS_MOC} ${ex_FORMS
 set_target_properties(haloOMP PROPERTIES COMPILE_FLAGS "-fopenmp -DHALO -DTHRUST_DEVICE_BACKEND=THRUST_DEVICE_BACKEND_OMP -DDATA_DIRECTORY=${DATA_DIR}")
 target_link_libraries(haloOMP GLEW pthread gomp ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES} ${QT_LIBRARIES})
 
-add_executable(haloMergeTreeOMP glwindowHalo.cpp ${ex_SOURCES} ${ex_HEADERS_MOC} ${ex_FORMS_HEADERS})
+add_executable(haloMergeTreeOMP glwindowHalo.cpp ${halo_SOURCES} ${halo_HEADERS_MOC} ${halo_FORMS_HEADERS})
 set_target_properties(haloMergeTreeOMP PROPERTIES COMPILE_FLAGS "-fopenmp -DHALO -DTHRUST_DEVICE_BACKEND=THRUST_DEVICE_BACKEND_OMP -DDATA_DIRECTORY=${DATA_DIR}")
 target_link_libraries(haloMergeTreeOMP GLEW pthread gomp ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES} ${QT_LIBRARIES})
 
