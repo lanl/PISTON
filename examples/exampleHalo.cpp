@@ -27,19 +27,16 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 
 int main(int argc, char *argv[])
 {
-    QApplication app(argc, argv);
-    
+		if (argc < 6)
+		{
+			std::cout << "Usage: haloMergeTreeGPU filename min_ll max_ll min_pz max_pz OR haloMergeTreeOMP filename min_ll max_ll min_pz max_pz" << std::endl;
+			return 1;
+		}
+
+    QApplication app(argc, argv);    
 		QWidget widget;
-		QSlider slider_ll, slider_pz;
-
-    Ui::Form ui;
+		Ui::Form ui;
     ui.setupUi(&widget);
-		ui.setupUi(&slider_ll);
-		ui.setupUi(&slider_pz);
-
-		//QObject::connect(slider_ll, SIGNAL(valueChanged(float)), widget, SLOT(setlinkLength(float)));
-		//QObject::connect(slider_pz, SIGNAL(valueChanged(float)), widget, SLOT(setParticleSize(float)));
-
     bool initialized = ui.widget->initialize(argc, argv);
     if (!initialized) exit(-1);
     widget.show();

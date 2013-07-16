@@ -121,7 +121,7 @@ public:
     if(!readHaloFile(filename, n, np, rL, format))
     {
 			readData(); // read in a txt data file
-//				generateUniformData();		// generate uniformly spaced points		
+//			generateUniformData();		// generate uniformly spaced points		
 //			  generateNonUniformData(); // generate nearby points to real data
 
 /*
@@ -156,7 +156,7 @@ public:
 		std::cout << "readData \n";
 
     // open input file
-    std::ifstream *myfile = new std::ifstream("/home/wathsy/Cosmo/PISTONSampleData/35015Results2/140060.txt", std::ios::in);
+    std::ifstream *myfile = new std::ifstream("/home/wathsy/Cosmo/PISTONSampleData/24474Results2/97896.txt", std::ios::in);
     if (!myfile->is_open()) {   std::cout << "File cannot be opened \n"; return; }
 
     std::vector<Point> vec;
@@ -267,9 +267,9 @@ public:
 		thrust::uniform_real_distribution<float> u;
 
 		//readHaloFile("/home/wathsala/PISTONSampleData/256", 1, 256, 64.0f, "cosmo");	
-		readHaloFile("/home/wathsala/PISTONSampleData/sub-24474", 1, 256, 64.0f, "csv");	
+		//readHaloFile("/home/wathsala/PISTONSampleData/sub-24474", 1, 256, 64.0f, "csv");	
 
-		//readHaloFile("/home/wathsy/Cosmo/PISTONSampleData/sub-24474", 1, 256, 64.0f, "csv");
+		readHaloFile("/home/wathsy/Cosmo/PISTONSampleData/sub-24474", 1, 256, 64.0f, "csv");
 		//readHaloFile("/home/wathsy/Cosmo/PISTONSampleData/35015-sameCube", 1, 256, 64.0f, "csv");	
 
 		int n = 1;

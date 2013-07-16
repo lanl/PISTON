@@ -81,7 +81,10 @@ bool compareWithVtk(string filename, int numOfParticles, thrust::device_vector<i
 	for(int i=0; i<numOfParticles; i++)
 	{
 		if(d[i] != items[i])
+		{
+			std::cout << i << " - " << d[i] << " " << items[i] << std::endl;
 			count++;
+		}
 	}
 
 	std::string output = (count==0) ? "Vtk vs Mergetree - Result is the same" : "Vtk vs Mergetree - Result is NOT the same";
@@ -95,9 +98,9 @@ int main(int argc, char* argv[])
   float linkLength, max_linkLength, min_linkLength, rL;
   int   particleSize, np, n;
 
-  max_linkLength = 1;
-  min_linkLength = 0.5;
-  linkLength     = 1;
+  max_linkLength = 0.25;
+  min_linkLength = 0.19;
+  linkLength     = 0.2;
   particleSize   = 1;//100;
   np = 256;
   rL = 64;
@@ -166,7 +169,7 @@ int main(int argc, char* argv[])
   (*halo)(linkLength, particleSize);
   thrust::device_vector<int> d = halo->getHalos();
 
-//	compareWithVtk("/home/wathsy/Cosmo/PISTONSampleData/35015Results2/140060_Vtk.txt", halo->numOfParticles, d);
+	compareWithVtk("/home/wathsy/Cosmo/PISTONSampleData/24474Results2/97896_Vtk.txt", halo->numOfParticles, d);
 
   //----------------------------
 

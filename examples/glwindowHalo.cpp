@@ -106,25 +106,23 @@ QSize GLWindowHalo::sizeHint() const
 
 bool GLWindowHalo::initialize(int argc, char *argv[])
 {
-  haloFound = haloShow = false;
+  char filename[1024];
+  sprintf(filename, "%s/%s", STRINGIZE_VALUE_OF(DATA_DIRECTORY), argv[1]);
+  std::string format = "csv";
 
-  max_linkLength = 2;
-  min_linkLength = 1;
+  min_linkLength = atof(argv[2]);
+  max_linkLength = atof(argv[3]);
   linkLength     = min_linkLength;
 	
-	max_particleSize = 200;
-	min_particleSize = 1;
+	min_particleSize = atof(argv[4]);
+	max_particleSize = atof(argv[5]);
   particleSize     = min_particleSize;	
+
+	haloFound = haloShow = false;
 
   np = 256;
   rL = 64;
   n  = 1; //if you want a fraction of the file to load, use this.. 1/n
-
-  char filename[1024];
-  sprintf(filename, "%s/sub-24474", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
-  std::string format = "csv";
-//    sprintf(filename, "%s/256", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
-//    std::string format = "cosmo";
 
   haloFinder = new halo_merge(min_linkLength, max_linkLength, true, filename, format, n, np, rL);
 
