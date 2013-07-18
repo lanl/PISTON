@@ -128,8 +128,8 @@ public:
 
 			std::cout << "-- globalStep done" << std::endl;
 
-			checkValidMergeTree(); 
-			getSizeOfMergeTree(); 
+			//checkValidMergeTree(); 
+			//getSizeOfMergeTree(); 
 			clearSuperParents();
 
 			particleId.clear();
@@ -1324,8 +1324,10 @@ std::cout << "inputX		"; thrust::copy(inputX.begin(), inputX.begin()+numOfPartic
 							src->parent = n; 	des->parent = n;
 							src->sibling = des;
 						}
+						#if THRUST_DEVICE_BACKEND != THRUST_DEVICE_BACKEND_CUDA
 						else
 							std::cout << "***no Free item .... this shouldnt happen*** " << cubeStart << " " << e.weight << " " << min_ll << " " << std::endl;
+						#endif
 					}
 					n->value  = weight;
 					n->count  = src->count + des->count;

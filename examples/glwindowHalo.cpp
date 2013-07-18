@@ -193,8 +193,9 @@ struct setColor
   __host__ __device__
   void operator()(int i)
   {
+      // FIXME: haloFinder object is in host memory.
     int haloIndU  = haloFinder->getHaloInd(i, useF);
-    color[i] = make_float4(R[haloIndU],G[haloIndU],B[haloIndU],1);
+//    color[i] = make_float4(R[haloIndU],G[haloIndU],B[haloIndU],1);
   }
 };
 
@@ -227,6 +228,8 @@ void GLWindowHalo::paintGL()
 		thrust::copy(thrust::make_transform_iterator(haloFinder->vertices_begin_f(), tuple2float3()),
                thrust::make_transform_iterator(haloFinder->vertices_end_f(),   tuple2float3()),
                vertices.begin());
+
+//    thrust::fill(colors.begin(), colors.end(), make_float4(0,0,1,1));
 
     thrust::for_each(CountingIterator(0), CountingIterator(0)+haloFinder->numOfHaloParticles_f,
         setColor(thrust::raw_pointer_cast(&*colors.begin()),
