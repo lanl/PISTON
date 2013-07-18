@@ -26,7 +26,7 @@ public:
     thrust::device_vector<int>  halos;
     thrust::device_vector<int> nextp;
 
-	halo_vtk(std::string filename="", std::string format=".cosmo", int n = 1, int np=1, float rL=-1, bool periodic=false): halo(filename, format, n, np, rL, periodic) {}
+	halo_vtk(std::string filename="", std::string format=".cosmo", int n = 1, int np=1, float rL=-1): halo(filename, format, n, np, rL) {}
 	
 	void operator()(float linkLength , int  particleSize)		
 	{
@@ -85,7 +85,7 @@ public:
 		gettimeofday(&begin, 0);
 
 		// find halos
-		findHalos(0, numOfParticles, dataX, firstKD, linkLength, numOfParticles, periodic);
+		findHalos(0, numOfParticles, dataX, firstKD, linkLength, numOfParticles, false/*periodic*/);
 
 		gettimeofday(&end, 0);
 

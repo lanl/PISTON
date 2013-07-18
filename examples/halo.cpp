@@ -19,6 +19,7 @@ using namespace std;
 
 using namespace piston;
 
+// given three vectors, compare the i th  element of the first two vectors& write 0 or 1 in the third vector
 struct compare
 {
 	int *a, *b, *c;
@@ -30,31 +31,27 @@ struct compare
 	__host__ __device__
 	void operator()(int i)
 	{
-		if(a[i] != b[i])
-		{
-			c[i] = 1;
-//			std::cout << i << " " << a[i] << " " << b[i] << ", ";
-		}
+		if(a[i] != b[i]) c[i] = 1;
 	}
 };
 
-bool compareResults(thrust::device_vector<int> a, thrust::device_vector<int> b, int numOfParticles)
+// given two vectors, compare their elements
+void compareResults(thrust::device_vector<int> a, thrust::device_vector<int> b, int numOfParticles, string txt)
 {
 	thrust::device_vector<int> c(numOfParticles);
 	thrust::fill(c.begin(), c.end(), 0);
 
 	thrust::for_each(CountingIterator(0), CountingIterator(0)+numOfParticles,
 			compare(thrust::raw_pointer_cast(&*a.begin()), thrust::raw_pointer_cast(&*b.begin()), thrust::raw_pointer_cast(&*c.begin())));
-	int result = thrust::reduce(c.begin(), c.begin() + numOfParticles);
+	int count = thrust::reduce(c.begin(), c.begin() + numOfParticles);
 
-	if(result==0)	return true;
-
-	std::cout << " count " << result << std::endl;
-
-	return false;
+	std::string output = (count==0) ? txt+" - Result is the same" : txt+" - Result is NOT the same";
+  std::cout << output << std::endl;
+	if(count != 0) std::cout << "count " << count << std::endl << std::endl;
 }
 
-bool compareWithVtk(string filename, int numOfParticles, thrust::device_vector<int> d)
+// given one vector & a txt file with results, compare their elements
+void compareResultsTxt(string filename, int numOfParticles, thrust::device_vector<int> d, string txt)
 {
 	int num = 0;
 	std::string line;
@@ -80,62 +77,39 @@ bool compareWithVtk(string filename, int numOfParticles, thrust::device_vector<i
 	int count = 0;
 	for(int i=0; i<numOfParticles; i++)
 	{
-		if(d[i] != items[i])
-		{
-			std::cout << i << " - " << d[i] << " " << items[i] << std::endl;
-			count++;
-		}
+		if(d[i] != items[i]) count++;
 	}
 
-	std::string output = (count==0) ? "Vtk vs Mergetree - Result is the same" : "Vtk vs Mergetree - Result is NOT the same";
+	std::string output = (count==0) ? txt+" - Result is the same" : txt+" - Result is NOT the same";
 	std::cout << output << std::endl << std::endl;
+	if(count != 0) std::cout << "count " << count << std::endl << std::endl;
 }
 
 int main(int argc, char* argv[])
 {
+	if (argc < 7)
+	{
+		std::cout << "Usage: haloTestGPU filename format min_ll max_ll l_length p_size OR haloTestOMP filename format min_ll max_ll l_length p_size" << std::endl;
+		return 1;
+	}
+
+  //---------------------------- set parameters
+
   halo *halo;
 
-  float linkLength, max_linkLength, min_linkLength, rL;
-  int   particleSize, np, n;
+  char filename[1024]; // set file name
+  sprintf(filename, "%s/%s", STRINGIZE_VALUE_OF(DATA_DIRECTORY), argv[1]);
+  std::string format = argv[2];
 
-  max_linkLength = 0.25;
-  min_linkLength = 0.19;
-  linkLength     = 0.2;
-  particleSize   = 1;//100;
-  np = 256;
-  rL = 64;
-  n  = 1; //if you want a fraction of the file to load, use this.. 1/n
+  float min_linkLength = atof(argv[3]);
+  float max_linkLength = atof(argv[4]);
+  float linkLength     = atof(argv[5]);
+	int   particleSize   = atof(argv[6]);
 
-  char filename[1024];
-// sprintf(filename, "%s/sub-8435", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
-// std::string format = "csv";
-//  sprintf(filename, "%s/sub-24474", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
-//  std::string format = "csv";
-//  sprintf(filename, "%s/sub-80289", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
-//  std::string format = "csv";
-//  sprintf(filename, "%s/256", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
-//  std::string format = "cosmo";
-
-//  sprintf(filename, "%s/5005-sameCube", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
-//  std::string format = "csv";
-//  sprintf(filename, "%s/10003-sameCube", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
-//  std::string format = "csv";
-//  sprintf(filename, "%s/15020-sameCube", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
-//  std::string format = "csv";
-//  sprintf(filename, "%s/19988-sameCube", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
-//  st::string format = "csv";
-//  sprintf(filename, "%s/25096-sameCube", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
-//  std::string format = "csv";
-//  sprintf(filename, "%s/30019-sameCube", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
-//  std::string format = "csv";
-  sprintf(filename, "%s/35015-sameCube", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
-  std::string format = "csv";
-
-//  sprintf(filename, "/home/wathsy/Cosmo/35015-sameCube", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
-//  std::string format = "csv";
-//	sprintf(filename, "/home/wathsy/Cosmo/256", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
-//  std::string format = "cosmo";
-
+  int   np = 256; // number of particles in one dimension
+  float rL = 64;  // used to determine the scale factor when readig .cosmo data
+  int   n  = 1;   //if you want a fraction of the file to load, use this.. 1/n
+	
   std::cout << "min_linkLength " << min_linkLength << std::endl;
   std::cout << "max_linkLength " << max_linkLength << std::endl;
   std::cout << "linkLength " << linkLength << std::endl;
@@ -143,7 +117,7 @@ int main(int argc, char* argv[])
   std::cout << filename << std::endl;
   std::cout << std::endl;
 
-  //----------------------------
+  //---------------------------- run different versions
 
 //  std::cout << "Naive result" << std::endl;
 //
@@ -151,7 +125,7 @@ int main(int argc, char* argv[])
 //  (*halo)(linkLength, particleSize);
 //  thrust::device_vector<int> a = halo->getHalos();
 //
-//  std::cout << "VTK based result" << std::endl;
+//  std::cout << "VTK based result (thrust version)" << std::endl;
 //
 //  halo = new halo_vtk(filename, format, n, np, rL);
 //  (*halo)(linkLength, particleSize);
@@ -162,31 +136,25 @@ int main(int argc, char* argv[])
 //  halo = new halo_kd(filename, format, n, np, rL);
 //  (*halo)(linkLength, particleSize);
 //  thrust::device_vector<int> c = halo->getHalos();
-
+//
   std::cout << "Merge tree based result" << std::endl;
 
   halo = new halo_merge(min_linkLength, max_linkLength, true, filename, format, n, np, rL);
   (*halo)(linkLength, particleSize);
   thrust::device_vector<int> d = halo->getHalos();
 
-	compareWithVtk("/home/wathsy/Cosmo/PISTONSampleData/24474Results2/97896_Vtk.txt", halo->numOfParticles, d);
+  //---------------------------- compare results
 
-  //----------------------------
+	std::cout << "Comparing results" << std::endl;
 
-//  std::cout << "Comparing results" << std::endl;
-//  std::string output1 = (compareResults(a, c, halo->numOfParticles)==true) ? "Naive vs Kdtree     - Result is the same" : "Naive vs Kdtree        - Result is NOT the same";
-//  std::cout << output1 << std::endl;
-//  std::string output2 = (compareResults(b, c, halo->numOfParticles)==true) ? "Vtk vs Kdtree     - Result is the same" : "Vtk vs Kdtree     - Result is NOT the same";
-//  std::cout << output2 << std::endl;
-//  std::string output3 = (compareResults(c, d, halo->numOfParticles)==true) ? "Kdtree vs Mergetree - Result is the same" : "Kdtree vs Mergetree - Result is NOT the same";
-//  std::cout << output3 << std::endl;
-//  std::cout << "--------------------" << std::endl;
+	compareResultsTxt((string)filename+"_Vtk.txt", halo->numOfParticles, d, "Vtk vs Mergetree");
+//	compareResults(a, c, halo->numOfParticles, "Naive vs Kdtree");
+//	compareResults(b, c, halo->numOfParticles, "Vtk vs Kdtree");
+//	compareResults(c, d, halo->numOfParticles, "Kdtree vs Mergetree");
 
-//	std::cout << "a "; thrust::copy(a.begin(), a.begin()+halo->numOfParticles, std::ostream_iterator<int>(std::cout, " "));   std::cout << std::endl << std::endl;
-//  std::cout << "c "; thrust::copy(c.begin(), c.begin()+halo->numOfParticles, std::ostream_iterator<int>(std::cout, " "));   std::cout << std::endl << std::endl;
-//  std::cout << "d "; thrust::copy(d.begin(), d.begin()+halo->numOfParticles, std::ostream_iterator<int>(std::cout, " "));   std::cout << std::endl << std::endl;	
+  std::cout << "--------------------" << std::endl;
 
-  return 0;
+	return 0;
 }
 
 

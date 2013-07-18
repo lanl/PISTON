@@ -78,8 +78,9 @@ typedef thrust::zip_iterator<Float3IteratorTuple> Float3zipIterator;
 
 typedef thrust::device_vector<int>::iterator   IntIterator;
 
+thrust::device_vector<int>    haloIndexInU;
 thrust::host_vector<float3> vertices;
-thrust::host_vector<float4> colors;
+thrust::device_vector<float4> colors;
 
 GLWindowHalo::GLWindowHalo(QWidget *parent) : QGLWidget(QGLFormat(QGL::SampleBuffers), parent)
 {
@@ -108,14 +109,14 @@ bool GLWindowHalo::initialize(int argc, char *argv[])
 {
   char filename[1024];
   sprintf(filename, "%s/%s", STRINGIZE_VALUE_OF(DATA_DIRECTORY), argv[1]);
-  std::string format = "csv";
+  std::string format = argv[2];
 
-  min_linkLength = atof(argv[2]);
-  max_linkLength = atof(argv[3]);
+  min_linkLength = atof(argv[3]);
+  max_linkLength = atof(argv[4]);
   linkLength     = min_linkLength;
 	
-	min_particleSize = atof(argv[4]);
-	max_particleSize = atof(argv[5]);
+	min_particleSize = atof(argv[5]);
+	max_particleSize = atof(argv[6]);
   particleSize     = min_particleSize;	
 
 	haloFound = haloShow = false;
@@ -182,21 +183,48 @@ struct tuple2float3 : public thrust::unary_function<Float3, float3>
 
 struct setColor
 {
+	int    *haloIndexInU;
   float4 *color;
-  float *R, *G, *B;
-	bool useF;
+  float  *R, *G, *B;
 
   __host__ __device__
-  setColor(float4 *color, float *R, float *G, float *B, bool useF=false) :
-      color(color), R(R), G(G), B(B), useF(useF) {}
+  setColor(int *haloIndexInU, float4 *color, float *R, float *G, float *B) :
+      haloIndexInU(haloIndexInU), color(color), R(R), G(G), B(B) {}
 
   __host__ __device__
   void operator()(int i)
   {
-      // FIXME: haloFinder object is in host memory.
-    int haloIndU  = haloFinder->getHaloInd(i, useF);
-//    color[i] = make_float4(R[haloIndU],G[haloIndU],B[haloIndU],1);
+    int haloIndU = haloIndexInU[i];
+
+    color[i] = make_float4(R[haloIndU],G[haloIndU],B[haloIndU],1);
   }
+};
+
+// get the index in haloIndexUnique for a halo i
+struct setHaloIdInU
+{
+    int *haloIndex_f;
+    int *haloIndexUnique;
+    int *haloIndexInU;
+
+    int numOfHalos;
+
+    __host__ __device__
+    setHaloIdInU(int *haloIndex_f, int *haloIndexUnique, int *haloIndexInU, int numOfHalos) :
+    haloIndex_f(haloIndex_f), haloIndexUnique(haloIndexUnique),
+    haloIndexInU(haloIndexInU), numOfHalos(numOfHalos) {}
+
+    __host__ __device__
+    void operator()(int i)
+    {
+	for(int j=0; j<numOfHalos; j++)
+	{
+	    if(haloIndex_f[i] == haloIndexUnique[j])
+	    { haloIndexInU[i] = j;	return; }
+	}
+
+	haloIndexInU[i] = -1;
+    }
 };
 
 void GLWindowHalo::paintGL()
@@ -222,21 +250,27 @@ void GLWindowHalo::paintGL()
 
 	if(haloFound && haloShow)
   {
-		vertices.resize(haloFinder->numOfHaloParticles_f);
-		colors.resize(haloFinder->numOfHaloParticles_f);
+		vertices.resize(haloFinder->numOfHaloParticles);
+		colors.resize(haloFinder->numOfHaloParticles);
 
 		thrust::copy(thrust::make_transform_iterator(haloFinder->vertices_begin_f(), tuple2float3()),
-               thrust::make_transform_iterator(haloFinder->vertices_end_f(),   tuple2float3()),
-               vertices.begin());
+		             thrust::make_transform_iterator(haloFinder->vertices_end_f(),   tuple2float3()),
+		             vertices.begin());
 
-//    thrust::fill(colors.begin(), colors.end(), make_float4(0,0,1,1));
+		haloIndexInU.resize(haloFinder->numOfHaloParticles);
+		thrust::for_each(CountingIterator(0), CountingIterator(0)+haloFinder->numOfHaloParticles,
+		                 setHaloIdInU(thrust::raw_pointer_cast(&*haloFinder->halos_begin_f()),
+		                              thrust::raw_pointer_cast(&*haloFinder->haloIndexUnique.begin()),
+		                              thrust::raw_pointer_cast(&*haloIndexInU.begin()),
+		                              haloFinder->numOfHalos));
 
-    thrust::for_each(CountingIterator(0), CountingIterator(0)+haloFinder->numOfHaloParticles_f,
-        setColor(thrust::raw_pointer_cast(&*colors.begin()),
-                 thrust::raw_pointer_cast(&*haloFinder->haloColorsR.begin()),
-                 thrust::raw_pointer_cast(&*haloFinder->haloColorsG.begin()),
-                 thrust::raw_pointer_cast(&*haloFinder->haloColorsB.begin()),
-								 true));
+		thrust::for_each(CountingIterator(0), CountingIterator(0)+haloFinder->numOfHaloParticles,
+		                 setColor(thrust::raw_pointer_cast(&*haloIndexInU.begin()),
+		                          thrust::raw_pointer_cast(&*colors.begin()),
+		                          thrust::raw_pointer_cast(&*haloFinder->haloColorsR.begin()),
+		                          thrust::raw_pointer_cast(&*haloFinder->haloColorsG.begin()),
+		                          thrust::raw_pointer_cast(&*haloFinder->haloColorsB.begin())));
+
   }
   else
   {
@@ -250,7 +284,8 @@ void GLWindowHalo::paintGL()
     thrust::fill(colors.begin(), colors.end(), make_float4(1,0,0,1));
   }
 
-  glColorPointer(4, GL_FLOAT, 0, &colors[0]);
+  thrust::host_vector<float4> colors_h(colors.begin(), colors.end());
+  glColorPointer(4, GL_FLOAT, 0, &colors_h[0]);
   glVertexPointer(3, GL_FLOAT, 0, &vertices[0]);
   glDrawArrays(GL_POINTS, 0, vertices.size());
   glPopMatrix();
