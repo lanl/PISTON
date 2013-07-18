@@ -186,16 +186,15 @@ public:
 		float seconds = diff.tv_sec + 1.0E-6*diff.tv_usec;
 		totalTime +=seconds;
 
-		std::cout << "Time elapsed: " << seconds << " s for finding halos at linking length " << linkLength << " and has particle size >= " << particleSize << std::endl << std::flush;
-		std::cout << "Total time elapsed: " << totalTime << " s" << std::endl << std::endl;
+		std::cout << "Total time elapsed: " << seconds << " s for finding halos at linking length " << linkLength << " and has particle size >= " << particleSize << std::endl << std::endl;
 
 		getNumOfHalos();      // get the unique halo ids & set numOfHalos
 		getHaloParticles();   // get the halo particles & set numOfHaloParticles
 		setColors();          // set colors to halos
 		writeHaloResults();	  // write halo results
 
-		std::cout << "Number of Particles : " << numOfParticles << std::endl;
-		std::cout << "Number of Halos found : " << numOfHalos << std::endl << std::endl;
+		std::cout << "Number of Particles   : " << numOfParticles << std::endl;
+		std::cout << "Number of Halos found : " << numOfHalos << std::endl;
 		std::cout << "Merge tree size : " << mergetreeSize << std::endl;
     std::cout << "Min_ll  : " << min_ll  << std::endl;
     std::cout << "Max_ll  : " << max_ll << std::endl << std::endl;
@@ -256,12 +255,15 @@ public:
 	// get the size of the merge tree
 	void getSizeOfMergeTree()
 	{
-		Node *nodesTmp = thrust::raw_pointer_cast(&*nodes.begin());
+		thrust::host_vector<Node>  nodes_h;
+		nodes_h.resize(numOfParticles);
+
+		thrust::copy(nodes.begin(), nodes.end(), nodes_h.begin());
 
 		mergetreeSize = 0;
 		for(int i=0; i<numOfParticles; i++)
 		{
-			Node *n = &nodesTmp[i];
+			Node *n = &nodes_h[i];
 
 			while(n->parent!=NULL)
 			{
@@ -338,12 +340,15 @@ public:
 	// check whether the merge tree is valid or not
 	void checkValidMergeTree()
 	{
-		Node *nodesTmp = thrust::raw_pointer_cast(&*nodes.begin());
+		thrust::host_vector<Node>  nodes_h;
+		nodes_h.resize(numOfParticles);
+
+		thrust::copy(nodes.begin(), nodes.end(), nodes_h.begin());
 	
 		bool invalid = false;
 		for(int i=0; i<numOfParticles; i++)
 		{
-			Node *n = &nodesTmp[i];
+			Node *n = &nodes_h[i];
 
 			int count = 0;
 			while(n && n->value <= min_ll)

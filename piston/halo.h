@@ -164,10 +164,10 @@ public:
   }
 
   // read a .cosmo file and load the data to inputX, inputY & inputZ
-	bool readCosmoFile(string filename, string format)
+	bool readCosmoFile(std::string filename, std::string format)
 	{
 		// open .cosmo file
-		ifstream *myfile = new ifstream((filename+"."+format).c_str(), std::ios::in);
+		std::ifstream *myfile = new std::ifstream((filename+"."+format).c_str(), std::ios::in);
 		if (!myfile->is_open()) { std::cout << "File: " << filename << "." << format << " cannot be opened \n"; return false; }
 		
 		// compute the number of particles
@@ -240,9 +240,9 @@ public:
 	}
 
   // read a .csv file and write it to .cosmo format & read it from that
-  bool readCsvFile(string filename, string format)
+  bool readCsvFile(std::string filename, std::string format)
   {
-		vector<Point> vec;
+		std::vector<Point> vec;
 
 		if(!readFromCsvFile(filename, format, vec)) return false;
 
@@ -254,13 +254,13 @@ public:
   }
 
 	// read a .csv file & add particle info to a vector
-	bool readFromCsvFile(string filename, string format, vector<Point> &vec)
+	bool readFromCsvFile(std::string filename, std::string format, std::vector<Point> &vec)
 	{
 		// open .csv file
-		ifstream *myfile = new ifstream((filename+"."+format).c_str(), std::ios::in);
+		std::ifstream *myfile = new std::ifstream((filename+"."+format).c_str(), std::ios::in);
 		if (!myfile->is_open()) { std::cout << "File: " << filename << "." << format << " cannot be opened \n"; return false; }
 
-		string line;
+		std::string line;
 		getline(*myfile,line);
 		while(!myfile->eof())
 		{
@@ -292,7 +292,7 @@ public:
 		int nX=16, nY=16, nZ=16;
 		numOfParticles = nX*nY*nZ;
 
-		vector<Point> vec;
+		std::vector<Point> vec;
 
 		double startX=lBoundS.x;	double stepX=(uBoundS.x-lBoundS.x)/(nX-1);
 		double startY=lBoundS.y;	double stepY=(uBoundS.y-lBoundS.y)/(nY-1);
@@ -337,7 +337,7 @@ public:
 
 		int num = 1;
 
-		vector<Point> vec;		
+		std::vector<Point> vec;		
 		for(int i=0; i<numOfParticles; i++)
 		{
 			vec.push_back(Point(inputX[i],inputY[i],inputZ[i]));		
@@ -366,7 +366,7 @@ public:
 	}	
 
 	// write data to .cosmo file format
-	bool writeToCosmoFile(string filename, string format,  vector<Point> &vec)
+	bool writeToCosmoFile(std::string filename, std::string format,  std::vector<Point> &vec)
 	{
 		// declare temporary read buffers
 		int nfloat = 7, nint = 1;
@@ -375,7 +375,7 @@ public:
 
 		// Create one for output file
 		std::ofstream *outStream = new std::ofstream();
-		outStream->open((filename+"."+format).c_str(), ios::out|ios::binary);
+		outStream->open((filename+"."+format).c_str(), std::ios::out|std::ios::binary);
 
 		for(int i=0; i<vec.size(); i++)
 		{

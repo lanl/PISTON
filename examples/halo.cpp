@@ -87,22 +87,29 @@ void compareResultsTxt(string filename, int numOfParticles, thrust::device_vecto
 
 int main(int argc, char* argv[])
 {
+	if (argc < 7)
+	{
+		std::cout << "Usage: haloTestGPU filename format min_ll max_ll l_length p_size OR haloTestOMP filename format min_ll max_ll l_length p_size" << std::endl;
+		return 1;
+	}
+
   //---------------------------- set parameters
 
   halo *halo;
 
-  float max_linkLength = 0.2;	// maximum linking length
-  float min_linkLength = 0.2; // maximum linking length
-  float linkLength     = 0.2; // linking length
-  int   particleSize   = 1;		// particle size
+  char filename[1024]; // set file name
+  sprintf(filename, "%s/%s", STRINGIZE_VALUE_OF(DATA_DIRECTORY), argv[1]);
+  std::string format = argv[2];
+
+  float min_linkLength = atof(argv[3]);
+  float max_linkLength = atof(argv[4]);
+  float linkLength     = atof(argv[5]);
+	int   particleSize   = atof(argv[6]);
+
   int   np = 256; // number of particles in one dimension
   float rL = 64;  // used to determine the scale factor when readig .cosmo data
   int   n  = 1;   //if you want a fraction of the file to load, use this.. 1/n
 	
-  char filename[1024]; // set file name
-  sprintf(filename, "%s/24474Results/24474/24474", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
-  std::string format = "cosmo";
-
   std::cout << "min_linkLength " << min_linkLength << std::endl;
   std::cout << "max_linkLength " << max_linkLength << std::endl;
   std::cout << "linkLength " << linkLength << std::endl;
@@ -124,12 +131,12 @@ int main(int argc, char* argv[])
 //  (*halo)(linkLength, particleSize);
 //  thrust::device_vector<int> b = halo->getHalos();
 //
-  std::cout << "Kdtree based result" << std::endl;
-
-  halo = new halo_kd(filename, format, n, np, rL);
-  (*halo)(linkLength, particleSize);
-  thrust::device_vector<int> c = halo->getHalos();
-
+//  std::cout << "Kdtree based result" << std::endl;
+//
+//  halo = new halo_kd(filename, format, n, np, rL);
+//  (*halo)(linkLength, particleSize);
+//  thrust::device_vector<int> c = halo->getHalos();
+//
   std::cout << "Merge tree based result" << std::endl;
 
   halo = new halo_merge(min_linkLength, max_linkLength, true, filename, format, n, np, rL);
@@ -143,7 +150,7 @@ int main(int argc, char* argv[])
 	compareResultsTxt((string)filename+"_Vtk.txt", halo->numOfParticles, d, "Vtk vs Mergetree");
 //	compareResults(a, c, halo->numOfParticles, "Naive vs Kdtree");
 //	compareResults(b, c, halo->numOfParticles, "Vtk vs Kdtree");
-	compareResults(c, d, halo->numOfParticles, "Kdtree vs Mergetree");
+//	compareResults(c, d, halo->numOfParticles, "Kdtree vs Mergetree");
 
   std::cout << "--------------------" << std::endl;
 
