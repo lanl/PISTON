@@ -79,7 +79,7 @@ public:
 	thrust::device_vector<int>   tmpIntArray;		   // temperary array 
 	thrust::device_vector<int>   tmpNxt, tmpFree;  // stores details of free items in merge tree
 
-	halo_merge(float min_linkLength, float max_linkLength, bool ignore, std::string filename="", std::string format=".cosmo", int n = 1, int np=1, float rL=-1) : halo(filename, format, n, np, rL)
+	halo_merge(float min_linkLength, float max_linkLength, std::string filename="", std::string format=".cosmo", int n = 1, int np=1, float rL=-1) : halo(filename, format, n, np, rL)
 	{
 		if(numOfParticles!=0)
 		{
@@ -91,7 +91,7 @@ public:
 			max_ll  = max_linkLength; // get max_linkinglength
 			cubeLen = min_ll / std::sqrt(3); // min_ll*min_ll = 3*cubeLen*cubeLen
 
-			ignoreEmptyCubes = ignore;
+			ignoreEmptyCubes = true;
 
 			if(cubeLen <= 0) { std::cout << "--ERROR : plase specify a valid cubeLen... current cubeLen is " << cubeLen << std::endl; return; }
 
@@ -475,40 +475,53 @@ public:
 	// for each cube, get the size & start of cube particles (in particleId array)
 	void getSizeAndStartOfCubes()
 	{
-		cubeMapping.resize(numOfCubes);
-		cubeMappingInv.resize(numOfCubes);
 
-		particleSizeOfCubes.resize(numOfCubes);
-		particleStartOfCubes.resize(numOfCubes);
-
-		tmpIntArray.resize(numOfCubes);
+		int num = (numOfParticles<numOfCubes) ? numOfParticles : numOfCubes;
+		cubeMapping.resize(num);
+		particleSizeOfCubes.resize(num);
 
 		thrust::pair<thrust::device_vector<int>::iterator, thrust::device_vector<int>::iterator> new_end;
-
-		new_end = thrust::reduce_by_key(cubeId.begin(), cubeId.end(), ConstantIterator(1), cubeMapping.begin(), tmpIntArray.begin());
+		new_end = thrust::reduce_by_key(cubeId.begin(), cubeId.end(), ConstantIterator(1), cubeMapping.begin(), particleSizeOfCubes.begin());
 
 		cubesNonEmpty = thrust::get<0>(new_end) - cubeMapping.begin();
 		cubesEmpty    = numOfCubes - cubesNonEmpty;	
 
-		if(ignoreEmptyCubes) // get the size & start details for only non empty cubes
-		{
-			thrust::copy(tmpIntArray.begin(), tmpIntArray.begin()+cubesNonEmpty, particleSizeOfCubes.begin());
+		// get the mapping for nonempty cubes
+		cubeMappingInv.resize(numOfCubes);
+		thrust::fill(cubeMappingInv.begin(), cubeMappingInv.end(), -1);
+		thrust::scatter(CountingIterator(0), CountingIterator(0)+cubesNonEmpty, cubeMapping.begin(), cubeMappingInv.begin());
+		
+		// get the size & start details for only non empty cubes
+		particleStartOfCubes.resize(cubesNonEmpty);
+		thrust::exclusive_scan(particleSizeOfCubes.begin(), particleSizeOfCubes.begin()+cubesNonEmpty, particleStartOfCubes.begin());
 
-			thrust::set_difference(CountingIterator(0), CountingIterator(0)+numOfCubes, cubeMapping.begin(), cubeMapping.begin()+cubesNonEmpty, cubeMapping.begin()+cubesNonEmpty);
+/*
+	cubeMapping.resize(numOfCubes);
+	cubeMappingInv.resize(numOfCubes);
 
-			thrust::scatter(CountingIterator(0), CountingIterator(0)+numOfCubes, cubeMapping.begin(), cubeMappingInv.begin());
-		}
-		else // get the size & start details for all cubes
-		{
-			thrust::scatter(tmpIntArray.begin(), tmpIntArray.begin()+cubesNonEmpty, cubeMapping.begin(), particleSizeOfCubes.begin());
+	particleSizeOfCubes.resize(numOfCubes);
+	particleStartOfCubes.resize(numOfCubes);
 
-			thrust::sequence(cubeMapping.begin(), cubeMapping.end());
-			thrust::sequence(cubeMappingInv.begin(), cubeMappingInv.end());
-		}
+	tmpIntArray.resize(numOfCubes);
 
-		thrust::exclusive_scan(particleSizeOfCubes.begin(), particleSizeOfCubes.begin()+numOfCubes, particleStartOfCubes.begin());
+	thrust::pair<thrust::device_vector<int>::iterator, thrust::device_vector<int>::iterator> new_end;
 
-		tmpIntArray.clear();
+	new_end = thrust::reduce_by_key(cubeId.begin(), cubeId.end(), ConstantIterator(1), cubeMapping.begin(), tmpIntArray.begin());
+
+	cubesNonEmpty = thrust::get<0>(new_end) - cubeMapping.begin();
+	cubesEmpty = numOfCubes - cubesNonEmpty;	
+
+  // get the size & start details for only non empty cubes
+	thrust::copy(tmpIntArray.begin(), tmpIntArray.begin()+cubesNonEmpty, particleSizeOfCubes.begin());
+
+	thrust::set_difference(CountingIterator(0), CountingIterator(0)+numOfCubes, cubeMapping.begin(), cubeMapping.begin()+cubesNonEmpty, cubeMapping.begin()+cubesNonEmpty);
+
+	thrust::scatter(CountingIterator(0), CountingIterator(0)+numOfCubes, cubeMapping.begin(), cubeMappingInv.begin());
+
+	thrust::exclusive_scan(particleSizeOfCubes.begin(), particleSizeOfCubes.begin()+numOfCubes, particleStartOfCubes.begin());
+
+	tmpIntArray.clear();
+*/
 	}
 	
 
@@ -601,7 +614,7 @@ public:
 		int cubes = ignoreEmptyCubes ? cubesNonEmpty : numOfCubes; // get the cubes which should be considered
 
 		// resize vectors necessary for merge tree construction
-		tmpNxt.resize(numOfCubes);
+		tmpNxt.resize(cubes);
 		tmpFree.resize(numOfParticles);
 		nodes.resize(numOfParticles);
 		nodesTmp1.resize(numOfParticles);
@@ -997,7 +1010,7 @@ public:
 						cube = cubeMappingInv[cube_mapped];
 					}
 
-					if(cube_mapped==-1 || particleSizeOfCubes[i]==0 || particleSizeOfCubes[cube]==0) continue;
+					if(cube_mapped==-1 || cube==-1 || particleSizeOfCubes[i]==0 || particleSizeOfCubes[cube]==0) continue;
 
 					Edge  e;
 					float dist_min = max_ll+1;					
@@ -1304,8 +1317,8 @@ public:
 							src->parent = n; 	des->parent = n;
 							src->sibling = des;
 						}
-//						else
-//							std::cout << "***no Free item .... this shouldnt happen*** " << cubeStart << " " << e.weight << " " << min_ll << " " << std::endl;
+						else
+							std::cout << "***no Free item .... this shouldnt happen*** " << cubeStart << " " << e.weight << " " << min_ll << " " << std::endl;
 					}
 					n->value  = weight;
 					n->count  = src->count + des->count;
