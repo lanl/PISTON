@@ -45,8 +45,8 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 
 #define SPACE thrust::detail::default_device_space_tag
 using namespace piston;
+
 #include <piston/halo_kd.h>
-//-------
 
 #include <sys/time.h>
 #include <stdio.h>
@@ -63,7 +63,6 @@ int frame_count = 0;
 int grid_size = 256;
 float cameraFOV = 60.0;
 
-//wathsala
 halo *haloFinder;
 
 // parameters needed for the halo_finder (look at halo_finder.h for definitions)
@@ -81,8 +80,7 @@ typedef thrust::zip_iterator<Float3IteratorTuple> Float3zipIterator;
 //-------
 
 
-GLWindow::GLWindow(QWidget *parent)
-    : QGLWidget(QGLFormat(QGL::SampleBuffers), parent)
+GLWindow::GLWindow(QWidget *parent) : QGLWidget(QGLFormat(QGL::SampleBuffers), parent)
 {
     setFocusPolicy(Qt::StrongFocus);
     timer = new QTimer(this);
@@ -163,6 +161,7 @@ void GLWindow::initializeGL()
     int n = 1; // if you want a fraction of the file to load, use this.. 1/n
     char filename[1024];
     sprintf(filename, "%s/sub-24474", STRINGIZE_VALUE_OF(DATA_DIRECTORY));
+
     haloFinder = new halo_kd(filename, "csv", n, np, rL);
 
     glEnableClientState(GL_VERTEX_ARRAY);

@@ -32,7 +32,7 @@ Author: Christopher Sewell, csewell@lanl.gov
 #include <thrust/sequence.h>
 #include <thrust/partition.h>
 #include <thrust/merge.h>
-#include <thrust/transform_scan.h>
+#include<thrust/transform_scan.h>
 #include <thrust/binary_search.h>
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/iterator/zip_iterator.h>
@@ -50,7 +50,8 @@ Author: Christopher Sewell, csewell@lanl.gov
 #define INPUT_SIZE 24474 //524288
 
 // Typedefs for convenience
-typedef typename thrust::counting_iterator<int>	CountingIterator;
+//typedef typename thrust::counting_iterator<int>	CountingIterator;
+typedef thrust::counting_iterator<int>	CountingIterator;
 
 
 //===========================================================================
@@ -81,8 +82,8 @@ class KDTree
         multiply(float value) : value(value) { };
 
         __host__ __device__
-        int operator() (int i)
-        {
+        int operator() (int i)        
+	{
           return ((int)(value*i));
         }
     };
@@ -352,7 +353,7 @@ class KDTree
 
         // Back up the original (pre-split) segment ids
         thrust::copy(a_segmentIds.begin(), a_segmentIds.end(), m_tempE.begin());
-     
+
         // Construct a vector that contains for each element the total number of elements in  previous segments
         thrust::inclusive_scan_by_key(a_segmentIds.begin(), a_segmentIds.end(), CountingIterator(0), m_tempD.begin(), thrust::equal_to<int>(), thrust::minimum<int>());
  
@@ -488,7 +489,7 @@ class KDTree
           thrust::copy(m_zrank.begin(), m_zrank.end(), m_zranks[level]->begin());
           thrust::copy(m_pointId.begin(), m_pointId.end(), m_pointIds[level]->begin());
         }
-   
+
         // If in test mode, print out the computed point ids, ranks, flags, and segment ids for this tree level
         #ifdef TEST
           outputValues(level, m_pointId, m_xrank, m_yrank, m_zrank, m_flags, m_segmentIds);
