@@ -107,8 +107,8 @@ int main(int argc, char* argv[])
 	int   particleSize   = atof(argv[6]);
 
   int   np = 256; // number of particles in one dimension
-  float rL = 64;  // used to determine the scale factor when readig .cosmo data
-  int   n  = 1;   //if you want a fraction of the file to load, use this.. 1/n
+  float rL = 64;  // box length at a side
+  int   n  = 1;   // if you want a fraction of the file to load, use this.. 1/n
 	
   std::cout << "min_linkLength " << min_linkLength << std::endl;
   std::cout << "max_linkLength " << max_linkLength << std::endl;
