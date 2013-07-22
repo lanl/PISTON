@@ -1317,8 +1317,8 @@ public:
 							src->parent = n; 	des->parent = n;
 							src->sibling = des;
 						}
-						else
-							std::cout << "***no Free item .... this shouldnt happen*** " << cubeStart << " " << e.weight << " " << min_ll << " " << std::endl;
+//						else
+//							std::cout << "***no Free item .... this shouldnt happen*** " << cubeStart << " " << e.weight << " " << min_ll << " " << std::endl;
 					}
 					n->value  = weight;
 					n->count  = src->count + des->count;

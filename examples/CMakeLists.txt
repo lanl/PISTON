@@ -47,7 +47,7 @@ if (USE_CUDA)
   target_link_libraries(haloMergeTreeGPU GLEW pthread ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES} ${QT_LIBRARIES})
 
   cuda_add_executable(haloTestGPU halo.cu OPTIONS "-DDATA_DIRECTORY=${DATA_DIR}")
-  target_link_libraries(haloTestGPU pthread --add-needed)
+  target_link_libraries(haloTestGPU pthread)
 
   cuda_add_executable(mandelbrotGPU mandelbrot.cu)
   target_link_libraries(mandelbrotGPU pthread)
