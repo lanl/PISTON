@@ -125,7 +125,7 @@ bool GLWindowHalo::initialize(int argc, char *argv[])
   rL = 64;
   n  = 1; //if you want a fraction of the file to load, use this.. 1/n
 
-  haloFinder = new halo_merge(min_linkLength, max_linkLength, true, filename, format, n, np, rL);
+  haloFinder = new halo_merge(min_linkLength, max_linkLength, filename, format, n, np, rL);
 
   return true;
 }
