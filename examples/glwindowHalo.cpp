@@ -78,9 +78,15 @@ typedef thrust::zip_iterator<Float3IteratorTuple> Float3zipIterator;
 
 typedef thrust::device_vector<int>::iterator   IntIterator;
 
+<<<<<<< HEAD
 thrust::host_vector<int>    haloIndexInU;
 thrust::host_vector<float3> vertices;
 thrust::host_vector<float4> colors;
+=======
+thrust::device_vector<int>    haloIndexInU;
+thrust::host_vector<float3>   vertices;
+thrust::device_vector<float4> colors;
+>>>>>>> Including ollies changes
 
 GLWindowHalo::GLWindowHalo(QWidget *parent) : QGLWidget(QGLFormat(QGL::SampleBuffers), parent)
 {
