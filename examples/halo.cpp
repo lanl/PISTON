@@ -77,7 +77,58 @@ void compareResultsTxt(string filename, int numOfParticles, thrust::device_vecto
 	int count = 0;
 	for(int i=0; i<numOfParticles; i++)
 	{
-		if(d[i] != items[i]) count++;
+		if(d[i] != items[i]) 
+		{
+			//std::cout << i << " " << d[i] << " " << items[i] << std::endl;
+			count++;
+		}
+	}
+
+	std::string output = (count==0) ? txt+" - Result is the same" : txt+" - Result is NOT the same";
+	std::cout << output << std::endl << std::endl;
+	if(count != 0) std::cout << "count " << count << std::endl << std::endl;
+}
+
+// given one vector & a ascii file with results, compare their elements
+void compareResultsAscii(string filename, int numOfParticles, thrust::device_vector<int> d, thrust::device_vector<int> index, string txt)
+{
+	std::string line;
+	thrust::device_vector<int> ids(numOfParticles);
+	thrust::device_vector<int> items(numOfParticles);
+
+	std::ifstream *myfile = new std::ifstream(filename.c_str(), std::ios::in);
+
+	int i=0;
+	while(!myfile->eof() && i++<7)
+		getline(*myfile,line);		
+
+	i = 0;
+	while(!myfile->eof())
+	{
+		getline(*myfile,line);		
+
+		if(line=="") continue;
+	
+		float x = atof(strtok((char*)line.c_str(), "\t"));
+		float y = atof(strtok(NULL, "\t"));
+		float z = atof(strtok(NULL, "\t"));
+
+		float vx = atof(strtok(NULL, "\t"));
+		float vy = atof(strtok(NULL, "\t"));
+		float vz = atof(strtok(NULL, "\t"));
+	
+		int id = atoi(strtok(NULL, "\t"));
+		int hid = atoi(strtok(NULL, "\t"));
+
+		ids[i]   = id;
+		items[i] = hid;
+		i++;
+	}
+
+	int count = 0;
+	for(int i=0; i<numOfParticles; i++)
+	{
+		if(d[i]!=items[i]) count++;
 	}
 
 	std::string output = (count==0) ? txt+" - Result is the same" : txt+" - Result is NOT the same";
@@ -87,9 +138,9 @@ void compareResultsTxt(string filename, int numOfParticles, thrust::device_vecto
 
 int main(int argc, char* argv[])
 {
-	if (argc < 7)
+	if (argc < 10)
 	{
-		std::cout << "Usage: haloTestGPU filename format min_ll max_ll l_length p_size OR haloTestOMP filename format min_ll max_ll l_length p_size" << std::endl;
+		std::cout << "Usage: haloTestGPU filename format min_ll max_ll l_length p_size np rL n OR haloTestOMP filename format min_ll max_ll l_length p_size np rL n" << std::endl;
 		return 1;
 	}
 
@@ -106,9 +157,11 @@ int main(int argc, char* argv[])
   float linkLength     = atof(argv[5]);
 	int   particleSize   = atof(argv[6]);
 
-  int   np = 256; // number of particles in one dimension
-  float rL = 64;  // box length at a side
-  int   n  = 1;   // if you want a fraction of the file to load, use this.. 1/n
+	// np - 128 & rL -150 for .hcosmo file
+	// np - 256 & rL -64  for .cosmo file
+  int   np = atoi(argv[7]); // number of particles in one dimension
+  float rL = atof(argv[8]); // box length at a side
+  int   n  = atoi(argv[9]); // if you want a fraction of the file to load, use this.. 1/n
 	
   std::cout << "min_linkLength " << min_linkLength << std::endl;
   std::cout << "max_linkLength " << max_linkLength << std::endl;
@@ -136,21 +189,26 @@ int main(int argc, char* argv[])
 //  halo = new halo_kd(filename, format, n, np, rL);
 //  (*halo)(linkLength, particleSize);
 //  thrust::device_vector<int> c = halo->getHalos();
-//
+
   std::cout << "Merge tree based result" << std::endl;
 
   halo = new halo_merge(min_linkLength, max_linkLength, filename, format, n, np, rL);
   (*halo)(linkLength, particleSize);
   thrust::device_vector<int> d = halo->getHalos();
+	thrust::device_vector<int> index = halo->getHalos();
 
   //---------------------------- compare results
 
-	std::cout << "Comparing results" << std::endl;
+		std::cout << "Comparing results" << std::endl;
 
-	compareResultsTxt((string)filename+"_Vtk.txt", halo->numOfParticles, d, "Vtk vs Mergetree");
+//  compareResultsAscii("/home/wathsy/Cosmo/PISTONSampleData/Small/output/m000.499.allparticles.ascii", halo->numOfParticles, d, index, "TestCase vs Mergetree");
+
+  	compareResultsTxt((string)filename+"_Vtk.txt", halo->numOfParticles, d, "Vtk vs Mergetree");
 //	compareResults(a, c, halo->numOfParticles, "Naive vs Kdtree");
-//	compareResults(b, c, halo->numOfParticles, "Vtk vs Kdtree");
+//	compareResults(b, c, halo->numOfParticles, "Vtk (thrust version) vs Kdtree");
 //	compareResults(c, d, halo->numOfParticles, "Kdtree vs Mergetree");
+
+//std::cout << "d	 "; thrust::copy(d.begin(), d.begin()+halo->numOfParticles, std::ostream_iterator<int>(std::cout, " ")); std::cout << std::endl << std::endl;
 
   std::cout << "--------------------" << std::endl;
 

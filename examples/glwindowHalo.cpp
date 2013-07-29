@@ -68,6 +68,7 @@ halo *haloFinder;
 float linkLength, max_linkLength, min_linkLength;
 int   particleSize, max_particleSize, min_particleSize;
 int   rL, np, n;
+float xscal;
 
 bool  haloFound, haloShow;
 
@@ -121,9 +122,13 @@ bool GLWindowHalo::initialize(int argc, char *argv[])
 
 	haloFound = haloShow = false;
 
-  np = 256;
-  rL = 64;
-  n  = 1; //if you want a fraction of the file to load, use this.. 1/n
+  np = atof(argv[7]);
+  rL = atof(argv[8]);
+  n  = atof(argv[9]); //if you want a fraction of the file to load, use this.. 1/n
+
+	// scale amount for particles
+  if(rL==-1) xscal = 1;
+  else       xscal = rL / (1.0*np);
 
   haloFinder = new halo_merge(min_linkLength, max_linkLength, filename, format, n, np, rL);
 
@@ -172,12 +177,36 @@ void GLWindowHalo::initializeGL()
 
 struct tuple2float3 : public thrust::unary_function<Float3, float3>
 {
+	float xscal;
+
+	__host__ __device__
+  tuple2float3(float xscal) : xscal(xscal) {}
+
   __host__ __device__
   float3 operator()(Float3 xyz)
   {
-   return make_float3((float) thrust::get<0>((xyz)),
-                      (float) thrust::get<1>((xyz)),
-                      (float) thrust::get<2>((xyz)));
+   return make_float3((float) thrust::get<0>((xyz))/xscal,
+                      (float) thrust::get<1>((xyz))/xscal,
+                      (float) thrust::get<2>((xyz))/xscal);
+  }
+};
+
+struct node2float3 : public thrust::unary_function<int, void>
+{
+	float       xscal;
+	halo::Node *nodes;
+	float3     *vertices;
+
+	__host__ __device__
+  node2float3(halo::Node *nodes, float3 *vertices, float xscal) : 
+		nodes(nodes), vertices(vertices), xscal(xscal) {}
+
+  __host__ __device__
+  void operator()(int i)
+  {
+		halo::Node n = nodes[i];
+
+		vertices[i] = make_float3((float) n.pos.x/xscal, (float) n.pos.y/xscal, (float) n.pos.z/xscal);
   }
 };
 
@@ -259,7 +288,6 @@ void GLWindowHalo::paintGL()
 
 
 		haloIndexInU.resize(haloFinder->numOfHaloParticles);
-
 		thrust::for_each(CountingIterator(0), CountingIterator(0)+haloFinder->numOfHaloParticles,
 		                 setHaloIdInU(thrust::raw_pointer_cast(&*haloFinder->halos_begin_f()),
 		                              thrust::raw_pointer_cast(&*haloFinder->haloIndexUnique.begin()),
@@ -278,9 +306,9 @@ void GLWindowHalo::paintGL()
 		vertices.resize(haloFinder->numOfParticles);
 	  colors.resize(haloFinder->numOfParticles);
 
-		thrust::copy(thrust::make_transform_iterator(haloFinder->vertices_begin(), tuple2float3()),
-	               thrust::make_transform_iterator(haloFinder->vertices_end(),   tuple2float3()),
-	               vertices.begin());
+		thrust::for_each(CountingIterator(0), CountingIterator(0)+haloFinder->numOfParticles,
+				node2float3(thrust::raw_pointer_cast(&*haloFinder->nodes.begin()), 
+										thrust::raw_pointer_cast(&*vertices.begin()), xscal));
 
     thrust::fill(colors.begin(), colors.end(), make_float4(1,0,0,1));
   }
@@ -316,7 +344,7 @@ void GLWindowHalo::resizeGL(int width, int height)
 void GLWindowHalo::mousePressEvent(QMouseEvent *event)
 {
   lastPos = event->pos();
-}
+}		
 
 
 void GLWindowHalo::mouseMoveEvent(QMouseEvent *event)
@@ -399,6 +427,4 @@ void GLWindowHalo::setParticleSize(int val)
 	}
 	setHaloInfo(QString(str.c_str()));
 }
-
-
 

@@ -12,41 +12,8 @@ namespace piston
 class halo_merge : public halo
 {
 public:
-	struct Node
-	{
-		int   nodeId; // particle Id
-    int   haloId; // halo Id, store the min particle id of the particles in this halo
-
-		int   count;  // store number of particles in the halo at this level
-		float value;  // function value of this node (which is the distance value)
-
-		Node *parent, *parentSuper; 
-		Node *childE, *childS, *sibling;       
-
-		__host__ __device__
-		Node() { nodeId=-1; value=0.0f; haloId=-1; count=0;	
-						 parent=NULL; parentSuper=NULL; 
-						 childS=NULL; childE=NULL; sibling=NULL; }
-
-		__host__ __device__
-		Node(int nodeId, float value, int haloId, int count, Node *parent, Node *parentSuper) :
-			nodeId(nodeId), value(value), haloId(haloId), count(count), parent(parent), parentSuper(parentSuper) {}
-	};
-
-	struct Edge
-	{
-		int srcId, desId; // src & des Ids of particles
-		float weight;			// weight of the edge (which is the distance value)
-
-		__host__ __device__
-		Edge() { srcId=-1; desId=-1; weight=-1; }
-		
-		__host__ __device__
-		Edge(int srcId, int desId, float weight) : srcId(srcId), desId(desId), weight(weight) {}
-	};
-
 	float cubeLen;					// length of the cube
-	float max_ll, min_ll;   // maximum & minimum linking lengths
+	double max_ll, min_ll;   // maximum & minimum linking lengths
 	
 	float totalTime; 				// total time taken for halo finding
 
@@ -55,7 +22,7 @@ public:
 
 	int  side, size, ite; 	// variable needed to determine the neighborhood cubes
 
-	int  numOfCubes;					   	 		 // total number of cubes in space
+	unsigned int  numOfCubes;					 // total number of cubes in space
 	int  cubesNonEmpty, cubesEmpty;		 // total number of nonempty & empty cubes in space
 	int  cubesInX, cubesInY, cubesInZ; // number of cubes in each dimension
 
@@ -70,9 +37,6 @@ public:
   thrust::device_vector<int>   sizeOfChunks;  // size of each chunk of cubes
   thrust::device_vector<int>   startOfChunks; // start of each chunk of cubes
 
-	thrust::device_vector<Node>  nodes; 		// leaf nodes of merge tree
-  thrust::device_vector<Node>  nodesTmp1; // parent nodes of merge tree
-
 	thrust::device_vector<Edge>  edges;						 // edge of cubes
 	thrust::device_vector<int>   edgeSizeOfCubes;  // size of edges in cubes
 	thrust::device_vector<int>   edgeStartOfCubes; // start of edges in cubes
@@ -80,16 +44,38 @@ public:
 	thrust::device_vector<int>   tmpIntArray, tmpIntArray1;	// temperary arrays used 
 	thrust::device_vector<int>   tmpNxt, tmpFree;  // stores details of free items in merge tree
 
-	halo_merge(float min_linkLength, float max_linkLength, std::string filename="", std::string format=".cosmo", int n = 1, int np=1, float rL=-1) : halo(filename, format, n, np, rL)
+	halo_merge(float min_linkLength, float max_linkLength, std::string filename="", std::string format=".cosmo", int n = 1, int np=1, float rL=-1) : halo(0,0) //: halo(filename, format, n, np, rL)
 	{
+		u01 = thrust::uniform_real_distribution<float>(0.0f, 1.0f);
+
+		this->n    		 = n;
+
+		// scale amount for particles
+	  if(rL==-1) xscal = 1;
+	  else       xscal = rL / (1.0*np);
+
+    if(!readHaloFile(filename, format))
+    {	
+//			generateUniformData();		// generate uniformly spaced points		
+			generateNonUniformData(); // generate nearby points to real data
+
+			std::cout << "Test data loaded \n";
+    }
+
+    haloIndex.resize(numOfParticles);
+    thrust::copy(CountingIterator(0), CountingIterator(0)+numOfParticles, haloIndex.begin());
+
+    std::cout << "numOfParticles : " << numOfParticles << " \n";
+
 		if(numOfParticles!=0)
 		{
 			struct timeval begin, mid1, mid2, mid3, mid4, end, diff1, diff2, diff3;
 
 			//---- init stuff
 
-			min_ll  = min_linkLength; // get min_linkinglength
-			max_ll  = max_linkLength; // get max_linkinglength
+		  // Unnormalize linkLengths so that it will work with box size distances
+			min_ll  = min_linkLength*xscal; // get min_linkinglength
+			max_ll  = max_linkLength*xscal; // get max_linkinglength
 			cubeLen = min_ll / std::sqrt(3); // min_ll*min_ll = 3*cubeLen*cubeLen
 
 			if(cubeLen <= 0) { std::cout << "--ERROR : plase specify a valid cubeLen... current cubeLen is " << cubeLen << std::endl; return; }
@@ -126,8 +112,8 @@ public:
 
 			std::cout << "-- globalStep done" << std::endl;
 
-			//checkValidMergeTree(); 
-			//getSizeOfMergeTree(); 
+			checkValidMergeTree(); 
+			getSizeOfMergeTree(); 
 			clearSuperParents();
 
 			particleId.clear();	  particleSizeOfCubes.clear();  particleStartOfCubes.clear();
@@ -148,7 +134,6 @@ public:
 			std::cout << "Time elapsed: " << seconds3 << " s for globalStep - adjusting the merge trees"<< std::endl << std::flush;
 			totalTime = seconds1 + seconds2 + seconds3;
 			std::cout << "Total time elapsed: " << totalTime << " s for constructing the global merge tree" << std::endl << std::endl;
-			
 		}
 	}
 
@@ -156,7 +141,8 @@ public:
 	{
 		clear();
 
-		linkLength   = linkLength;
+		// Unnormalize linkLength so that it will work with box size distances
+		linkLength   = linkLength*xscal;
 		particleSize = particleSize;
 
 		// if no valid particles, return
@@ -172,9 +158,9 @@ public:
 		float seconds = diff.tv_sec + 1.0E-6*diff.tv_usec;
 		totalTime +=seconds;
 
-		std::cout << "Total time elapsed: " << seconds << " s for finding halos at linking length " << linkLength << " and has particle size >= " << particleSize << std::endl << std::endl;
+		std::cout << "Total time elapsed: " << seconds << " s for finding halos at linking length " << linkLength/xscal << " and has particle size >= " << particleSize << std::endl << std::endl;
 
-		getNumOfHalos();      // get the unique halo ids & set numOfHalos
+		getHaloDetails();     // get the unique halo ids & set numOfHalos
 		getHaloParticles();   // get the halo particles & set numOfHaloParticles
 		setColors();          // set colors to halos
 		writeHaloResults();	  // write halo results
@@ -182,9 +168,95 @@ public:
 		std::cout << "Number of Particles   : " << numOfParticles << std::endl;
 		std::cout << "Number of Halos found : " << numOfHalos << std::endl;
 		std::cout << "Merge tree size : " << mergetreeSize << std::endl;
-    std::cout << "Min_ll  : " << min_ll  << std::endl;
-    std::cout << "Max_ll  : " << max_ll << std::endl << std::endl;
+    std::cout << "Min_ll  : " << min_ll/xscal  << std::endl;
+    std::cout << "Max_ll  : " << max_ll/xscal << std::endl << std::endl;
 		std::cout << "-----------------------------" << std::endl << std::endl;
+	}
+
+  // read input file - currently can read a .cosmo file or a .csv file
+  // .csv file - when you have a big data file and you want a piece of it, load it in VTK and slice it and save it as .csv file, within this function it will rewrite the date to .cosmo format
+  bool readHaloFile(std::string filename, std::string format)
+  {
+    // check filename
+    if(filename == "") { std::cout << "no input file specified \n"; return false; }
+		if(format == "hcosmo") return readHCosmoFile(filename, format);
+		if(format == "cosmo")  return readCosmoFile(filename, format);
+    if(format == "csv")    return readCsvFile(filename, format);   
+
+    return false;
+  }
+
+	bool readCosmoFile(std::string filename, std::string format)
+	{
+		// open .cosmo file
+		std::ifstream *myfile = new std::ifstream((filename+"."+format).c_str(), std::ios::in);
+		if (!myfile->is_open()) { std::cout << "File: " << filename << "." << format << " cannot be opened \n"; return false; }
+
+		int nfloat = 7, nint = 1;
+		
+		// compute the number of particles
+		myfile->seekg(0L, std::ios::end);
+		numOfParticles = myfile->tellg() / 32; // get particle size in file
+
+		// get the fraction wanted
+		numOfParticles = numOfParticles / n; 
+
+		// resize nodes
+		nodes.resize(numOfParticles);
+		index.resize(numOfParticles);
+
+		// rewind file to beginning for particle reads
+		myfile->seekg(0L, std::ios::beg);
+
+		// declare temporary read buffers
+		float fBlock[nfloat];
+		int   iBlock[nint];
+
+		float minX, minY, minZ, maxX, maxY, maxZ;
+		for (int i=0; i<numOfParticles; i++)
+		{
+			// Set file pointer to the requested particle
+			myfile->read(reinterpret_cast<char*>(fBlock), nfloat * sizeof(float));
+
+			if (myfile->gcount() != (int)(nfloat * sizeof(float))) {
+				std::cout << "Premature end-of-file" << std::endl;
+				return false;
+			}
+
+			myfile->read(reinterpret_cast<char*>(iBlock), nint * sizeof(int));
+			if (myfile->gcount() != (int)(nint * sizeof(int))) {
+				std::cout << "Premature end-of-file" << std::endl;
+				return false;
+			}
+
+			Node n = Node();
+			n.nodeId = i;	n.haloId = i;	n.count  = 1;
+			n.pos = Point(fBlock[0], fBlock[2], fBlock[4]);
+			n.vel = Point(fBlock[1], fBlock[3], fBlock[5]);
+			n.mass = fBlock[6];
+			nodes[i] = n;
+
+			index[i] = iBlock[0];
+
+			if(i==0)
+			{	
+				minX = n.pos.x; maxX = n.pos.x;
+				minY = n.pos.y; maxY = n.pos.y;
+				minZ = n.pos.z; maxZ = n.pos.z;	
+			}
+			else
+			{
+				minX = std::min(minX, n.pos.x);	maxX = std::max(maxX, n.pos.x);
+				minY = std::min(minY, n.pos.y);	maxY = std::max(maxY, n.pos.y);
+				minZ = std::min(minZ, n.pos.z);	maxZ = std::max(maxZ, n.pos.z);
+			}
+		}
+
+		// get bounds of the space
+		lBoundS = Point(minX, minY, minZ);
+		uBoundS = Point(maxX, maxY, maxZ);
+
+		return true;
 	}
 
 	// find halo ids 
@@ -193,7 +265,7 @@ public:
 		thrust::for_each(CountingIterator(0), CountingIterator(0)+numOfParticles,
 				setHaloId(thrust::raw_pointer_cast(&*nodes.begin()),
 						 		  thrust::raw_pointer_cast(&*haloIndex.begin()),
-						      linkLength, particleSize));
+						     	linkLength, particleSize));
 	}
 
 	// for a given node set its halo id, for particles in filtered halos set id to -1
@@ -201,6 +273,7 @@ public:
 	{
 		Node  *nodes;
 		int   *haloIndex;
+
 		int    particleSize;
 		float  linkLength;
 
@@ -216,51 +289,93 @@ public:
       if(n->parentSuper!=NULL && n->parentSuper->value<=linkLength)
         n = n->parentSuper;
 
-			while(n->parent!=NULL && n->parent->value <= linkLength)
+			while(n->parent!=NULL && n->parent->value<=linkLength)
 			  n = n->parent;
 
 			nodes[i].parentSuper = n;
 
-      haloIndex[i] = (n->count >= particleSize) ? n->haloId : -1;
+			haloIndex[i] = (n->count >= particleSize) ? n->haloId : -1;
 		}
 	};
 
 	// get the unique halo indexes & number of halos
-	void getNumOfHalos()
+	void getHaloDetails()
 	{
-	  thrust::device_vector<int>::iterator new_end;
+		thrust::pair<thrust::device_vector<int>::iterator, thrust::device_vector<int>::iterator> new_end;
 		
+		// find unique halo ids & one particle id which belongs to that halo
 		haloIndexUnique.resize(numOfParticles);		
 		thrust::copy(haloIndex.begin(), haloIndex.end(), haloIndexUnique.begin());
-		thrust::stable_sort(haloIndexUnique.begin(), haloIndexUnique.end());
-	  new_end = thrust::unique(haloIndexUnique.begin(), haloIndexUnique.end());
-	  new_end = thrust::remove(haloIndexUnique.begin(), new_end, -1);
-	  numOfHalos = new_end - haloIndexUnique.begin();
+		thrust::device_vector<int> tmp(numOfParticles);
+		thrust::sequence(tmp.begin(), tmp.end());	
+
+		thrust::stable_sort_by_key(haloIndexUnique.begin(), haloIndexUnique.begin()+numOfParticles, tmp.begin(),  thrust::greater<int>());
+	  new_end = thrust::unique_by_key(haloIndexUnique.begin(), haloIndexUnique.begin()+numOfParticles, tmp.begin());
+	  
+	  numOfHalos = thrust::get<0>(new_end) - haloIndexUnique.begin();
+		if(haloIndexUnique[numOfHalos-1]==-1) numOfHalos--;
+
+		thrust::reverse(tmp.begin(), tmp.begin()+numOfHalos);
+
+		// get the halo stats
+		haloCount.resize(numOfHalos);
+		haloX.resize(numOfHalos);
+		haloY.resize(numOfHalos);
+		haloZ.resize(numOfHalos);
+		haloVX.resize(numOfHalos);
+		haloVY.resize(numOfHalos);
+		haloVZ.resize(numOfHalos);
+
+		thrust:: for_each(CountingIterator(0), CountingIterator(0)+numOfHalos,
+				setHaloStats(thrust::raw_pointer_cast(&*nodes.begin()),
+										 thrust::raw_pointer_cast(&*tmp.begin()),
+										 thrust::raw_pointer_cast(&*haloCount.begin()),
+										 thrust::raw_pointer_cast(&*haloX.begin()),
+										 thrust::raw_pointer_cast(&*haloY.begin()),
+										 thrust::raw_pointer_cast(&*haloZ.begin()),
+										 thrust::raw_pointer_cast(&*haloVX.begin()),
+										 thrust::raw_pointer_cast(&*haloVY.begin()),
+										 thrust::raw_pointer_cast(&*haloVZ.begin()),
+										 linkLength, particleSize));
+/*
+		std::cout << "haloCount		"; thrust::copy(haloCount.begin(), haloCount.begin()+numOfHalos, std::ostream_iterator<float>(std::cout, " "));   std::cout << std::endl << std::endl;
+*/
 	}
 
-	// get the size of the merge tree
-	void getSizeOfMergeTree()
+	// for each halo, get its stats
+	struct setHaloStats : public thrust::unary_function<int, void>
 	{
-		thrust::host_vector<Node>  nodes_h;
-		nodes_h.resize(numOfParticles);
+		Node  *nodes;
+		
+		int    particleSize;
+		float  linkLength;
 
-		thrust::copy(nodes.begin(), nodes.end(), nodes_h.begin());
+		int *particleId;
+		int *haloCount;
+		float *haloX, *haloY, *haloZ;
+		float *haloVX, *haloVY, *haloVZ;
 
-		mergetreeSize = 0;
-		for(int i=0; i<numOfParticles; i++)
-		{
-			Node *n = &nodes_h[i];
+		__host__ __device__
+		setHaloStats(Node *nodes, int *particleId, int *haloCount,
+			float *haloX, float *haloY, float *haloZ,
+			float *haloVX, float *haloVY, float *haloVZ,
+			float linkLength, int particleSize) :
+			nodes(nodes), particleId(particleId), haloCount(haloCount),
+			haloX(haloX), haloY(haloY), haloZ(haloZ),
+			haloVX(haloVX), haloVY(haloVY), haloVZ(haloVZ),
+			linkLength(linkLength), particleSize(particleSize) {}
 
-			while(n->parent!=NULL)
-			{
-				n = (n->parent);
-				if(n->nodeId != -2) mergetreeSize++;
-				n->nodeId = -2;								
-			}
+		__host__ __device__
+		void operator()(int i)
+		{			
+      Node *n = (&nodes[particleId[i]])->parentSuper;
+
+			haloCount[i] = n->count;
+			haloX[i] = (float)(n->pos.x/n->count);	haloVX[i] = (float)(n->pos.x/n->count);
+			haloY[i] = (float)(n->pos.y/n->count);	haloVY[i] = (float)(n->pos.y/n->count);
+			haloZ[i] = (float)(n->pos.z/n->count);	haloVZ[i] = (float)(n->pos.z/n->count);		
 		}
-
-		mergetreeSize += numOfParticles;
-	}
+	};
 
 	// get particles of valid halos & get number of halo particles 
 	void getHaloParticles()
@@ -281,9 +396,13 @@ public:
     inputZ_f.resize(numOfHaloParticles);
 
 		thrust::gather(tmpIntArray.begin(), tmpIntArray.begin()+numOfHaloParticles, haloIndex.begin(), haloIndex_f.begin());
-		thrust::gather(tmpIntArray.begin(), tmpIntArray.begin()+numOfHaloParticles, inputX.begin(), inputX_f.begin());
-		thrust::gather(tmpIntArray.begin(), tmpIntArray.begin()+numOfHaloParticles, inputY.begin(), inputY_f.begin());
-		thrust::gather(tmpIntArray.begin(), tmpIntArray.begin()+numOfHaloParticles, inputZ.begin(), inputZ_f.begin());
+		
+		thrust:: for_each(CountingIterator(0), CountingIterator(0)+numOfHaloParticles,
+			getHaloParticlePositions(thrust::raw_pointer_cast(&*nodes.begin()),
+															 thrust::raw_pointer_cast(&*tmpIntArray.begin()),
+															 thrust::raw_pointer_cast(&*inputX_f.begin()),
+															 thrust::raw_pointer_cast(&*inputY_f.begin()),
+															 thrust::raw_pointer_cast(&*inputZ_f.begin())));
 	}
 
 	// given a haloIndex of a particle, check whether this particle DOES NOT belong to a halo
@@ -301,25 +420,29 @@ public:
 		}
 	};
 
-	// clear super parents of all nodes
-	void clearSuperParents()
-	{
-		thrust::for_each(CountingIterator(0), CountingIterator(0)+numOfParticles,
-				clearParentSuper(thrust::raw_pointer_cast(&*nodes.begin())));
-	}
-
-	// for a given node, set its super parent to null
-	struct clearParentSuper : public thrust::unary_function<int, void>
+	// for each particle in a halo, get its positions
+	struct getHaloParticlePositions : public thrust::unary_function<int, void>
 	{
 		Node  *nodes;
+		
+		int *particleId;
+
+		float *inputX_f, *inputY_f, *inputZ_f;
 
 		__host__ __device__
-		clearParentSuper(Node *nodes) : nodes(nodes) {}
+		getHaloParticlePositions(Node *nodes, int *particleId, 
+			float *inputX_f, float *inputY_f, float *inputZ_f) :
+			nodes(nodes), particleId(particleId),
+			inputX_f(inputX_f), inputY_f(inputY_f), inputZ_f(inputZ_f) {}
 
 		__host__ __device__
 		void operator()(int i)
 		{			
-      nodes[i].parentSuper = NULL;
+      Node *n = &nodes[particleId[i]];
+
+			inputX_f[i] = n->pos.x;
+			inputY_f[i] = n->pos.y;
+			inputZ_f[i] = n->pos.z;		
 		}
 	};
 
@@ -350,8 +473,53 @@ public:
 		else std::cout << "-- valid merge tree " << std::endl;
 	}
 
+	// get the size of the merge tree
+	void getSizeOfMergeTree()
+	{
+		thrust::host_vector<Node>  nodes_h;
+		nodes_h.resize(numOfParticles);
 
+		thrust::copy(nodes.begin(), nodes.end(), nodes_h.begin());
 
+		mergetreeSize = 0;
+		for(int i=0; i<numOfParticles; i++)
+		{
+			Node *n = &nodes_h[i];
+
+			while(n->parent!=NULL)
+			{
+				n = (n->parent);
+				if(n->nodeId != -2) mergetreeSize++;
+				n->nodeId = -2;								
+			}
+		}
+
+		mergetreeSize += numOfParticles;
+	}
+
+	// clear super parents of all nodes
+	void clearSuperParents()
+	{
+		thrust::for_each(CountingIterator(0), CountingIterator(0)+numOfParticles,
+				clearParentSuper(thrust::raw_pointer_cast(&*nodes.begin())));
+	}
+
+	// for a given node, set its super parent to null
+	struct clearParentSuper : public thrust::unary_function<int, void>
+	{
+		Node  *nodes;
+
+		__host__ __device__
+		clearParentSuper(Node *nodes) : nodes(nodes) {}
+
+		__host__ __device__
+		void operator()(int i)
+		{			
+      nodes[i].parentSuper = NULL;
+		}
+	};
+
+	
 
 	//------- init stuff
 	void initDetails()
@@ -408,9 +576,7 @@ public:
 	{
 	  cubeId.resize(numOfParticles);
 		thrust::for_each(CountingIterator(0), CountingIterator(0)+numOfParticles,
-				setCubeIdOfParticle(thrust::raw_pointer_cast(&*inputX.begin()),
-														thrust::raw_pointer_cast(&*inputY.begin()),
-														thrust::raw_pointer_cast(&*inputZ.begin()),
+				setCubeIdOfParticle(thrust::raw_pointer_cast(&*nodes.begin()),
 														thrust::raw_pointer_cast(&*cubeId.begin()),
 														cubeLen, lBoundS, cubesInX, cubesInY, cubesInZ));
 	}
@@ -423,23 +589,23 @@ public:
 		int    cubesInX, cubesInY, cubesInZ;
 
 		int   *cubeId;
-		float *inputX, *inputY, *inputZ;
+		Node  *nodes;
 
 		__host__ __device__
-		setCubeIdOfParticle(float *inputX, float *inputY, float *inputZ,
-			int *cubeId, float cubeLen, Point lBoundS,
+		setCubeIdOfParticle(Node  *nodes, int *cubeId, float cubeLen, Point lBoundS,
 			int cubesInX, int cubesInY, int cubesInZ) :
-			inputX(inputX), inputY(inputY), inputZ(inputZ),
-			cubeId(cubeId), cubeLen(cubeLen), lBoundS(lBoundS),
+			nodes(nodes), cubeId(cubeId), cubeLen(cubeLen), lBoundS(lBoundS),
 			cubesInX(cubesInX), cubesInY(cubesInY), cubesInZ(cubesInZ){}
 
 		__host__ __device__
 		void operator()(int i)
 		{
+			Node n = nodes[i];
+	
 			// get x,y,z coordinates for the cube
-			int z = (((inputZ[i]-lBoundS.z) / cubeLen)>=cubesInZ) ? cubesInZ-1 : (inputZ[i]-lBoundS.z) / cubeLen;
-			int y = (((inputY[i]-lBoundS.y) / cubeLen)>=cubesInY) ? cubesInY-1 : (inputY[i]-lBoundS.y) / cubeLen;
-			int x = (((inputX[i]-lBoundS.x) / cubeLen)>=cubesInX) ? cubesInX-1 : (inputX[i]-lBoundS.x) / cubeLen;
+			int z = (((n.pos.z-lBoundS.z) / cubeLen)>=cubesInZ) ? cubesInZ-1 : (n.pos.z-lBoundS.z) / cubeLen;
+			int y = (((n.pos.y-lBoundS.y) / cubeLen)>=cubesInY) ? cubesInY-1 : (n.pos.y-lBoundS.y) / cubeLen;
+			int x = (((n.pos.x-lBoundS.x) / cubeLen)>=cubesInX) ? cubesInX-1 : (n.pos.x-lBoundS.x) / cubeLen;
 			
 			cubeId[i] = (z*(cubesInX*cubesInY) + y*cubesInX + x); // get cube id
 		}
@@ -461,6 +627,7 @@ public:
 	void getSizeAndStartOfCubes()
 	{
 		int num = (numOfParticles<numOfCubes) ? numOfParticles : numOfCubes;
+
 		cubeMapping.resize(num);
 		particleSizeOfCubes.resize(num);
 
@@ -476,40 +643,10 @@ public:
 		cubeMappingInv.resize(numOfCubes);
 		thrust::fill(cubeMappingInv.begin(), cubeMappingInv.end(), -1);
 		thrust::scatter(CountingIterator(0), CountingIterator(0)+cubesNonEmpty, cubeMapping.begin(), cubeMappingInv.begin());
-		
+
 		// get the size & start details for only non empty cubes
 		particleStartOfCubes.resize(cubesNonEmpty);
 		thrust::exclusive_scan(particleSizeOfCubes.begin(), particleSizeOfCubes.begin()+cubesNonEmpty, particleStartOfCubes.begin());
-
-//-----------------------------------------
-
-/*
-	cubeMapping.resize(numOfCubes);
-	cubeMappingInv.resize(numOfCubes);
-
-	particleSizeOfCubes.resize(numOfCubes);
-	particleStartOfCubes.resize(numOfCubes);
-
-	tmpIntArray.resize(numOfCubes);
-
-	thrust::pair<thrust::device_vector<int>::iterator, thrust::device_vector<int>::iterator> new_end;
-
-	new_end = thrust::reduce_by_key(cubeId.begin(), cubeId.end(), ConstantIterator(1), cubeMapping.begin(), tmpIntArray.begin());
-
-	cubesNonEmpty = thrust::get<0>(new_end) - cubeMapping.begin();
-	cubesEmpty = numOfCubes - cubesNonEmpty;	
-
-  // get the size & start details for only non empty cubes
-	thrust::copy(tmpIntArray.begin(), tmpIntArray.begin()+cubesNonEmpty, particleSizeOfCubes.begin());
-
-	thrust::set_difference(CountingIterator(0), CountingIterator(0)+numOfCubes, cubeMapping.begin(), cubeMapping.begin()+cubesNonEmpty, cubeMapping.begin()+cubesNonEmpty);
-
-	thrust::scatter(CountingIterator(0), CountingIterator(0)+numOfCubes, cubeMapping.begin(), cubeMappingInv.begin());
-
-	thrust::exclusive_scan(particleSizeOfCubes.begin(), particleSizeOfCubes.begin()+numOfCubes, particleStartOfCubes.begin());
-
-	tmpIntArray.clear();
-*/
 	}
 	
 
@@ -520,9 +657,6 @@ public:
 	void outputCubeDetails(std::string title)
 	{
 		std::cout << title << std::endl << std::endl;
-		std::cout << "inputX		"; thrust::copy(inputX.begin(), inputX.begin()+numOfParticles, std::ostream_iterator<float>(std::cout, " "));   std::cout << std::endl << std::endl;
-		std::cout << "inputY		"; thrust::copy(inputY.begin(), inputY.begin()+numOfParticles, std::ostream_iterator<float>(std::cout, " "));   std::cout << std::endl << std::endl;
-		std::cout << "inputZ		"; thrust::copy(inputZ.begin(), inputZ.begin()+numOfParticles, std::ostream_iterator<float>(std::cout, " "));   std::cout << std::endl << std::endl;
 		std::cout << "sizeOfCube	"; thrust::copy(particleSizeOfCubes.begin(), particleSizeOfCubes.begin()+numOfCubes, std::ostream_iterator<int>(std::cout, " "));   std::cout << std::endl << std::endl;
 		std::cout << std::endl << "-- Outputs------------" << std::endl << std::endl;
 
@@ -534,9 +668,6 @@ public:
 
 		std::cout << "particleId 	"; thrust::copy(particleId.begin(), particleId.begin()+numOfParticles, std::ostream_iterator<int>(std::cout, " "));   std::cout << std::endl << std::endl;
 		std::cout << "cubeID		"; thrust::copy(cubeId.begin(), cubeId.begin()+numOfParticles, std::ostream_iterator<int>(std::cout, " "));   std::cout << std::endl << std::endl;
-		std::cout << "inputX		"; thrust::copy(inputX.begin(), inputX.begin()+numOfParticles, std::ostream_iterator<float>(std::cout, " "));   std::cout << std::endl << std::endl;
-		std::cout << "inputY		"; thrust::copy(inputY.begin(), inputY.begin()+numOfParticles, std::ostream_iterator<float>(std::cout, " "));   std::cout << std::endl << std::endl;
-		std::cout << "inputZ		"; thrust::copy(inputZ.begin(), inputZ.begin()+numOfParticles, std::ostream_iterator<float>(std::cout, " "));   std::cout << std::endl << std::endl;
 		std::cout << "sizeOfCube	"; thrust::copy(particleSizeOfCubes.begin(), particleSizeOfCubes.begin()+numOfCubes, std::ostream_iterator<int>(std::cout, " "));   std::cout << std::endl << std::endl;
 		std::cout << "startOfCube	"; thrust::copy(particleStartOfCubes.begin(), particleStartOfCubes.begin()+numOfCubes, std::ostream_iterator<int>(std::cout, " ")); std::cout << std::endl << std::endl;
 		std::cout << "----------------------" << std::endl << std::endl;
@@ -570,7 +701,7 @@ public:
 		{
 			Node n = ((Node)nodes[i]);
 			int k  = (n.parent==NULL)?0:1;
-			std::cout << "(" << inputX[i] << "," << inputY[i] << "," << inputZ[i] << " : " << n.value << "," << n.nodeId << "," << n.haloId << "," << k << ")";
+			std::cout << "(" << n.pos.x << "," << n.pos.y << "," << n.pos.z << " : " << n.value << "," << n.nodeId << "," << n.haloId << "," << k << ")";
 
 			while(n.parent!=NULL)
 			{
@@ -679,12 +810,7 @@ public:
     __host__ __device__
     void operator()(int i)
     {
-			nodes[i].nodeId = i;
-    	nodes[i].haloId = i;
-			nodes[i].count  = 1;
-
 			nodesTmp1[i].nodeId = i+numOfParticles;
-
 			tmpFree[i] = i+1;
     }
  	};
@@ -746,6 +872,9 @@ public:
 			tmpFree[tmpNxt[i]] = -2;
 			tmpNxt[i] = tmpVal;
 
+			float x=0, y=0, z=0;
+			float vx=0, vy=0, vz=0;
+
 			int minValue = -1;
 			for(int j=particleStartOfCubes[i]; j<particleStartOfCubes[i]+particleSizeOfCubes[i]; j++)
 			{
@@ -757,11 +886,17 @@ public:
 				else {	 n->childE->sibling = tmp;	n->childE = tmp; }
 
 				minValue = (minValue==-1) ? tmp->haloId : (minValue<tmp->haloId ? minValue : tmp->haloId);
+
+			  x += tmp->pos.x;	vx += tmp->vel.x;
+				y += tmp->pos.y;	vy += tmp->vel.y;
+				z += tmp->pos.z;	vz += tmp->vel.z;
 			}
 
 			n->value  = min_ll;
       n->haloId = minValue;
       n->count += particleSizeOfCubes[i];
+			n->pos = Point(x,y,z);
+			n->vel = Point(vx,vy,vz);
     }
  	};
 
@@ -774,14 +909,13 @@ public:
 		ite = (size-1)/2;
 
 		std::cout << std::endl << "side " << side << " cubeSize " << size << " ite " << ite << std::endl << std::endl;
-		std::cout << cubesEmpty << " of " << numOfCubes << " cubes are empty. (" << (((double)cubesEmpty*100)/(double)numOfCubes) << "%)" << std::endl;
+		std::cout << cubesEmpty << " of " << numOfCubes << " cubes are empty. (" << (((double)cubesEmpty*100)/(double)numOfCubes) << "%) ... non empty cubes " << cubesNonEmpty << std::endl;
 
 		edgeSizeOfCubes.resize(cubes);
 		edgeStartOfCubes.resize(cubes);
 
-		tmpIntArray.resize(cubes);
-
 		// for each cube, get neighbor details
+		tmpIntArray.resize(cubes);
 		thrust::for_each(CountingIterator(0), CountingIterator(0)+cubes,
 				getNeighborDetails(thrust::raw_pointer_cast(&*cubeMapping.begin()),
 													 thrust::raw_pointer_cast(&*cubeMappingInv.begin()),
@@ -789,11 +923,7 @@ public:
 													 thrust::raw_pointer_cast(&*edgeSizeOfCubes.begin()),
 												   thrust::raw_pointer_cast(&*tmpIntArray.begin()),
 												   ite, side, cubesInX, cubesInY, cubesInZ));
-/*
-std::cout << "tmpIntArray	 "; thrust::copy(tmpIntArray.begin(), tmpIntArray.begin()+cubes, std::ostream_iterator<int>(std::cout, " ")); std::cout << std::endl << std::endl;
-*/
 		setChunks(); // group cubes in to chunks
-
 		tmpIntArray.clear();
 	
 		// for each cube, set the space required for storing edges		
@@ -882,9 +1012,7 @@ std::cout << "tmpIntArray	 "; thrust::copy(tmpIntArray.begin(), tmpIntArray.begi
 		std::cout << "inclusive_scan	 "; thrust::copy(sizeOfChunks.begin(), sizeOfChunks.begin()+100, std::ostream_iterator<int>(std::cout, " ")); std::cout << std::endl << std::endl;
 */
 		thrust::copy_if(CountingIterator(0), CountingIterator(0)+cubes, startOfChunks.begin(),
-				isStartOfChunks(thrust::raw_pointer_cast(&*particleSizeOfCubes.begin()),
-												thrust::raw_pointer_cast(&*sizeOfChunks.begin()),
-										 		*maxSize, cubes));	
+				isStartOfChunks(thrust::raw_pointer_cast(&*sizeOfChunks.begin()), *maxSize));	
 		chunks = cubes - thrust::count(startOfChunks.begin(), startOfChunks.begin()+cubes, -1);
 		thrust::for_each(CountingIterator(0), CountingIterator(0)+chunks,
 				setSizeOfChunks(thrust::raw_pointer_cast(&*startOfChunks.begin()),
@@ -911,13 +1039,12 @@ std::cout << "tmpIntArray	 "; thrust::copy(tmpIntArray.begin(), tmpIntArray.begi
 	// check whether this cube is the start of a chunk
   struct isStartOfChunks : public thrust::unary_function<int, void>
   {
-		int size, max;	
-		int *sizeOfChunks, *particleSizeOfCubes;
+		int max;	
+		int *sizeOfChunks;
 
 		__host__ __device__
-		isStartOfChunks(int *particleSizeOfCubes, int *sizeOfChunks, int max, int size) : 
-			particleSizeOfCubes(particleSizeOfCubes), sizeOfChunks(sizeOfChunks), 
-			max(max), size(size) {}
+		isStartOfChunks(int *sizeOfChunks, int max) : 
+			sizeOfChunks(sizeOfChunks), max(max) {}
 
     __host__ __device__
     bool operator()(int i)
@@ -963,9 +1090,7 @@ std::cout << "tmpIntArray	 "; thrust::copy(tmpIntArray.begin(), tmpIntArray.begi
 								 thrust::raw_pointer_cast(&*sizeOfChunks.begin()),
 								 thrust::raw_pointer_cast(&*cubeMapping.begin()),
 								 thrust::raw_pointer_cast(&*cubeMappingInv.begin()),
-								 thrust::raw_pointer_cast(&*inputX.begin()),
-								 thrust::raw_pointer_cast(&*inputY.begin()),
-								 thrust::raw_pointer_cast(&*inputZ.begin()),
+								 thrust::raw_pointer_cast(&*nodes.begin()),
 								 thrust::raw_pointer_cast(&*particleId.begin()),
 								 max_ll, min_ll, ite, cubesInX, cubesInY, cubesInZ, side,
 								 thrust::raw_pointer_cast(&*edges.begin()),
@@ -983,7 +1108,7 @@ std::cout << "tmpIntArray	 "; thrust::copy(tmpIntArray.begin(), tmpIntArray.begi
 	{
 		int    ite;
 		float  max_ll, min_ll;
-		float *inputX, *inputY, *inputZ;
+		Node  *nodes;
 
 		int   *startOfChunks, *sizeOfChunks;
 		int   *cubeMapping, *cubeMappingInv;
@@ -998,15 +1123,13 @@ std::cout << "tmpIntArray	 "; thrust::copy(tmpIntArray.begin(), tmpIntArray.begi
 		__host__ __device__
 		getEdges(int *particleStartOfCubes, int *particleSizeOfCubes, 
 				int *startOfChunks, int *sizeOfChunks,
-				int *cubeMapping, int *cubeMappingInv,
-				float *inputX, float *inputY, float *inputZ,
+				int *cubeMapping, int *cubeMappingInv, Node *nodes,
 				int *particleId, float max_ll, float min_ll, int ite,
 				int cubesInX, int cubesInY, int cubesInZ, int side, 
 				Edge *edges, int *edgeSizeOfCubes, int *edgeStartOfCubes) :
  				particleStartOfCubes(particleStartOfCubes), particleSizeOfCubes(particleSizeOfCubes),
 				startOfChunks(startOfChunks), sizeOfChunks(sizeOfChunks),
-				cubeMapping(cubeMapping), cubeMappingInv(cubeMappingInv), 
-			 	inputX(inputX), inputY(inputY), inputZ(inputZ),
+				cubeMapping(cubeMapping), cubeMappingInv(cubeMappingInv), nodes(nodes),
 				particleId(particleId), max_ll(max_ll), min_ll(min_ll), ite(ite), 
 				cubesInX(cubesInX), cubesInY(cubesInY), cubesInZ(cubesInZ), side(side),
 				edges(edges), edgeSizeOfCubes(edgeSizeOfCubes), edgeStartOfCubes(edgeStartOfCubes) {}
@@ -1045,12 +1168,12 @@ std::cout << "tmpIntArray	 "; thrust::copy(tmpIntArray.begin(), tmpIntArray.begi
 						cube = cubeMappingInv[cube_mapped];
 					}
 
-					if(cube_mapped==-1 || cube==-1 || particleSizeOfCubes[i]==0 || particleSizeOfCubes[cube]==0) continue;
+					if(cube_mapped==-1 || cube==-1 || particleSizeOfCubes[l]==0 || particleSizeOfCubes[cube]==0) continue;
 
 					Edge  e;
-					float dist_min = max_ll+1;					
 
 					// for each particle in this cube
+					float dist_min = max_ll+1;
 					for(int j=particleStartOfCubes[l]; j<particleStartOfCubes[l]+particleSizeOfCubes[l]; j++)
 					{
 						int pId_j = particleId[j];
@@ -1060,12 +1183,15 @@ std::cout << "tmpIntArray	 "; thrust::copy(tmpIntArray.begin(), tmpIntArray.begi
 						{
 							int pId_k = particleId[k];
 
-							float xd = (inputX[pId_j]-inputX[pId_k]);  if (xd < 0.0f) xd = -xd;
-							float yd = (inputY[pId_j]-inputY[pId_k]);  if (yd < 0.0f) yd = -yd;
-							float zd = (inputZ[pId_j]-inputZ[pId_k]);  if (zd < 0.0f) zd = -zd;
-																				                                                                                                                   								if(xd<=max_ll && yd<=max_ll && zd<=max_ll)
+							Node node_j = nodes[pId_j];
+							Node node_k = nodes[pId_k];
+
+							double xd = (node_j.pos.x-node_k.pos.x);  if (xd < 0.0f) xd = -xd;
+							double yd = (node_j.pos.y-node_k.pos.y);  if (yd < 0.0f) yd = -yd;
+							double zd = (node_j.pos.z-node_k.pos.z);  if (zd < 0.0f) zd = -zd;
+																	                                                                                                                   								if(xd<=max_ll && yd<=max_ll && zd<=max_ll)
 							{
-								float dist = (float)std::sqrt(xd*xd + yd*yd + zd*zd);
+								double dist = (double)std::sqrt(xd*xd + yd*yd + zd*zd);
 
 								if(dist <= max_ll && dist < dist_min)
 								{
@@ -1123,11 +1249,6 @@ std::cout << "tmpIntArray	 "; thrust::copy(tmpIntArray.begin(), tmpIntArray.begi
 												 sizeP, cubesOri));
 			thrust::for_each(CountingIterator(0), CountingIterator(0)+cubes,
 				combineMergeTrees(thrust::raw_pointer_cast(&*cubeMapping.begin()),
-													thrust::raw_pointer_cast(&*particleSizeOfCubes.begin()),
-													thrust::raw_pointer_cast(&*particleStartOfCubes.begin()),
-												  thrust::raw_pointer_cast(&*inputX.begin()),
-												  thrust::raw_pointer_cast(&*inputY.begin()),
-												  thrust::raw_pointer_cast(&*inputZ.begin()),
 													thrust::raw_pointer_cast(&*cubeId.begin()),
 													thrust::raw_pointer_cast(&*nodesTmp1.begin()),
 													thrust::raw_pointer_cast(&*nodes.begin()),
@@ -1136,7 +1257,7 @@ std::cout << "tmpIntArray	 "; thrust::copy(tmpIntArray.begin(), tmpIntArray.begi
 													thrust::raw_pointer_cast(&*edges.begin()),
 													thrust::raw_pointer_cast(&*edgeStartOfCubes.begin()),
 													thrust::raw_pointer_cast(&*edgeSizeOfCubes.begin()),
-													min_ll, max_ll, sizeP, cubesOri, numOfParticles));
+													min_ll, sizeP, cubesOri, numOfParticles));
 			gettimeofday(&end, 0);
 
       timersub(&end, &begin, &diff);
@@ -1193,15 +1314,11 @@ std::cout << "tmpIntArray	 "; thrust::copy(tmpIntArray.begin(), tmpIntArray.begi
 	// combine two local merge trees
 	struct combineMergeTrees : public thrust::unary_function<int, void>
   {
-    float  min_ll, max_ll;
+    float  min_ll;
 		int    sizeP, numOfCubesOri, numOfParticles;
 
     int   *cubeId, *cubeMapping;
 		int   *tmpNxt, *tmpFree;
-
-    int   *particleStartOfCubes, *particleSizeOfCubes;
-
-		float *inputX, *inputY, *inputZ;
 
 		Edge *edges;
 		int  *edgeStartOfCubes, *edgeSizeOfCubes;
@@ -1209,16 +1326,14 @@ std::cout << "tmpIntArray	 "; thrust::copy(tmpIntArray.begin(), tmpIntArray.begi
     Node  *nodes, *nodesTmp1;
 
     __host__ __device__
-    combineMergeTrees(int *cubeMapping, int *particleSizeOfCubes, int *particleStartOfCubes, 
-				float *inputX, float *inputY, float *inputZ,
-        int *cubeId, Node *nodesTmp1, Node *nodes, int *tmpNxt, int *tmpFree, 
+    combineMergeTrees(int *cubeMapping, int *cubeId, 
+			Node *nodesTmp1, Node *nodes, int *tmpNxt, int *tmpFree, 
 				Edge *edges, int *edgeStartOfCubes, int *edgeSizeOfCubes,
-				float min_ll, float max_ll, int sizeP, int numOfCubesOri, int numOfParticles) :
-        cubeMapping(cubeMapping), particleSizeOfCubes(particleSizeOfCubes), particleStartOfCubes(particleStartOfCubes), 
-				inputX(inputX), inputY(inputY), inputZ(inputZ),
-        cubeId(cubeId), nodesTmp1(nodesTmp1), nodes(nodes),	tmpNxt(tmpNxt), tmpFree(tmpFree), 
+				float min_ll, int sizeP, int numOfCubesOri, int numOfParticles) :
+        cubeMapping(cubeMapping), cubeId(cubeId), 
+				nodesTmp1(nodesTmp1), nodes(nodes),	tmpNxt(tmpNxt), tmpFree(tmpFree), 
 				edges(edges), edgeStartOfCubes(edgeStartOfCubes), edgeSizeOfCubes(edgeSizeOfCubes),
-				min_ll(min_ll), max_ll(max_ll), sizeP(sizeP), numOfCubesOri(numOfCubesOri), numOfParticles(numOfParticles) {}
+				min_ll(min_ll), sizeP(sizeP), numOfCubesOri(numOfCubesOri), numOfParticles(numOfParticles) {}
 
     __host__ __device__
     void operator()(int i)
@@ -1261,6 +1376,10 @@ std::cout << "tmpIntArray	 "; thrust::copy(tmpIntArray.begin(), tmpIntArray.begi
 
 					int srcCount = src->count;
 					int desCount = des->count;
+
+					float srcX = src->pos.x; float desX = des->pos.x;	float srcVX = src->vel.x; float desVX = des->vel.x;
+					float srcY = src->pos.y; float desY = des->pos.y;	float srcVY = src->vel.y; float desVY = des->vel.y;
+					float srcZ = src->pos.z; float desZ = des->pos.z;	float srcVZ = src->vel.z; float desVZ = des->vel.z;
 
 					// get the original parents of src & des nodes
 					Node *srcTmp = (src->parent!=NULL) ? src->parent : NULL;
@@ -1353,6 +1472,8 @@ std::cout << "tmpIntArray	 "; thrust::copy(tmpIntArray.begin(), tmpIntArray.begi
 					}
 					n->value  = weight;
 					n->count  = src->count + des->count;
+					n->pos = Point(src->pos.x+des->pos.x, src->pos.y+des->pos.y, src->pos.z+des->pos.z);
+					n->vel = Point(src->vel.x+des->vel.x, src->vel.y+des->vel.y, src->vel.z+des->vel.z);
 					n->haloId = (src->haloId < des->haloId) ? src->haloId : des->haloId;
 
 					if(freeDes && des->nodeId>=numOfParticles)
@@ -1366,6 +1487,8 @@ std::cout << "tmpIntArray	 "; thrust::copy(tmpIntArray.begin(), tmpIntArray.begi
 						des->haloId = -1;
 						des->value  = 0.0f;
 						des->count  = 0;
+						des->pos = Point(0,0,0);
+						des->vel = Point(0,0,0);
 						des->parent = NULL;
 						des->parentSuper = NULL;
 						des->childS = NULL;
@@ -1387,6 +1510,11 @@ std::cout << "tmpIntArray	 "; thrust::copy(tmpIntArray.begin(), tmpIntArray.begi
 							srcTmp->haloId = (srcTmp->haloId < n->haloId) ? srcTmp->haloId : n->haloId;
 							srcCount = srcTmp->count;
 							srcTmp->count += desCount;
+							srcX = srcTmp->pos.x;		srcVX = srcTmp->vel.x;
+							srcY = srcTmp->pos.y;		srcVY = srcTmp->vel.y;
+							srcZ = srcTmp->pos.z;		srcVZ = srcTmp->vel.z;
+							srcTmp->pos = Point(srcTmp->pos.x+desX, srcTmp->pos.y+desY, srcTmp->pos.z+desZ);
+							srcTmp->vel = Point(srcTmp->vel.x+desVX, srcTmp->vel.y+desVY, srcTmp->vel.z+desVZ);
 
 							n = srcTmp;
 							srcTmp = srcTmp->parent;
@@ -1421,6 +1549,11 @@ std::cout << "tmpIntArray	 "; thrust::copy(tmpIntArray.begin(), tmpIntArray.begi
 							desTmp->haloId = (desTmp->haloId < n->haloId) ? desTmp->haloId : n->haloId;
 							desCount = desTmp->count;
 							desTmp->count += srcCount;
+							desX = desTmp->pos.x;		desVX = desTmp->vel.x;
+							desY = desTmp->pos.y;		desVY = desTmp->vel.y;
+							desZ = desTmp->pos.z;		desVZ = desTmp->vel.z;
+							desTmp->pos = Point(desTmp->pos.x+srcX, desTmp->pos.y+srcY, desTmp->pos.z+srcZ);
+							desTmp->vel = Point(desTmp->vel.x+srcVX, desTmp->vel.y+srcVY, desTmp->vel.z+srcVZ);
 
 							n = desTmp;
 							desTmp = desTmp->parent;
@@ -1457,6 +1590,8 @@ std::cout << "tmpIntArray	 "; thrust::copy(tmpIntArray.begin(), tmpIntArray.begi
 								srcTmp->childE = desTmp->childE;
 								srcTmp->haloId = (srcTmp->haloId < desTmp->haloId) ? srcTmp->haloId : desTmp->haloId;
 								srcTmp->count += desTmp->count;
+								srcTmp->pos = Point(srcTmp->pos.x+desTmp->pos.x, srcTmp->pos.y+desTmp->pos.y, srcTmp->pos.z+desTmp->pos.z);
+								srcTmp->vel = Point(srcTmp->vel.x+desTmp->vel.x, srcTmp->vel.y+desTmp->vel.y, srcTmp->vel.z+desTmp->vel.z);
 							}
 
 							if(!srcTmp->childS && !srcTmp->childE)
@@ -1492,6 +1627,8 @@ std::cout << "tmpIntArray	 "; thrust::copy(tmpIntArray.begin(), tmpIntArray.begi
 									srcTmp->haloId = -1;
 									srcTmp->value  = 0.0f;
 									srcTmp->count  = 0;
+									srcTmp->pos = Point(0,0,0);
+									srcTmp->vel = Point(0,0,0);
 									srcTmp->parent = NULL;
 									srcTmp->parentSuper = NULL;
 									srcTmp->childS = NULL;
@@ -1527,6 +1664,11 @@ std::cout << "tmpIntArray	 "; thrust::copy(tmpIntArray.begin(), tmpIntArray.begi
 						srcTmp->haloId = (srcTmp->haloId < n->haloId) ? srcTmp->haloId : n->haloId;
 						srcCount = srcTmp->count;
 						srcTmp->count += desCount;
+						srcX = srcTmp->pos.x;		srcVX = srcTmp->vel.x;
+						srcY = srcTmp->pos.y;		srcVY = srcTmp->vel.y;
+						srcZ = srcTmp->pos.z;		srcVZ = srcTmp->vel.z;
+						srcTmp->pos = Point(srcTmp->pos.x+desX, srcTmp->pos.y+desY, srcTmp->pos.z+desZ);
+						srcTmp->vel = Point(srcTmp->vel.x+desVX, srcTmp->vel.y+desVY, srcTmp->vel.z+desVZ);
 
 						n = srcTmp;
 						srcTmp = srcTmp->parent;
@@ -1536,6 +1678,11 @@ std::cout << "tmpIntArray	 "; thrust::copy(tmpIntArray.begin(), tmpIntArray.begi
 						srcTmp->haloId = (srcTmp->haloId < n->haloId) ? srcTmp->haloId : n->haloId;
 						srcCount = srcTmp->count;
 						srcTmp->count += desCount;
+						srcX = srcTmp->pos.x;		srcVX = srcTmp->vel.x;
+						srcY = srcTmp->pos.y;		srcVY = srcTmp->vel.y;
+						srcZ = srcTmp->pos.z;		srcVZ = srcTmp->vel.z;
+						srcTmp->pos = Point(srcTmp->pos.x+desX, srcTmp->pos.y+desY, srcTmp->pos.z+desZ);
+						srcTmp->vel = Point(srcTmp->vel.x+desVX, srcTmp->vel.y+desVY, srcTmp->vel.z+desVZ);
 
 						n = srcTmp;
 						srcTmp = srcTmp->parent;
@@ -1550,6 +1697,11 @@ std::cout << "tmpIntArray	 "; thrust::copy(tmpIntArray.begin(), tmpIntArray.begi
 						desTmp->haloId = (desTmp->haloId < n->haloId) ? desTmp->haloId : n->haloId;
 						desCount = desTmp->count;
 						desTmp->count += srcCount;
+						desX = desTmp->pos.x;		desVX = desTmp->vel.x;	
+						desY = desTmp->pos.y;		desVY = desTmp->vel.y;
+						desZ = desTmp->pos.z;		desVZ = desTmp->vel.z;
+						desTmp->pos = Point(desTmp->pos.x+srcX, desTmp->pos.y+srcY, desTmp->pos.z+srcZ);
+						desTmp->pos = Point(desTmp->vel.x+srcVX, desTmp->vel.y+srcVY, desTmp->vel.z+srcVZ);
 
 						n = desTmp;
 						desTmp = desTmp->parent;
@@ -1559,6 +1711,11 @@ std::cout << "tmpIntArray	 "; thrust::copy(tmpIntArray.begin(), tmpIntArray.begi
 						desTmp->haloId = (desTmp->haloId < n->haloId) ? desTmp->haloId : n->haloId;
 						desCount = desTmp->count;
 						desTmp->count += srcCount;
+						desX = desTmp->pos.x;		desVX = desTmp->vel.x;	
+						desY = desTmp->pos.y;		desVY = desTmp->vel.y;
+						desZ = desTmp->pos.z;		desVZ = desTmp->vel.z;
+						desTmp->pos = Point(desTmp->pos.x+srcX, desTmp->pos.y+srcY, desTmp->pos.z+srcZ);
+						desTmp->pos = Point(desTmp->vel.x+srcVX, desTmp->vel.y+srcVY, desTmp->vel.z+srcVZ);
 
 						n = desTmp;
 						desTmp = desTmp->parent;

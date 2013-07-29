@@ -41,21 +41,6 @@ namespace piston
 class halo
 {
 public:
-
-	struct DataItem
-	{
-		float xx;  float yy;  float zz;
-	  float vx;  float vy;  float vz;
-	  float ms;  int   pt;
-
-	  __host__ __device__
-	  DataItem(){}
-
-	  __host__ __device__
-	  DataItem(float xx, float vx, float yy, float vy, float zz, float vz, float ms, int pt) :
-		   xx(xx), vx(vx), yy(yy), vy(vy), zz(zz), vz(vz), ms(ms), pt(pt) {}
-	};
-
 	struct Point
 	{
     float x, y, z;
@@ -67,12 +52,49 @@ public:
     Point(float x, float y, float z) : x(x), y(y), z(z) {}
 	};
 
+	struct Node
+	{
+		int   nodeId; // particle Id
+    int   haloId; // halo Id, store the min particle id of the particles in this halo
+
+		int   count;  // store number of particles in the halo at this level
+		float value;  // function value of this node (which is the distance value)
+
+		Point pos;	// store x,y,z positions of particle
+		Point vel;  // store vx,vy,vz positions of particle
+		float mass;	// store mass of each particle
+
+		Node *parent, *parentSuper; 
+		Node *childE, *childS, *sibling;       
+
+		__host__ __device__
+		Node() { nodeId=-1; value=0.0f; haloId=-1; count=0;	
+						 parent=NULL; parentSuper=NULL; childS=NULL; childE=NULL; sibling=NULL; }
+
+		__host__ __device__
+		Node(int nodeId, float value, int haloId, int count, Node *parent, Node *parentSuper) :
+			nodeId(nodeId), value(value), haloId(haloId), count(count), parent(parent), parentSuper(parentSuper) {}
+	};
+
+	struct Edge
+	{
+		int srcId, desId; // src & des Ids of particles
+		float weight;			// weight of the edge (which is the distance value)
+
+		__host__ __device__
+		Edge() { srcId=-1; desId=-1; weight=-1; }
+		
+		__host__ __device__
+		Edge(int srcId, int desId, float weight) : srcId(srcId), desId(desId), weight(weight) {}
+	};
+
+	typedef thrust::device_vector<Node>::iterator NodeIterator;
+
   // definitions
   typedef thrust::device_vector<float>::iterator FloatIterator;
   typedef thrust::device_vector<int>::iterator   IntIterator;
 
   typedef thrust::tuple<float, float> Float2;
-
   typedef thrust::tuple<float, float, float> Float3;
   typedef thrust::tuple<FloatIterator, FloatIterator, FloatIterator> Float3TupleIterator;
   typedef thrust::zip_iterator<Float3TupleIterator> Float3zipIterator;
@@ -89,35 +111,53 @@ public:
   int   particleSize;   // number of particles in a halo
   int   numOfParticles; // total number of particles
 
-	int   n;					//if you want a fraction of the file to load, set this.. 1/n
-  float rL;					// one parameter which determines scale factor for .cosmo data
-  int   np;   			// one parameter which determines scale factor for .cosmo data
+	int   n;		 // if you want a fraction of the file to load, set this.. 1/n
+  float xscal; // scale factor for linking length
 
   int   numOfHalos;     		// total number of halos
   int   numOfHaloParticles; // total number of particles in halos
 
 	Point lBoundS, uBoundS; // lower & upper bounds of the entire space
 
-  thrust::device_vector<float>  inputX, inputY, inputZ;	// positions for each particle
-  thrust::device_vector<int>    haloIndex;	  			    // halo indices for each particle
-  thrust::device_vector<int>    haloIndexUnique;        // unique halo indexes
+	thrust::device_vector<Node>  nodes; 		// leaf nodes of merge tree
+  thrust::device_vector<Node>  nodesTmp1; // parent nodes of merge tree
+
+  thrust::device_vector<int>    index;	
+  thrust::device_vector<float>  inputX, inputY, inputZ;	    // positions for each particle
+  thrust::device_vector<int>    haloIndex;	  			        // halo indices for each particle
+  thrust::device_vector<int>    haloIndexUnique;            // unique halo indexes
   thrust::device_vector<float>  haloColorsR, haloColorsG, haloColorsB; // colors for each halo
 
+	// stores stats of each halos
+	thrust::device_vector<int>    haloCount;
+  thrust::device_vector<float>  haloVX, haloVY, haloVZ;    
+  thrust::device_vector<float>  haloX, haloY, haloZ; 
+
 	// stores details about just the particles which belong to halos
-	thrust::device_vector<int>    haloIndex_f;	  			      
+	thrust::device_vector<int>    haloIndex_f;	  			
+	thrust::device_vector<float>  inputM_f;	      
   thrust::device_vector<float>  inputX_f, inputY_f, inputZ_f;    
+  thrust::device_vector<float>  inputVX_f, inputVY_f, inputVZ_f;    
+
+	std::vector<int>   vecI;
+	std::vector<float> vecM;
+	std::vector<Point> vec, vecV;
 
   // variables needed to create random numbers
   thrust::default_random_engine rng;
   thrust::uniform_real_distribution<float> u01;
+
+	halo(int, int) {}
 
   halo(std::string filename="", std::string format=".cosmo", int n=1, int np=1, float rL=-1)
   {
     u01 = thrust::uniform_real_distribution<float>(0.0f, 1.0f);
 
 		this->n    		 = n;
-    this->rL       = rL;
-    this->np       = np;
+
+		// scale amount for particles
+	  if(rL==-1) xscal = 1;
+	  else       xscal = rL / (1.0*np);
 
     if(!readHaloFile(filename, format))
     {			
@@ -157,11 +197,67 @@ public:
   {
     // check filename
     if(filename == "") { std::cout << "no input file specified \n"; return false; }
+		if(format == "hcosmo") return readHCosmoFile(filename, format);
 		if(format == "cosmo")  return readCosmoFile(filename, format);
     if(format == "csv")    return readCsvFile(filename, format);   
 
     return false;
   }
+
+	// read a .hcosmo file and load the data to inputX, inputY & inputZ
+	bool readHCosmoFile(std::string filename, std::string format)
+	{
+		// open .hcosmo file
+		std::ifstream *myfile = new std::ifstream((filename+"."+format).c_str(), std::ios::in);
+		if (!myfile->is_open()) { std::cout << "File: " << filename << "." << format << " cannot be opened \n"; return false; }
+		
+		int nfloat = 7, nint = 1;
+
+		// compute the number of particles
+		myfile->seekg(0L, std::ios::end);
+		numOfParticles = myfile->tellg() / (nfloat*sizeof(float)+nint*sizeof(long)); // get particle size in file
+
+		// get the fraction wanted
+		numOfParticles = numOfParticles / n; 
+
+		// rewind file to beginning for particle reads
+		myfile->seekg(0L, std::ios::beg);
+
+		// declare temporary read buffers
+		float fBlock[nfloat];
+		long iBlock[nint];
+
+		for (int i=0; i<numOfParticles; i++)
+		{
+			// Set file pointer to the requested particle
+			myfile->read(reinterpret_cast<char*>(fBlock), nfloat * sizeof(float));
+			if (myfile->gcount() != (int)(nfloat * sizeof(float))) {
+				std::cout << "Premature end-of-file" << std::endl;
+				return false;
+			}
+
+			myfile->read(reinterpret_cast<char*>(iBlock), nint * sizeof(long));
+			if (myfile->gcount() != (int)(nint * sizeof(long))) {
+				std::cout << "Premature end-of-file" << std::endl;
+				return false;
+			}
+	
+			vec.push_back(Point(fBlock[0], fBlock[2], fBlock[4]));
+			vecV.push_back(Point(fBlock[1], fBlock[3], fBlock[5]));
+			vecM.push_back(fBlock[6]);
+			vecI.push_back(fBlock[7]);
+		}	
+
+		n = 1;	
+
+		// write to .cosmo file & read from that
+		writeToCosmoFile(filename, "cosmo");
+		readCosmoFile(filename, "cosmo");  
+
+		vecM.clear();	 vec.clear();	vecV.clear();
+
+		return true;
+	}
 
   // read a .cosmo file and load the data to inputX, inputY & inputZ
 	bool readCosmoFile(std::string filename, std::string format)
@@ -169,10 +265,12 @@ public:
 		// open .cosmo file
 		std::ifstream *myfile = new std::ifstream((filename+"."+format).c_str(), std::ios::in);
 		if (!myfile->is_open()) { std::cout << "File: " << filename << "." << format << " cannot be opened \n"; return false; }
+
+		int nfloat = 7, nint = 1;
 		
 		// compute the number of particles
 		myfile->seekg(0L, std::ios::end);
-		numOfParticles = myfile->tellg() / 32;  // get particle size in file
+		numOfParticles = myfile->tellg() / 32; // get particle size in file
 
 		// get the fraction wanted
 		numOfParticles = numOfParticles / n; 
@@ -182,49 +280,32 @@ public:
 		inputY.resize(numOfParticles);
 		inputZ.resize(numOfParticles);
 
-		// scale amount for particles
-    float xscal;
-    if(rL==-1) xscal = 1;
-    else       xscal = rL / (1.0*np);
-
 		// rewind file to beginning for particle reads
 		myfile->seekg(0L, std::ios::beg);
 
 		// declare temporary read buffers
-		int nfloat = 7, nint = 1;
 		float fBlock[nfloat];
 		int iBlock[nint];
 
 		for (int i=0; i<numOfParticles; i++)
 		{
 			// Set file pointer to the requested particle
-			myfile->read((char *)fBlock, nfloat * sizeof(float));
+			myfile->read(reinterpret_cast<char*>(fBlock), nfloat * sizeof(float));
 
 			if (myfile->gcount() != (int)(nfloat * sizeof(float))) {
 				std::cout << "Premature end-of-file" << std::endl;
 				return false;
 			}
 
-			myfile->read((char *)iBlock, nint * sizeof(int));
+			myfile->read(reinterpret_cast<char*>(iBlock), nint * sizeof(int));
 			if (myfile->gcount() != (int)(nint * sizeof(int))) {
 				std::cout << "Premature end-of-file" << std::endl;
 				return false;
 			}
-/*
-			// These files are always little-endian
-			vtkByteSwap::Swap4LERange(fBlock, nfloat);
-			vtkByteSwap::Swap4LERange(iBlock, nint);
 
-			// sanity check
-
-			if (fBlock[0] > rL || fBlock[2] > rL || fBlock[4] > rL) {
-				std::cout << "rL is too small" << std::endl;
-				exit (-1);
-			}
-*/
-			inputX[i] = fBlock[0] / xscal;
-			inputY[i] = fBlock[2] / xscal;
-			inputZ[i] = fBlock[4] / xscal;
+			inputX[i] = fBlock[0];
+			inputY[i] = fBlock[2];
+			inputZ[i] = fBlock[4];
 		}
 
 		// get bounds of the space
@@ -242,19 +323,17 @@ public:
   // read a .csv file and write it to .cosmo format & read it from that
   bool readCsvFile(std::string filename, std::string format)
   {
-		std::vector<Point> vec;
-
-		if(!readFromCsvFile(filename, format, vec)) return false;
+		if(!readFromCsvFile(filename, format)) return false;
 
 		// write to .cosmo file & read from that
-		writeToCosmoFile(filename, "cosmo", vec);
+		writeToCosmoFile(filename, "cosmo");
 		readCosmoFile(filename, "cosmo");  
 
     return true;
   }
 
 	// read a .csv file & add particle info to a vector
-	bool readFromCsvFile(std::string filename, std::string format, std::vector<Point> &vec)
+	bool readFromCsvFile(std::string filename, std::string format)
 	{
 		// open .csv file
 		std::ifstream *myfile = new std::ifstream((filename+"."+format).c_str(), std::ios::in);
@@ -276,6 +355,8 @@ public:
 			float z = atof(strtok(NULL, ","));
 			
 			vec.push_back(Point(x,y,z)); // add to vector
+			vecV.push_back(Point(0,0,0));
+			vecM.push_back(1);
 		}
 		myfile->close();
 
@@ -290,9 +371,7 @@ public:
 		uBoundS = Point(11.2, 11.2, 11.2);
 
 		int nX=16, nY=16, nZ=16;
-		numOfParticles = nX*nY*nZ;
-
-		std::vector<Point> vec;
+		numOfParticles = nX*nY*nZ;		
 
 		double startX=lBoundS.x;	double stepX=(uBoundS.x-lBoundS.x)/(nX-1);
 		double startY=lBoundS.y;	double stepY=(uBoundS.y-lBoundS.y)/(nY-1);
@@ -308,7 +387,10 @@ public:
 					float y = (float)(startY+stepY*yy);	
 					float z = (float)(startZ+stepZ*zz);
 
-					vec.push_back(Point(x,y,z)); // add to vector
+					// add to vector
+					vec.push_back(Point(x,y,z)); 
+					vecV.push_back(Point(0,0,0));
+					vecM.push_back(1);
 				}
 			}
 		}			 
@@ -316,7 +398,7 @@ public:
 		std::cout << "UniformData generated \n";
 		
 		// write to .cosmo file & read from that
-		writeToCosmoFile(convertInt(numOfParticles), "cosmo", vec);
+		writeToCosmoFile(convertInt(numOfParticles), "cosmo");
 		readCosmoFile(convertInt(numOfParticles), "cosmo");  
 	}
 
@@ -329,19 +411,12 @@ public:
 		u = thrust::uniform_real_distribution<float>(-0.5f, 0.5f);
 
 		// set the input file information
-		int rL_prev = rL; // rL is used to scale the input data at read time
-    this->rL    = -1; // rL set to -1, so that data is not scaled
 		readHaloFile("/home/wathsy/Cosmo/PISTONSampleData/sub-24474", "cosmo");
 
-    this->rL = rL_prev; // reset to the original rL value
-
 		int num = 1;
-
-		std::vector<Point> vec;		
+	
 		for(int i=0; i<numOfParticles; i++)
 		{
-			vec.push_back(Point(inputX[i],inputY[i],inputZ[i]));		
-
 			for(int j=1; j<num; j++)
 			{
 				float x = (float)(inputX[i] + u(rng));	
@@ -352,7 +427,10 @@ public:
 				while(y<lBoundS.y || y>uBoundS.y) y = (float)(inputY[i] + u(rng));	
 				while(z<lBoundS.z || z>uBoundS.z) z = (float)(inputZ[i] + u(rng));
 
-				vec.push_back(Point(x,y,z)); // add to vector		
+				// add to vector
+				vec.push_back(Point(x,y,z));
+				vecV.push_back(vecV.at(i));
+				vecM.push_back(vecM.at(i));
 			}
 		}
 
@@ -361,12 +439,12 @@ public:
 		std::cout << "Non UniformData generated \n";
 
 		// write to .cosmo file & read from that
-		writeToCosmoFile(convertInt(numOfParticles), "cosmo", vec);
+		writeToCosmoFile(convertInt(numOfParticles), "cosmo");
 		readCosmoFile(convertInt(numOfParticles), "cosmo"); 
 	}	
 
 	// write data to .cosmo file format
-	bool writeToCosmoFile(std::string filename, std::string format,  std::vector<Point> &vec)
+	bool writeToCosmoFile(std::string filename, std::string format)
 	{
 		// declare temporary read buffers
 		int nfloat = 7, nint = 1;
@@ -379,20 +457,18 @@ public:
 
 		for(int i=0; i<vec.size(); i++)
 		{
-			fBlock[0] = vec.at(i).x;	fBlock[1] = 0.0f; // x & vx
-			fBlock[2] = vec.at(i).y;	fBlock[3] = 0.0f; // y & vy
-			fBlock[4] = vec.at(i).z;	fBlock[5] = 0.0f; // z & vz
-			fBlock[6] = 1.0f; // mass
+			fBlock[0] = vec.at(i).x;	fBlock[1] = vecV.at(i).x; // x & vx
+			fBlock[2] = vec.at(i).y;	fBlock[3] = vecV.at(i).y; // y & vy
+			fBlock[4] = vec.at(i).z;	fBlock[5] = vecV.at(i).z; // z & vz
+			fBlock[6] = vecM.at(i); // mass
 
 			iBlock[0] = i; // tag
 
 			// write to file
-		  outStream->write(reinterpret_cast<const char*>(fBlock), 
-		                       nfloat * sizeof(float));
-		  outStream->write(reinterpret_cast<const char*>(iBlock),
-		                       nint * sizeof(int));
+		  outStream->write(reinterpret_cast<const char*>(fBlock), nfloat * sizeof(float));
+		  outStream->write(reinterpret_cast<const char*>(iBlock), nint * sizeof(int));
 		}
-		outStream->close();
+		outStream->close(); 
 
 		return true;
 	}
@@ -437,6 +513,52 @@ public:
 		uBoundS = Point(*result1.second, *result2.second, *result3.second);
 	}
 
+	// get the index in haloIndexUnique for a halo i
+  int getHaloInd(int i, bool useF=false)
+  {
+		int id = (useF) ? haloIndex_f[i] : haloIndex[i];
+    IntIterator ite = thrust::find(haloIndexUnique.begin(), haloIndexUnique.begin()+numOfHalos, id);		
+    return (ite!=haloIndexUnique.begin()+numOfHalos) ? ite - haloIndexUnique.begin() : -1;
+  }
+
+  // return a vector with N random values in the range [min,max)
+  thrust::host_vector<float> random_vector(const size_t N, float max, float min)
+  {
+    thrust::host_vector<float> tmp(N);
+    for(size_t i = 0; i < N; i++) tmp[i] = (u01(rng)*(max-min) + min);
+    return tmp;
+  }
+
+  // clear vectors & variables
+  void clear()
+  {
+    haloIndex.clear();
+    haloIndexUnique.clear();
+
+    haloColorsR.clear();
+    haloColorsG.clear();
+    haloColorsB.clear();
+
+    numOfHalos = 0;
+    
+    haloIndex.resize(numOfParticles);
+		thrust::copy(CountingIterator(0), CountingIterator(0)+numOfParticles, haloIndex.begin());
+  }
+
+  // set colors to halos
+  void setColors()
+  {
+    // set color range
+    float minrangeC = 0.1;
+    float maxrangeC = 1;
+
+    // for each halo, set unique colors
+    u01 = thrust::uniform_real_distribution<float>(0.0f, 1.0f);
+    haloColorsR = random_vector(numOfHalos, maxrangeC, minrangeC);
+    haloColorsG = random_vector(numOfHalos, maxrangeC, minrangeC);
+    haloColorsB = random_vector(numOfHalos, maxrangeC, minrangeC);
+  }
+
   // get start of vertices
   Float3zipIterator vertices_begin()
   {
@@ -448,6 +570,18 @@ public:
   {
     return thrust::make_zip_iterator(thrust::make_tuple(inputX.end(), inputY.end(), inputZ.end()));
   }
+
+	// get start of vertices
+	NodeIterator nodevertices_begin()
+	{
+		return nodes.begin();
+	}
+
+	// get end of vertices
+	NodeIterator nodevertices_end()
+	{
+		return nodes.end();
+	}
 
 	// get start of vertices_f 
   Float3zipIterator vertices_begin_f()
@@ -491,52 +625,17 @@ public:
     return thrust::make_tuple(haloColorsR[i], haloColorsG[i], haloColorsB[i]);
   }
 
-  // get the index in haloIndexUnique for a halo i
-  int getHaloInd(int i, bool useF=false)
-  {
-		int id = (useF) ? haloIndex_f[i] : haloIndex[i];
-    IntIterator ite = thrust::find(haloIndexUnique.begin(), haloIndexUnique.begin()+numOfHalos, id);		
-    return (ite!=haloIndexUnique.begin()+numOfHalos) ? ite - haloIndexUnique.begin() : -1;
-  }
+	// return haloIndex vector
+  thrust::device_vector<int> getHalos()
+	{
+  	return haloIndex;
+	}
 
-  // return a vector with N random values in the range [min,max)
-  thrust::host_vector<float> random_vector(const size_t N, float max, float min)
-  {
-    thrust::host_vector<float> tmp(N);
-    for(size_t i = 0; i < N; i++) tmp[i] = (u01(rng)*(max-min) + min);
-    return tmp;
-  }
-
-  // clear vectors & variables
-  void clear()
-  {
-    haloIndex.clear();
-    haloIndexUnique.clear();
-
-    haloColorsR.clear();
-    haloColorsG.clear();
-    haloColorsB.clear();
-
-    numOfHalos = 0;
-    numOfParticles = inputX.size();
-
-    haloIndex.resize(numOfParticles);
-		thrust::copy(CountingIterator(0), CountingIterator(0)+numOfParticles, haloIndex.begin());
-  }
-
-  // set colors to halos
-  void setColors()
-  {
-    // set color range
-    float minrangeC = 0.1;
-    float maxrangeC = 1;
-
-    // for each halo, set unique colors
-    u01 = thrust::uniform_real_distribution<float>(0.0f, 1.0f);
-    haloColorsR = random_vector(numOfHalos, maxrangeC, minrangeC);
-    haloColorsG = random_vector(numOfHalos, maxrangeC, minrangeC);
-    haloColorsB = random_vector(numOfHalos, maxrangeC, minrangeC);
-  }
+	// return haloIndex vector
+  thrust::device_vector<int> getIndex()
+	{
+  	return index;
+	}
 
   // get unique halo ids & numOfHalos
   void getUniqueHalos(int particleSize)
@@ -600,12 +699,6 @@ public:
     __host__ __device__
     bool operator()(int i) { return i < particleSize; }
   };
-
-	// return haloIndex vector
-  thrust::device_vector<int> getHalos()
-	{
-  	return haloIndex;
-	}
 };
 
 }

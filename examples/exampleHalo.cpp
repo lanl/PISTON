@@ -27,9 +27,9 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 
 int main(int argc, char *argv[])
 {
-		if (argc < 7)
+		if (argc < 10)
 		{
-			std::cout << "Usage: haloMergeTreeGPU filename format min_ll max_ll min_pz max_pz OR haloMergeTreeOMP filename format min_ll max_ll min_pz max_pz" << std::endl;
+			std::cout << "Usage: haloMergeTreeGPU filename format min_ll max_ll min_pz max_pz np rL n OR haloMergeTreeOMP filename format min_ll max_ll min_pz max_pz np rL n" << std::endl;
 			return 1;
 		}
 
