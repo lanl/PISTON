@@ -282,8 +282,8 @@ void GLWindowHalo::paintGL()
 		vertices.resize(haloFinder->numOfHaloParticles);
 		colors.resize(haloFinder->numOfHaloParticles);
 
-		thrust::copy(thrust::make_transform_iterator(haloFinder->vertices_begin_f(), tuple2float3()),
-		             thrust::make_transform_iterator(haloFinder->vertices_end_f(),   tuple2float3()),
+		thrust::copy(thrust::make_transform_iterator(haloFinder->vertices_begin_f(), tuple2float3(xscal)),
+		             thrust::make_transform_iterator(haloFinder->vertices_end_f(),   tuple2float3(xscal)),
 		             vertices.begin());
 
 
