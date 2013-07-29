@@ -257,7 +257,9 @@ void GLWindowHalo::paintGL()
 		             thrust::make_transform_iterator(haloFinder->vertices_end_f(),   tuple2float3()),
 		             vertices.begin());
 
+
 		haloIndexInU.resize(haloFinder->numOfHaloParticles);
+
 		thrust::for_each(CountingIterator(0), CountingIterator(0)+haloFinder->numOfHaloParticles,
 		                 setHaloIdInU(thrust::raw_pointer_cast(&*haloFinder->halos_begin_f()),
 		                              thrust::raw_pointer_cast(&*haloFinder->haloIndexUnique.begin()),
@@ -270,7 +272,6 @@ void GLWindowHalo::paintGL()
 		                          thrust::raw_pointer_cast(&*haloFinder->haloColorsR.begin()),
 		                          thrust::raw_pointer_cast(&*haloFinder->haloColorsG.begin()),
 		                          thrust::raw_pointer_cast(&*haloFinder->haloColorsB.begin())));
-
   }
   else
   {

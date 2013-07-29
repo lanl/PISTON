@@ -203,10 +203,10 @@ void GLWindow::paintGL()
       if (haloFound && haloShow)
       {
         int haloIndU  = haloFinder->getHaloInd(count++);
-	if(haloIndU==-1) continue;
+				if(haloIndU==-1) continue;
 
-	Float3 color  = haloFinder->getColor(haloIndU);
-	glColor3f(thrust::get<0>(color), thrust::get<1>(color), thrust::get<2>(color));
+				Float3 color  = haloFinder->getColor(haloIndU);
+				glColor3f(thrust::get<0>(color), thrust::get<1>(color), thrust::get<2>(color));
       }
       glVertex3f(thrust::get<0>(vertex), thrust::get<1>(vertex), thrust::get<2>(vertex));
     }
