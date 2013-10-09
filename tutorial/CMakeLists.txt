@@ -48,4 +48,4 @@ set_target_properties(tutorial3OMP PROPERTIES COMPILE_FLAGS "-fopenmp -DTHRUST_D
 target_link_libraries(tutorial3OMP pthread gomp)
 
 
-
+add_subdirectory(NMSCC13)
