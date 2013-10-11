@@ -91,7 +91,7 @@ int main(void)
     std::for_each(input_iter, input_iter+length, print_integer(4));
     std::cout << std::endl;
 
-    pause();
+    my_pause();
 
     // Loop until we have eliminated all non-primes from the vector
     while (length > primes_found) {
@@ -109,7 +109,7 @@ int main(void)
         std::for_each(output_iter, last_iter, print_integer(4));
         std::cout << std::endl;
 
-        pause();
+        my_pause();
 
         // Swap the input and output iterators (pointers) so that the next
         // loop iteration will use the output of this iteration as its input

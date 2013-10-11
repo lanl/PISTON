@@ -95,7 +95,7 @@ main()
     std::for_each(x.begin(), x.end(), print_float(6));
     std::cout << std::endl;
 
-    pause();
+    my_pause();
 
     // allocate a vector for f(x_i) = y_i = x_i^2.
     thrust::device_vector<float> y(N+1);
@@ -110,7 +110,7 @@ main()
     std::for_each(y.begin(), y.end(), print_float(6));
     std::cout << std::endl;
 
-    pause();
+    my_pause();
 
     // allocate a vector for f(x_i) * dx = y_i * dx
     thrust::device_vector<float> y_dx(N+1);
@@ -125,7 +125,7 @@ main()
     std::for_each(y_dx.begin(), y_dx.end(), print_float(6));
     std::cout << std::endl;
 
-    pause();
+    my_pause();
 
     // summing all the y_i * dx ~= integrate(f(x), x, 0, 1);
     float integral = thrust::reduce(y_dx.begin(), y_dx.end());

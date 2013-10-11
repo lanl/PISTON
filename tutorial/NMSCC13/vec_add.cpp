@@ -69,7 +69,7 @@ main()
     std::for_each(x.begin(), x.end(), print_integer(4));
     std::cout << std::endl;
 
-    pause();
+    my_pause();
 
     // initialize vector y with a sequence of numbers starting from 5 with 2
     // as increment step.
@@ -79,7 +79,7 @@ main()
     std::for_each(y.begin(), y.end(), print_integer(4));
     std::cout << std::endl;
 
-    pause();
+    my_pause();
 
     // allocate a device vector for the result of the addition of the two
     // vectors. the content of the vector is not initialized.

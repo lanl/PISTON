@@ -36,7 +36,7 @@ private:
     int w;
 };
 
-void pause()
+void my_pause()
 {
     // pause for user to hit enter.
     std::cin.get();
