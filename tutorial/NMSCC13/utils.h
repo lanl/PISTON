@@ -22,7 +22,7 @@ private:
     int w;
 };
 
-// functor to print integer with certain width
+// functor to print float with certain width
 struct print_float
 {
     print_float(int width) : w(width) {}
