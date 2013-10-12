@@ -53,6 +53,7 @@
 #include <thrust/host_vector.h>
 #include <thrust/sequence.h>
 #include <thrust/transform.h>
+#include <thrust/iterator/constant_iterator.h>
 
 #include "utils.h"
 
@@ -112,6 +113,15 @@ main()
 
     my_pause();
 
+    // print the constant dx
+    std::cout << "dx:\t\t";
+    std::for_each(thrust::constant_iterator<float>(dx),
+                  thrust::constant_iterator<float>(dx)+N+1,
+                  print_float(6));
+    std::cout << std::endl;
+
+    my_pause();
+
     // allocate a vector for f(x_i) * dx = y_i * dx
     thrust::device_vector<float> y_dx(N+1);
 
@@ -121,7 +131,7 @@ main()
                       multiply_dx());
 
     // print y_i * dx;
-    std::cout << "y_i * dx:\t";
+    std::cout << "y * dx:\t\t";
     std::for_each(y_dx.begin(), y_dx.end(), print_float(6));
     std::cout << std::endl;
 
@@ -130,5 +140,5 @@ main()
     // summing all the y_i * dx ~= integrate(f(x), x, 0, 1);
     float integral = thrust::reduce(y_dx.begin(), y_dx.end());
 
-    std::cout << "int(x^2, 0, 1): " << integral << std::endl;
+    std::cout << "reduce(y * dx, +): " << integral << std::endl;
 }

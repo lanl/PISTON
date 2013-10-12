@@ -97,7 +97,7 @@ main()
     thrust::copy(result.begin(), result.end(),
                  h_result.begin());
 
-    std::cout << "x + y:\t";
+    std::cout << "transform: x + y:\t";
     std::for_each(h_result.begin(), h_result.end(), print_integer(4));
     std::cout << std::endl;
 }

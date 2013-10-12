@@ -54,6 +54,7 @@
 #include <thrust/sequence.h>
 #include <thrust/transform.h>
 #include <thrust/scan.h>
+#include <thrust/iterator/constant_iterator.h>
 
 #include "utils.h"
 
@@ -121,6 +122,15 @@ main()
                       y_dx.begin(),
                       multiply_dx());
 
+    // print the constant dx
+    std::cout << "dx:\t\t";
+    std::for_each(thrust::constant_iterator<float>(dx),
+                  thrust::constant_iterator<float>(dx)+N+1,
+                  print_float(6));
+    std::cout << std::endl;
+
+    my_pause();
+    
     // print y_i * dx;
     std::cout << "y_i * dx:\t";
     std::for_each(y_dx.begin(), y_dx.end(), print_float(6));
@@ -135,7 +145,7 @@ main()
     thrust::inclusive_scan(y_dx.begin(), y_dx.end(),
                            F.begin());
 
-    std::cout << "F(t):\t\t";
+    std::cout << "scan(y * dx, +):";
     std::for_each(F.begin(), F.end(), print_float(6));
     std::cout << std::endl;
 }
