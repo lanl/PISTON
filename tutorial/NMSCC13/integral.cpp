@@ -73,15 +73,6 @@ struct square : public thrust::unary_function<float, float>
     }
 };
 
-struct multiply_dx : public thrust::unary_function<float, float>
-{
-    __host__ __device__
-    float
-    operator() (float y) const {
-	return y * dx;
-    }
-};
-
 int
 main()
 {
@@ -127,8 +118,9 @@ main()
 
     // multiply f(x_i) by dx => y_i * dx
     thrust::transform(y.begin(), y.end(),
+                      thrust::constant_iterator<float>(dx),
                       y_dx.begin(),
-                      multiply_dx());
+                      thrust::multiplies<float>());
 
     // print y_i * dx;
     std::cout << "y * dx:\t\t";
